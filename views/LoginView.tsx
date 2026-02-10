@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Lock, User, Sparkles, Heart, Eye, EyeOff, UserPlus, LogIn, ArrowLeft, Send, CheckCircle2 } from 'lucide-react';
 
 interface LoginViewProps {
-  onLogin: () => void;
+  onLogin: (userEmail: string) => void;
 }
 
 type ViewMode = 'login' | 'register' | 'forgot-password';
@@ -41,14 +41,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       const user = users.find((u: any) => u.email === email && u.password === password);
       
       if (user || (email === 'admin' && password === 'admin')) {
-        onLogin();
+        localStorage.setItem('precifica_current_user', email);
+        onLogin(email);
       } else {
         alert('E-mail ou senha incorretos!');
       }
     } else if (viewMode === 'forgot-password') {
       const user = users.find((u: any) => u.email === email);
       if (user || email === 'admin') {
-        // Simulação de envio de e-mail
         setResetSent(true);
       } else {
         alert('E-mail não encontrado em nossa base de dados!');
@@ -63,7 +63,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen bg-[#fffcf5] flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Background blobs for aesthetic */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-pink-200/20 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-200/20 rounded-full blur-[100px] pointer-events-none" />
 
