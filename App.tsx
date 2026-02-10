@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -13,7 +13,9 @@ import {
   Sparkles,
   Wallet2,
   LogOut,
-  RefreshCw
+  RefreshCw,
+  Loader2,
+  CheckCircle2
 } from 'lucide-react';
 import { Dashboard } from './views/Dashboard';
 import { Inventory } from './views/Inventory';
@@ -39,11 +41,9 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isBackupSyncing, setIsBackupSyncing] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Helper para gerar chaves de localStorage específicas do usuário
-  const getUserKey = (key: string) => currentUser ? `${currentUser}_${key}` : `guest_${key}`;
-
-  // Carregamento de estados com isolamento restrito por usuário
+  // Estados principais da aplicação
   const [companyData, setCompanyData] = useState<CompanyData>(() => {
     const userEmail = localStorage.getItem('precifica_current_user');
     if (!userEmail) return INITIAL_COMPANY_DATA;
@@ -114,37 +114,40 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência'];
   });
 
-  // Atualiza os dados apenas do usuário logado E cria backup automático
+  // Função mestre para salvar dados (pode ser chamada manualmente no logout)
+  const saveAllData = useCallback((targetUser: string) => {
+    const dataToSave = {
+      companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods
+    };
+
+    localStorage.setItem(`${targetUser}_craft_company`, JSON.stringify(companyData));
+    localStorage.setItem(`${targetUser}_craft_materials`, JSON.stringify(materials));
+    localStorage.setItem(`${targetUser}_craft_customers`, JSON.stringify(customers));
+    localStorage.setItem(`${targetUser}_craft_platforms`, JSON.stringify(platforms));
+    localStorage.setItem(`${targetUser}_craft_projects`, JSON.stringify(projects));
+    localStorage.setItem(`${targetUser}_craft_products`, JSON.stringify(products));
+    localStorage.setItem(`${targetUser}_craft_transactions`, JSON.stringify(transactions));
+    localStorage.setItem(`${targetUser}_craft_prod_categories`, JSON.stringify(productCategories));
+    localStorage.setItem(`${targetUser}_craft_trans_categories`, JSON.stringify(transactionCategories));
+    localStorage.setItem(`${targetUser}_craft_pay_methods`, JSON.stringify(paymentMethods));
+
+    // Snapshot de segurança
+    const snapshot = {
+      timestamp: new Date().toISOString(),
+      data: dataToSave
+    };
+    localStorage.setItem(`${targetUser}_system_snapshot`, JSON.stringify(snapshot));
+  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods]);
+
+  // Efeito de Auto-Save em tempo real
   useEffect(() => {
-    if (isAuthenticated && currentUser) {
-      const dataToSave = {
-        companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods
-      };
-
-      // Salvamento Principal
-      localStorage.setItem(`${currentUser}_craft_company`, JSON.stringify(companyData));
-      localStorage.setItem(`${currentUser}_craft_materials`, JSON.stringify(materials));
-      localStorage.setItem(`${currentUser}_craft_customers`, JSON.stringify(customers));
-      localStorage.setItem(`${currentUser}_craft_platforms`, JSON.stringify(platforms));
-      localStorage.setItem(`${currentUser}_craft_projects`, JSON.stringify(projects));
-      localStorage.setItem(`${currentUser}_craft_products`, JSON.stringify(products));
-      localStorage.setItem(`${currentUser}_craft_transactions`, JSON.stringify(transactions));
-      localStorage.setItem(`${currentUser}_craft_prod_categories`, JSON.stringify(productCategories));
-      localStorage.setItem(`${currentUser}_craft_trans_categories`, JSON.stringify(transactionCategories));
-      localStorage.setItem(`${currentUser}_craft_pay_methods`, JSON.stringify(paymentMethods));
-
-      // Sistema de Auto-Backup (Snapshot Interno)
+    if (isAuthenticated && currentUser && !isLoggingOut) {
       setIsBackupSyncing(true);
-      const snapshot = {
-        timestamp: new Date().toISOString(),
-        data: dataToSave
-      };
-      localStorage.setItem(`${currentUser}_system_snapshot`, JSON.stringify(snapshot));
-      
+      saveAllData(currentUser);
       const timeout = setTimeout(() => setIsBackupSyncing(false), 800);
       return () => clearTimeout(timeout);
     }
-  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, isAuthenticated, currentUser]);
+  }, [saveAllData, isAuthenticated, currentUser, isLoggingOut]);
 
   const handleLogin = (userEmail: string) => {
     setCurrentUser(userEmail);
@@ -154,13 +157,23 @@ const App: React.FC = () => {
     window.location.reload(); 
   };
 
-  const handleLogout = () => {
-    if (confirm('Deseja realmente sair do sistema?')) {
-      setIsAuthenticated(false);
-      localStorage.removeItem('precifica_session');
-      localStorage.removeItem('precifica_current_user');
-      setCurrentUser(null);
-      window.location.reload(); 
+  const handleLogout = async () => {
+    if (confirm('Deseja sair do sistema? Seus dados serão salvos agora.')) {
+      setIsLoggingOut(true);
+      
+      // Simulação de sincronização final para garantir que o usuário veja que salvou
+      if (currentUser) {
+        saveAllData(currentUser);
+      }
+
+      // Pequeno delay para feedback visual de "Salvando..."
+      setTimeout(() => {
+        setIsAuthenticated(false);
+        localStorage.removeItem('precifica_session');
+        localStorage.removeItem('precifica_current_user');
+        setCurrentUser(null);
+        window.location.reload(); 
+      }, 1200);
     }
   };
 
@@ -179,55 +192,30 @@ const App: React.FC = () => {
     return <LoginView onLogin={handleLogin} />;
   }
 
+  if (isLoggingOut) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center animate-fadeIn">
+         <div className="w-24 h-24 bg-pink-50 rounded-[2.5rem] flex items-center justify-center mb-6 shadow-xl shadow-pink-50">
+            <Loader2 className="text-pink-500 animate-spin" size={40} />
+         </div>
+         <h2 className="text-2xl font-black text-gray-800">Salvando tudo...</h2>
+         <p className="text-gray-400 font-medium mt-2 flex items-center gap-2">
+           <CheckCircle2 size={16} className="text-green-500" /> Seus dados estão seguros. Até breve!
+         </p>
+      </div>
+    );
+  }
+
   const renderView = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard projects={projects} customers={customers} materials={materials} companyData={companyData} platforms={platforms} transactions={transactions} />;
       case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} />;
-      case 'products': return <Products 
-        products={products} 
-        setProducts={setProducts} 
-        materials={materials} 
-        companyData={companyData} 
-        platforms={platforms}
-        productCategories={productCategories}
-        setProductCategories={setProductCategories}
-      />;
-      case 'customers': return <Customers 
-        customers={customers} 
-        setCustomers={setCustomers} 
-        projects={projects}
-        materials={materials}
-        platforms={platforms}
-        companyData={companyData}
-      />;
-      case 'pricing': return <PricingCalculator 
-        materials={materials} 
-        customers={customers} 
-        platforms={platforms} 
-        companyData={companyData} 
-        projects={projects}
-        products={products}
-        setProjects={setProjects}
-      />;
+      case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} />;
+      case 'customers': return <Customers customers={customers} setCustomers={setCustomers} projects={projects} materials={materials} platforms={platforms} companyData={companyData} />;
+      case 'pricing': return <PricingCalculator materials={materials} customers={customers} platforms={platforms} companyData={companyData} projects={projects} products={products} setProjects={setProjects} />;
       case 'schedule': return <Schedule projects={projects} setProjects={setProjects} customers={customers} materials={materials} platforms={platforms} companyData={companyData} />;
-      case 'finance': return <FinancialControl 
-        transactions={transactions} 
-        setTransactions={setTransactions} 
-        projects={projects} 
-        materials={materials} 
-        platforms={platforms} 
-        companyData={companyData} 
-        categories={transactionCategories}
-        setCategories={setTransactionCategories}
-        paymentMethods={paymentMethods}
-        setPaymentMethods={setPaymentMethods}
-      />;
-      case 'settings': return <SettingsView 
-        companyData={companyData} 
-        setCompanyData={setCompanyData} 
-        platforms={platforms} 
-        setPlatforms={setPlatforms} 
-      />;
+      case 'finance': return <FinancialControl transactions={transactions} setTransactions={setTransactions} projects={projects} materials={materials} platforms={platforms} companyData={companyData} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
+      case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} />;
       default: return <Dashboard projects={projects} customers={customers} materials={materials} companyData={companyData} platforms={platforms} transactions={transactions} />;
     }
   };
@@ -264,11 +252,12 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-pink-50 space-y-2">
-          {/* Indicador de Auto-Backup */}
           {isSidebarOpen && (
             <div className="flex items-center gap-2 px-2 py-1 mb-2">
-              <RefreshCw size={10} className={`text-green-500 ${isBackupSyncing ? 'animate-spin' : ''}`} />
-              <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Backup Sincronizado</span>
+              <RefreshCw size={10} className={`text-green-500 ${isBackupSyncing ? 'animate-spin' : 'animate-pulse'}`} />
+              <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">
+                {isBackupSyncing ? 'Sincronizando...' : 'Backup Atualizado'}
+              </span>
             </div>
           )}
 
