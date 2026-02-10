@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, User } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -25,7 +25,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
   const getCustomerName = (id: string) => customers.find(c => c.id === id)?.name || 'Cliente Avulso';
 
   const statusLabels = {
-    pending: 'Aguardando Aprovação',
+    pending: 'Aguardando',
     approved: 'Aprovado',
     delayed: 'Atrasado',
     in_progress: 'Produzindo',
@@ -40,24 +40,20 @@ export const Schedule: React.FC<ScheduleProps> = ({
     completed: 'border-green-200 bg-green-50 text-green-700',
   };
 
-  const upcomingBirthdays = useMemo(() => {
-    const today = new Date();
-    const currentMonth = today.getMonth() + 1;
-    
-    return customers
-      .filter(c => {
-        if (!c.birthDate) return false;
-        const [_, month] = c.birthDate.split('-').map(Number);
-        return month === currentMonth;
-      })
-      .map(c => {
-        const [y, m, d] = c.birthDate.split('-').map(Number);
-        return { ...c, day: d };
-      })
-      .sort((a, b) => a.day - b.day);
-  }, [customers]);
-
+  const currentMonth = new Date().getMonth() + 1;
   const currentMonthName = new Date().toLocaleDateString('pt-BR', { month: 'long' });
+
+  const monthlyBirthdays = useMemo(() => {
+    return customers.filter(c => {
+      if (!c.birthDate) return false;
+      const [_, month] = c.birthDate.split('-').map(Number);
+      return month === currentMonth;
+    }).sort((a, b) => {
+      const dayA = parseInt(a.birthDate.split('-')[2]);
+      const dayB = parseInt(b.birthDate.split('-')[2]);
+      return dayA - dayB;
+    });
+  }, [customers, currentMonth]);
 
   return (
     <div className="space-y-10 animate-fadeIn pb-20">
@@ -67,33 +63,33 @@ export const Schedule: React.FC<ScheduleProps> = ({
           <p className="text-gray-400 font-medium">Acompanhe seus prazos e etapas do pedido.</p>
         </div>
         
-        {/* Birthday Widget */}
+        {/* Widget de Aniversariantes Inteligente */}
         <button 
-          onClick={() => upcomingBirthdays.length > 0 && setShowBirthdaysModal(true)}
-          className={`bg-pink-50 p-6 rounded-[2rem] border border-pink-100 flex items-center gap-6 min-w-[300px] shadow-sm transition-all text-left ${upcomingBirthdays.length > 0 ? 'hover:shadow-md hover:scale-105 active:scale-95' : 'cursor-default opacity-80'}`}
+          onClick={() => monthlyBirthdays.length > 0 && setShowBirthdaysModal(true)}
+          className={`bg-pink-50 p-6 rounded-[2rem] border border-pink-100 flex items-center gap-6 min-w-[300px] shadow-sm transition-all text-left ${monthlyBirthdays.length > 0 ? 'hover:shadow-md hover:scale-105' : 'cursor-default opacity-80'}`}
         >
-           <div className={`p-4 bg-pink-500 text-white rounded-2xl shadow-lg ${upcomingBirthdays.length > 0 ? 'animate-bounce' : ''}`}>
+           <div className={`p-4 bg-pink-500 text-white rounded-2xl shadow-lg ${monthlyBirthdays.length > 0 ? 'animate-bounce' : ''}`}>
               <Gift size={24} />
            </div>
            <div>
               <p className="text-[10px] font-black text-pink-400 uppercase tracking-[0.2em]">Aniversariantes de {currentMonthName}</p>
-              {upcomingBirthdays.length > 0 ? (
-                <div className="flex flex-col">
+              {monthlyBirthdays.length > 0 ? (
+                <div>
                   <p className="text-sm font-black text-gray-800">
-                    {upcomingBirthdays[0].name} ({upcomingBirthdays[0].day})
+                    {monthlyBirthdays[0].name} (Dia {monthlyBirthdays[0].birthDate.split('-')[2]})
                   </p>
-                  {upcomingBirthdays.length > 1 && (
-                    <span className="text-[10px] font-black text-pink-500 uppercase mt-0.5">+ {upcomingBirthdays.length - 1} outros (Ver todos)</span>
+                  {monthlyBirthdays.length > 1 && (
+                    <p className="text-[10px] font-black text-pink-500 uppercase mt-0.5">+ {monthlyBirthdays.length - 1} outros (Ver Todos)</p>
                   )}
                 </div>
               ) : (
-                <p className="text-sm font-bold text-gray-400">Ninguém este mês 🎈</p>
+                <p className="text-sm font-bold text-gray-400">Ninguém este mês🎈</p>
               )}
            </div>
         </button>
       </div>
 
-      {/* Grid horizontal scrollable on mobile */}
+      {/* Kanban Board */}
       <div className="flex gap-6 overflow-x-auto pb-6 -mx-4 px-4 xl:grid xl:grid-cols-5 xl:overflow-visible">
         {(['pending', 'approved', 'delayed', 'in_progress', 'completed'] as const).map(status => (
           <div key={status} className="flex flex-col gap-6 min-w-[280px] flex-shrink-0 xl:min-w-0">
@@ -108,98 +104,40 @@ export const Schedule: React.FC<ScheduleProps> = ({
               {projects.filter(p => p.status === status).map(project => {
                 const { finalPrice } = calculateProjectBreakdown(project, materials, platforms, companyData);
                 return (
-                  <div key={project.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl hover:scale-[1.01] transition-all group relative overflow-hidden flex flex-col">
-                    {status === 'completed' && (
-                      <div className="absolute top-0 right-0 p-2 bg-green-500 text-white rounded-bl-2xl">
-                        <CheckCircle size={12} />
-                      </div>
-                    )}
-                    {status === 'delayed' && (
-                      <div className="absolute top-0 right-0 p-2 bg-red-500 text-white rounded-bl-2xl animate-pulse">
-                        <AlertTriangle size={12} />
-                      </div>
-                    )}
-                    
+                  <div key={project.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group relative overflow-hidden flex flex-col">
                     <h4 className="font-black text-gray-800 text-base mb-1 truncate">{project.theme}</h4>
                     <p className="text-[10px] text-pink-500 font-black uppercase tracking-widest mb-4 truncate">{getCustomerName(project.customerId)}</p>
                     
                     <div className="grid grid-cols-1 gap-2 mb-6">
                       <div className="bg-gray-50/50 p-2 rounded-xl flex items-center gap-2 text-[10px] font-bold text-gray-500">
-                        <Clock size={12} className="text-blue-400" /> Produção: {project.hoursToMake}h
+                        <Clock size={12} className="text-blue-400" /> {project.hoursToMake}h prod.
                       </div>
-                      <div className={`bg-gray-50/50 p-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-tighter ${status === 'delayed' ? 'text-red-500 bg-red-50' : 'text-gray-500'}`}>
-                        <CalendarIcon size={12} className={status === 'delayed' ? 'text-red-400' : 'text-pink-400'} /> Entrega: {new Date(project.deliveryDate).toLocaleDateString('pt-BR')}
+                      <div className="bg-gray-50/50 p-2 rounded-xl flex items-center gap-2 text-[10px] font-bold text-gray-500">
+                        <CalendarIcon size={12} className="text-pink-400" /> {new Date(project.deliveryDate).toLocaleDateString('pt-BR')}
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between mb-6 pb-4 border-b border-dashed border-gray-100">
-                       <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Valor</span>
+                       <span className="text-[9px] font-black text-gray-300 uppercase">Valor</span>
                        <span className="text-base font-black text-blue-600">R$ {finalPrice.toFixed(2)}</span>
                     </div>
 
                     <div className="flex gap-2 mt-auto">
-                      {status === 'pending' && (
-                        <>
-                          <button 
-                            onClick={() => updateStatus(project.id, 'approved')}
-                            className="flex-1 py-3 bg-yellow-400 text-yellow-900 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-yellow-500 transition-all shadow-md shadow-yellow-50 flex items-center justify-center gap-1"
-                          >
-                            <MousePointer2 size={12} /> Aprovar
-                          </button>
-                          <button 
-                            onClick={() => updateStatus(project.id, 'delayed')}
-                            className="p-3 bg-red-100 text-red-500 rounded-2xl hover:bg-red-200 transition-all"
-                            title="Mover para Atrasado"
-                          >
-                            <AlertTriangle size={14} />
-                          </button>
-                        </>
-                      )}
-                      {status === 'approved' && (
-                        <>
-                          <button 
-                            onClick={() => updateStatus(project.id, 'in_progress')}
-                            className="flex-1 py-3 bg-blue-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md shadow-blue-50 flex items-center justify-center gap-1"
-                          >
-                            <PlayCircle size={12} /> Produzir
-                          </button>
-                          <button 
-                            onClick={() => updateStatus(project.id, 'delayed')}
-                            className="p-3 bg-red-100 text-red-500 rounded-2xl hover:bg-red-200 transition-all"
-                            title="Mover para Atrasado"
-                          >
-                            <AlertTriangle size={14} />
-                          </button>
-                        </>
-                      )}
-                      {status === 'delayed' && (
+                      {status !== 'completed' && (
                         <button 
-                          onClick={() => updateStatus(project.id, 'in_progress')}
-                          className="flex-1 py-3 bg-gray-800 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-gray-900 transition-all shadow-md flex items-center justify-center gap-1"
+                          onClick={() => {
+                            const next: Record<string, Project['status']> = {
+                              pending: 'approved',
+                              approved: 'in_progress',
+                              delayed: 'in_progress',
+                              in_progress: 'completed'
+                            };
+                            updateStatus(project.id, next[status]);
+                          }}
+                          className="flex-1 py-3 bg-blue-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all flex items-center justify-center gap-1"
                         >
-                          <PlayCircle size={12} /> Retomar Produção
+                          Avançar
                         </button>
-                      )}
-                      {status === 'in_progress' && (
-                        <>
-                          <button 
-                            onClick={() => updateStatus(project.id, 'completed')}
-                            className="flex-1 py-3 bg-green-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-md shadow-green-50 flex items-center justify-center gap-1"
-                          >
-                            <CheckCircle2 size={12} /> Finalizar
-                          </button>
-                          <button 
-                            onClick={() => updateStatus(project.id, 'delayed')}
-                            className="p-3 bg-red-100 text-red-500 rounded-2xl hover:bg-red-200 transition-all"
-                          >
-                            <AlertTriangle size={14} />
-                          </button>
-                        </>
-                      )}
-                      {status === 'completed' && (
-                        <div className="flex-1 py-3 text-center text-green-500 font-black text-[9px] uppercase tracking-[0.2em] bg-green-50 rounded-2xl">
-                          Finalizado ✓
-                        </div>
                       )}
                       <button 
                         onClick={() => {
@@ -215,67 +153,41 @@ export const Schedule: React.FC<ScheduleProps> = ({
                   </div>
                 );
               })}
-              {projects.filter(p => p.status === status).length === 0 && (
-                <div className="h-40 border-2 border-dashed border-gray-100 rounded-[2.5rem] flex flex-col items-center justify-center text-gray-300 gap-2">
-                   <AlertCircle size={20} className="opacity-10" />
-                   <span className="text-[9px] font-black uppercase tracking-widest opacity-40">Vazio</span>
-                </div>
-              )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Modal Aniversariantes do Mês */}
+      {/* Modal Aniversariantes */}
       {showBirthdaysModal && (
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-            <div className="bg-pink-500 p-8 text-white">
-              <button 
-                onClick={() => setShowBirthdaysModal(false)}
-                className="absolute top-6 right-6 p-2 bg-white/20 hover:bg-white/40 rounded-full transition-all"
-              >
+            <div className="bg-pink-500 p-8 text-white flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl font-black">Aniversariantes</h3>
+                <p className="text-pink-100 font-bold text-xs uppercase tracking-widest">{currentMonthName}</p>
+              </div>
+              <button onClick={() => setShowBirthdaysModal(false)} className="p-2 bg-white/20 hover:bg-white/40 rounded-full transition-all">
                 <X size={24} />
               </button>
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-white rounded-[1.5rem] flex items-center justify-center text-pink-500 shadow-xl">
-                  <Gift size={32} />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-black">Aniversariantes</h3>
-                  <p className="text-pink-100 font-bold text-xs uppercase tracking-widest">Calendário de {currentMonthName}</p>
-                </div>
-              </div>
             </div>
-
-            <div className="p-8 max-h-[60vh] overflow-y-auto custom-scrollbar space-y-4">
-              {upcomingBirthdays.map(customer => (
-                <div key={customer.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+            <div className="p-8 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              {monthlyBirthdays.map(c => (
+                <div key={c.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
                    <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-pink-100 text-pink-600 rounded-full flex items-center justify-center font-black">
-                         {customer.day}
+                         {c.birthDate.split('-')[2]}
                       </div>
                       <div>
-                         <p className="font-black text-gray-800">{customer.name}</p>
-                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                            {customer.phone || 'Sem telefone'}
-                         </p>
+                         <p className="font-black text-gray-800">{c.name}</p>
+                         <p className="text-[10px] font-bold text-gray-400 uppercase">{c.phone}</p>
                       </div>
-                   </div>
-                   <div className="p-3 bg-white text-pink-400 rounded-xl shadow-sm">
-                      <CalendarIcon size={18} />
                    </div>
                 </div>
               ))}
             </div>
-
             <div className="p-8 border-t border-gray-100 bg-white">
-               <button 
-                 onClick={() => setShowBirthdaysModal(false)}
-                 className="w-full py-4 bg-gray-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-gray-900 transition-all"
-               >
-                 Fechar Lista
-               </button>
+               <button onClick={() => setShowBirthdaysModal(false)} className="w-full py-4 bg-gray-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-gray-900 transition-all">Fechar</button>
             </div>
           </div>
         </div>

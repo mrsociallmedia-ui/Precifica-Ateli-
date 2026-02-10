@@ -12,7 +12,6 @@ import {
   Home, 
   ShoppingBag, 
   X, 
-  DollarSign, 
   CheckCircle2, 
   Clock,
   Edit3
@@ -113,7 +112,7 @@ export const Customers: React.FC<CustomersProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-gray-800 tracking-tight">Base de <span className="text-pink-500">Clientes</span></h2>
-          <p className="text-gray-400 font-medium">Gerencie contatos e datas especiais.</p>
+          <p className="text-gray-400 font-medium">Gerencie seus contatos e datas especiais.</p>
         </div>
         <button 
           onClick={handleOpenAdd}
@@ -178,9 +177,8 @@ export const Customers: React.FC<CustomersProps> = ({
                   <div className="flex flex-col">
                     <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Localização</span>
                     <span className="text-xs font-bold text-gray-500 leading-relaxed">
-                      {customer.address || 'Endereço não informado'}
+                      {customer.address || 'Não informado'}
                       {customer.neighborhood && <><br />{customer.neighborhood}</>}
-                      {customer.zipCode && <><br /><span className="text-gray-300">CEP: {customer.zipCode}</span></>}
                     </span>
                   </div>
                 </div>
@@ -190,7 +188,7 @@ export const Customers: React.FC<CustomersProps> = ({
                 onClick={() => setHistoryCustomer(customer)}
                 className="w-full mt-8 py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-xs uppercase tracking-[0.15em] hover:bg-pink-50 hover:text-pink-500 transition-all flex items-center justify-center gap-2"
               >
-                <ShoppingBag size={14} /> Histórico de Pedidos
+                <ShoppingBag size={14} /> Ver Pedidos
               </button>
             </div>
           );
@@ -225,23 +223,12 @@ export const Customers: React.FC<CustomersProps> = ({
               </div>
             </div>
 
-            <div className="p-8 bg-gray-50 border-b border-gray-100 grid grid-cols-2 gap-4">
-              <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-50">
-                 <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Total de Pedidos</p>
-                 <p className="text-2xl font-black text-gray-800">{customerOrders.length}</p>
-              </div>
-              <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-50">
-                 <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Investimento Total</p>
-                 <p className="text-2xl font-black text-blue-600">R$ {totalSpent.toFixed(2)}</p>
-              </div>
-            </div>
-
             <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar">
               {customerOrders.length > 0 ? (
                 customerOrders.map(proj => {
                   const { finalPrice } = calculateProjectBreakdown(proj, materials, platforms, companyData);
                   return (
-                    <div key={proj.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center justify-between group hover:border-pink-200 transition-all">
+                    <div key={proj.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className={`p-3 rounded-2xl ${proj.status === 'completed' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
                            {proj.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
@@ -255,30 +242,18 @@ export const Customers: React.FC<CustomersProps> = ({
                       </div>
                       <div className="text-right">
                          <p className="font-black text-lg text-gray-800">R$ {finalPrice.toFixed(2)}</p>
-                         <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
-                           proj.status === 'completed' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
-                         }`}>
-                           {proj.status === 'completed' ? 'Faturado' : 'Em Aberto'}
-                         </span>
                       </div>
                     </div>
                   );
                 })
               ) : (
-                <div className="py-20 text-center text-gray-300 flex flex-col items-center">
-                   <ShoppingBag size={48} className="opacity-10 mb-4" />
-                   <p className="font-black text-xs uppercase tracking-widest">Este cliente ainda não fez pedidos.</p>
+                <div className="py-20 text-center text-gray-300">
+                   <p className="font-black text-xs uppercase tracking-widest">Sem pedidos registrados.</p>
                 </div>
               )}
             </div>
-            
             <div className="p-8 border-t border-gray-100 bg-white">
-               <button 
-                 onClick={() => setHistoryCustomer(null)}
-                 className="w-full py-4 bg-gray-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-gray-900 transition-all"
-               >
-                 Fechar Histórico
-               </button>
+               <button onClick={() => setHistoryCustomer(null)} className="w-full py-4 bg-gray-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-gray-900 transition-all">Fechar</button>
             </div>
           </div>
         </div>
@@ -309,12 +284,11 @@ export const Customers: React.FC<CustomersProps> = ({
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold"
                     value={newCustomer.name}
                     onChange={e => setNewCustomer({...newCustomer, name: e.target.value})}
-                    placeholder="Ex: Maria Oliveira"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                    <Gift size={12} /> Data de Nascimento
+                    <Gift size={12} /> Aniversário
                   </label>
                   <input 
                     type="date"
@@ -340,39 +314,13 @@ export const Customers: React.FC<CustomersProps> = ({
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                    <MapPin size={12} /> Endereço (Rua e Número)
+                    <MapPin size={12} /> Endereço
                   </label>
                   <input 
                     type="text"
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold"
                     value={newCustomer.address}
                     onChange={e => setNewCustomer({...newCustomer, address: e.target.value})}
-                    placeholder="Av. Brasil, 123"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Bairro</label>
-                  <input 
-                    type="text"
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold"
-                    value={newCustomer.neighborhood}
-                    onChange={e => setNewCustomer({...newCustomer, neighborhood: e.target.value})}
-                    placeholder="Bairro"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                    <Home size={12} /> CEP
-                  </label>
-                  <input 
-                    type="text"
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold"
-                    value={newCustomer.zipCode}
-                    onChange={e => setNewCustomer({...newCustomer, zipCode: e.target.value})}
-                    placeholder="00000-000"
                   />
                 </div>
               </div>

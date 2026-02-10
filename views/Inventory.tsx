@@ -1,6 +1,6 @@
 
-import React, { useState, useRef } from 'react';
-import { Plus, Trash2, Edit3, Search, Truck, Tag, DollarSign, Loader2, Package, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Trash2, Edit3, Search, Truck, Package, X } from 'lucide-react';
 import { Material } from '../types';
 
 interface InventoryProps {
@@ -72,7 +72,7 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-gray-800 tracking-tight">Estoque de <span className="text-yellow-500">Materiais</span></h2>
-          <p className="text-gray-400 font-medium">Controle de insumos e fornecedores.</p>
+          <p className="text-gray-400 font-medium">Controle seus insumos e fornecedores.</p>
         </div>
         
         <button 
@@ -157,7 +157,7 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
                   <td colSpan={6} className="px-8 py-20 text-center">
                     <div className="flex flex-col items-center gap-3 text-gray-300">
                       <Package size={48} className="opacity-10" />
-                      <p className="font-black text-xs uppercase tracking-widest">Nenhum material encontrado.</p>
+                      <p className="font-black text-xs uppercase tracking-widest">Nenhum material cadastrado.</p>
                     </div>
                   </td>
                 </tr>
@@ -249,7 +249,7 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
               </div>
 
               <div className="bg-blue-50 p-4 rounded-2xl flex items-center justify-between">
-                <span className="text-xs font-black text-blue-400 uppercase tracking-widest">Preço Unitário Calculado</span>
+                <span className="text-xs font-black text-blue-400 uppercase tracking-widest">Custo por Unidade</span>
                 <span className="text-xl font-black text-blue-600">
                   R$ {((newMaterial.price || 0) / (newMaterial.quantity || 1)).toFixed(2)}
                 </span>

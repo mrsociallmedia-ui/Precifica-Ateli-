@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -13,9 +13,8 @@ import {
   Sparkles,
   Wallet2,
   LogOut,
-  RefreshCw,
   Loader2,
-  CheckCircle2
+  RefreshCw
 } from 'lucide-react';
 import { Dashboard } from './views/Dashboard';
 import { Inventory } from './views/Inventory';
@@ -44,8 +43,9 @@ const App: React.FC = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
 
+  // Carregamento Robusto de Dados
   const loadUserData = <T,>(key: string, defaultValue: T): T => {
-    const userEmail = localStorage.getItem('precifica_current_user');
+    const userEmail = currentUser || localStorage.getItem('precifica_current_user');
     if (!userEmail) return defaultValue;
     const fullKey = `${userEmail.trim().toLowerCase()}_${key}`;
     try {
@@ -69,7 +69,7 @@ const App: React.FC = () => {
   const [paymentMethods, setPaymentMethods] = useState<string[]>(() => loadUserData('craft_pay_methods', ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']));
 
   const persistAllData = useCallback((targetUser: string) => {
-    if (!targetUser) return;
+    if (!targetUser || isLoggingOut) return;
     const userKey = targetUser.trim().toLowerCase();
     setIsSaving(true);
     
@@ -85,18 +85,19 @@ const App: React.FC = () => {
       localStorage.setItem(`${userKey}_craft_trans_categories`, JSON.stringify(transactionCategories));
       localStorage.setItem(`${userKey}_craft_pay_methods`, JSON.stringify(paymentMethods));
       
-      setTimeout(() => setIsSaving(false), 500);
+      setTimeout(() => setIsSaving(false), 300);
     } catch (error) {
       console.error("Falha no salvamento:", error);
       setIsSaving(false);
     }
-  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods]);
+  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, isLoggingOut]);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsInitialLoadDone(true), 500);
     return () => clearTimeout(timer);
   }, []);
 
+  // Persistência Automática
   useEffect(() => {
     if (isAuthenticated && currentUser && isInitialLoadDone && !isLoggingOut) {
       persistAllData(currentUser);
@@ -109,13 +110,18 @@ const App: React.FC = () => {
     localStorage.setItem('precifica_session', 'true');
     setCurrentUser(cleanEmail);
     setIsAuthenticated(true);
+    // Força o recarregamento para puxar os dados do novo usuário corretamente
     window.location.reload(); 
   };
 
   const handleLogout = async () => {
-    if (confirm('Deseja sair do sistema? Seus dados estão salvos.')) {
+    if (confirm('Deseja sair do sistema? Seus dados estão salvos com segurança.')) {
       setIsLoggingOut(true);
-      if (currentUser) persistAllData(currentUser);
+      // Salva uma última vez antes de limpar a sessão
+      if (currentUser) {
+        persistAllData(currentUser);
+      }
+      
       setTimeout(() => {
         localStorage.removeItem('precifica_session');
         localStorage.removeItem('precifica_current_user');
@@ -145,8 +151,8 @@ const App: React.FC = () => {
          <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-xl border border-pink-100">
             <Loader2 className="text-pink-500 animate-spin" size={32} />
          </div>
-         <h2 className="text-xl font-black text-gray-800">Até logo!</h2>
-         <p className="text-gray-400 font-medium mt-1">Dados salvos com sucesso.</p>
+         <h2 className="text-xl font-black text-gray-800">Salvando e Saindo...</h2>
+         <p className="text-gray-400 font-medium mt-1">Até a próxima!</p>
       </div>
     );
   }
@@ -221,7 +227,7 @@ const App: React.FC = () => {
             className={`w-full flex items-center gap-4 p-3 rounded-2xl text-red-400 hover:bg-red-50 transition-all ${!isSidebarOpen && 'justify-center'}`}
           >
             <LogOut size={18} />
-            {isSidebarOpen && <span className="font-bold text-sm">Sair do Sistema</span>}
+            {isSidebarOpen && <span className="font-bold text-sm">Sair</span>}
           </button>
         </div>
       </aside>
@@ -233,7 +239,7 @@ const App: React.FC = () => {
           </button>
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex flex-col items-end">
-              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Usuário Logado</p>
+              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Usuário</p>
               <p className="text-xs font-black text-blue-600">{currentUser}</p>
             </div>
             <div className="w-px h-8 bg-gray-100 mx-2"></div>
@@ -250,7 +256,7 @@ const App: React.FC = () => {
       {!isInitialLoadDone && (
         <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center gap-4">
            <RefreshCw className="text-pink-500 animate-spin" size={40} />
-           <p className="text-gray-400 font-black uppercase text-xs tracking-widest">Carregando seus dados...</p>
+           <p className="text-gray-400 font-black uppercase text-xs tracking-widest">Preparando seu Ateliê...</p>
         </div>
       )}
     </div>
