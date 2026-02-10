@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search } from 'lucide-react';
+import { Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp } from 'lucide-react';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -25,7 +25,8 @@ export const Products: React.FC<ProductsProps> = ({
     description: '', 
     minutesToMake: 60, 
     materials: [],
-    profitMargin: companyData.defaultProfitMargin
+    profitMargin: companyData.defaultProfitMargin,
+    marketPrice: 0
   });
   
   const [selectedMatId, setSelectedMatId] = useState('');
@@ -37,6 +38,13 @@ export const Products: React.FC<ProductsProps> = ({
   const selectedMaterial = useMemo(() => materials.find(m => m.id === selectedMatId), [selectedMatId, materials]);
   const isFolha = selectedMaterial?.unit.toLowerCase() === 'folha';
   const isMetro = selectedMaterial?.unit.toLowerCase() === 'metro';
+
+  const stats = useMemo(() => {
+    return {
+      total: products.length,
+      categories: new Set(products.map(p => p.category)).size,
+    };
+  }, [products]);
 
   const addCategory = () => {
     const name = prompt('Nome da nova categoria:');
@@ -107,7 +115,8 @@ export const Products: React.FC<ProductsProps> = ({
       description: newProduct.description || '',
       minutesToMake: newProduct.minutesToMake || 0,
       materials: newProduct.materials || [],
-      profitMargin: newProduct.profitMargin || companyData.defaultProfitMargin
+      profitMargin: newProduct.profitMargin || companyData.defaultProfitMargin,
+      marketPrice: newProduct.marketPrice || 0
     };
 
     setProducts([...products, product]);
@@ -117,7 +126,8 @@ export const Products: React.FC<ProductsProps> = ({
       description: '', 
       minutesToMake: 60, 
       materials: [],
-      profitMargin: companyData.defaultProfitMargin
+      profitMargin: companyData.defaultProfitMargin,
+      marketPrice: 0
     });
     setShowForm(false);
   };
@@ -151,16 +161,38 @@ export const Products: React.FC<ProductsProps> = ({
         </button>
       </div>
 
+      {/* Resumo de Peças */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white p-6 rounded-[2rem] border border-yellow-50 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-yellow-100 text-yellow-600 rounded-2xl"><Package size={24} /></div>
+          <div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Peças no Catálogo</p>
+            <p className="text-2xl font-black text-gray-800">{stats.total}</p>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-[2rem] border border-blue-50 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl"><Layers size={24} /></div>
+          <div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Categorias</p>
+            <p className="text-2xl font-black text-gray-800">{stats.categories}</p>
+          </div>
+        </div>
+      </div>
+
       <div className="relative group max-w-2xl">
         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-yellow-500 transition-colors" size={20} />
         <input 
           type="text" 
-          placeholder="Pesquisar preço por nome da peça ou categoria..." 
+          placeholder="Pesquisar por nome da peça ou categoria..." 
           className="w-full pl-14 pr-6 py-4 bg-white border border-gray-100 rounded-[2rem] shadow-sm outline-none focus:ring-2 focus:ring-yellow-400 transition-all font-medium"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
+
+      <h3 className="text-xl font-black text-gray-700 flex items-center gap-2 border-b border-yellow-50 pb-2">
+        <Sparkles className="text-yellow-500" size={20} /> Lista de Peças Cadastradas
+      </h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
         {filteredProducts.map(product => {
@@ -169,18 +201,26 @@ export const Products: React.FC<ProductsProps> = ({
             materials, platforms, companyData
           );
 
+          const marketComparison = product.marketPrice ? (breakdown.finalPrice - product.marketPrice) : 0;
+          const isAboveMarket = marketComparison > 0;
+
           return (
             <div key={product.id} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-yellow-50 group hover:shadow-xl transition-all flex flex-col">
               <div className="flex items-start justify-between mb-6">
                 <div className="w-14 h-14 bg-yellow-50 rounded-2xl flex items-center justify-center text-yellow-600 shadow-sm group-hover:bg-yellow-400 group-hover:text-yellow-900 transition-all">
                   <Layers size={28} />
                 </div>
-                <button 
-                  onClick={() => deleteProduct(product.id)}
-                  className="text-gray-200 hover:text-red-500 transition-colors p-2"
-                >
-                  <Trash2 size={20} />
-                </button>
+                <div className="flex gap-2">
+                  <button className="p-2 text-gray-200 hover:text-blue-500 transition-colors">
+                    <Edit3 size={20} />
+                  </button>
+                  <button 
+                    onClick={() => deleteProduct(product.id)}
+                    className="text-gray-200 hover:text-red-500 transition-colors p-2"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
               
               <div className="mb-6">
@@ -204,23 +244,31 @@ export const Products: React.FC<ProductsProps> = ({
 
                 <div className="pt-4 space-y-2 border-t border-dashed border-gray-100">
                    <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      <span>Custo Base</span>
+                      <span>Custo de Produção</span>
                       <span>R$ {(breakdown.variableCosts + breakdown.laborCosts + breakdown.fixedCosts).toFixed(2)}</span>
                    </div>
                    <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      <span>Lucro ({product.profitMargin}%)</span>
-                      <span>R$ {breakdown.profit.toFixed(2)}</span>
+                      <span>Margem Lucro</span>
+                      <span>{product.profitMargin}%</span>
                    </div>
+                   {product.marketPrice ? (
+                     <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 p-2 rounded-lg mt-2">
+                        <span className="flex items-center gap-1"><ArrowRightLeft size={10} /> Preço Mercado</span>
+                        <span className="text-gray-700">R$ {product.marketPrice.toFixed(2)}</span>
+                     </div>
+                   ) : null}
                 </div>
               </div>
               
-              <div className="mt-8 pt-6 border-t border-gray-50 flex items-center justify-between">
-                <div>
-                   <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Preço Sugerido</p>
+              <div className="mt-8 pt-6 border-t border-gray-50 flex flex-col gap-1">
+                <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Preço Sugerido de Venda</p>
+                <div className="flex items-center justify-between">
                    <p className="text-3xl font-black text-blue-600">R$ {breakdown.finalPrice.toFixed(2)}</p>
-                </div>
-                <div className="p-3 bg-blue-50 text-blue-500 rounded-full group-hover:translate-x-1 transition-transform">
-                   <ChevronRight size={20} />
+                   {product.marketPrice ? (
+                      <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${isAboveMarket ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'}`}>
+                         {isAboveMarket ? `+ R$ ${marketComparison.toFixed(2)} que mercado` : `- R$ ${Math.abs(marketComparison).toFixed(2)} que mercado`}
+                      </div>
+                   ) : null}
                 </div>
               </div>
             </div>
@@ -228,8 +276,9 @@ export const Products: React.FC<ProductsProps> = ({
         })}
         {filteredProducts.length === 0 && (
           <div className="col-span-full py-20 text-center text-gray-300 border-2 border-dashed border-gray-100 rounded-[3rem] bg-gray-50/30">
-            <Search size={48} className="mx-auto opacity-10 mb-4" />
-            <p className="font-black text-xs uppercase tracking-widest">Nenhuma peça encontrada para essa pesquisa.</p>
+            <Package size={48} className="mx-auto opacity-10 mb-4" />
+            <p className="font-black text-xs uppercase tracking-widest">Nenhuma peça cadastrada ainda.</p>
+            <p className="text-[10px] font-bold mt-1">Comece cadastrando sua primeira peça no botão "Nova Peça".</p>
           </div>
         )}
       </div>
@@ -243,13 +292,13 @@ export const Products: React.FC<ProductsProps> = ({
             </button>
             <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
                <div className="p-3 bg-yellow-100 text-yellow-600 rounded-2xl"><Sparkles size={24} /></div>
-               Nova Peça para Precificação
+               Cadastrar Nova Peça
             </h3>
 
             <form onSubmit={handleSaveProduct} className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                <div className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome da peça que vai precificar?</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome da Peça</label>
                     <input 
                       type="text" required
                       className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-yellow-400 font-bold"
@@ -291,14 +340,30 @@ export const Products: React.FC<ProductsProps> = ({
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Percentual de Lucro (%)</label>
-                    <input 
-                      type="number" step="1"
-                      className="w-full p-4 bg-yellow-50 border border-yellow-100 rounded-2xl outline-none focus:ring-2 focus:ring-yellow-400 font-black text-yellow-700"
-                      value={newProduct.profitMargin}
-                      onChange={e => setNewProduct({...newProduct, profitMargin: parseFloat(e.target.value) || 0})}
-                    />
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                        <TrendingUp size={12} className="text-yellow-600" /> Lucro (%)
+                      </label>
+                      <input 
+                        type="number" step="1"
+                        className="w-full p-4 bg-yellow-50 border border-yellow-100 rounded-2xl outline-none focus:ring-2 focus:ring-yellow-400 font-black text-yellow-700"
+                        value={newProduct.profitMargin}
+                        onChange={e => setNewProduct({...newProduct, profitMargin: parseFloat(e.target.value) || 0})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                        <ArrowRightLeft size={12} className="text-blue-500" /> Preço de Mercado (Opcional)
+                      </label>
+                      <input 
+                        type="number" step="0.01"
+                        className="w-full p-4 bg-blue-50 border border-blue-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-400 font-black text-blue-700"
+                        value={newProduct.marketPrice}
+                        onChange={e => setNewProduct({...newProduct, marketPrice: parseFloat(e.target.value) || 0})}
+                        placeholder="R$ 0,00"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -315,7 +380,7 @@ export const Products: React.FC<ProductsProps> = ({
                <div className="space-y-6">
                   <div className="bg-yellow-50 p-6 rounded-[2.5rem] border border-yellow-100 space-y-4">
                      <h4 className="font-black text-yellow-800 text-xs uppercase tracking-widest flex items-center gap-2">
-                        <Package size={14}/> Materiais da Peça
+                        <Package size={14}/> Materiais Utilizados
                      </h4>
                      
                      <div className="space-y-4 bg-white/60 p-5 rounded-2xl border border-yellow-100/50">
@@ -339,34 +404,34 @@ export const Products: React.FC<ProductsProps> = ({
                              <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-start gap-2">
                                 <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
                                 <p className="text-[10px] text-blue-700 font-bold leading-tight">
-                                   Este material foi comprado por <span className="uppercase">{selectedMaterial.unit}</span>. Como você usa ele nesta peça?
+                                   Unidade de compra: <span className="uppercase">{selectedMaterial.unit}</span>. Informe o uso nesta peça.
                                 </p>
                              </div>
 
                              {isFolha ? (
                                <div className="space-y-3">
                                   <div className="grid grid-cols-1 gap-2">
-                                     <button type="button" onClick={() => { setUsageType('single'); setUsageValue(1); }} className={`text-left p-3 rounded-xl border-2 transition-all text-xs font-bold ${usageType === 'single' ? 'border-yellow-400 bg-yellow-100 text-yellow-800' : 'border-gray-100 bg-white text-gray-400'}`}>Usa apenas uma folha</button>
-                                     <button type="button" onClick={() => setUsageType('multiple_per_unit')} className={`text-left p-3 rounded-xl border-2 transition-all text-xs font-bold ${usageType === 'multiple_per_unit' ? 'border-yellow-400 bg-yellow-100 text-yellow-800' : 'border-gray-100 bg-white text-gray-400'}`}>Cabe mais de 1 peça por folha</button>
-                                     <button type="button" onClick={() => setUsageType('multiple_units')} className={`text-left p-3 rounded-xl border-2 transition-all text-xs font-bold ${usageType === 'multiple_units' ? 'border-yellow-400 bg-yellow-100 text-yellow-800' : 'border-gray-100 bg-white text-gray-400'}`}>Usa mais de 1 folha por peça</button>
+                                     <button type="button" onClick={() => { setUsageType('single'); setUsageValue(1); }} className={`text-left p-3 rounded-xl border-2 transition-all text-xs font-bold ${usageType === 'single' ? 'border-yellow-400 bg-yellow-100 text-yellow-800' : 'border-gray-100 bg-white text-gray-400'}`}>1 folha inteira</button>
+                                     <button type="button" onClick={() => setUsageType('multiple_per_unit')} className={`text-left p-3 rounded-xl border-2 transition-all text-xs font-bold ${usageType === 'multiple_per_unit' ? 'border-yellow-400 bg-yellow-100 text-yellow-800' : 'border-gray-100 bg-white text-gray-400'}`}>Múltiplas peças por folha</button>
+                                     <button type="button" onClick={() => setUsageType('multiple_units')} className={`text-left p-3 rounded-xl border-2 transition-all text-xs font-bold ${usageType === 'multiple_units' ? 'border-yellow-400 bg-yellow-100 text-yellow-800' : 'border-gray-100 bg-white text-gray-400'}`}>Múltiplas folhas por peça</button>
                                   </div>
                                   {(usageType === 'multiple_per_unit' || usageType === 'multiple_units') && (
                                     <div className="space-y-2 pt-2">
-                                       <label className="text-[9px] font-black text-yellow-700 uppercase tracking-widest">{usageType === 'multiple_per_unit' ? 'Quantas peças cabem na folha?' : 'Quantas folhas usa por peça?'}</label>
+                                       <label className="text-[9px] font-black text-yellow-700 uppercase tracking-widest">{usageType === 'multiple_per_unit' ? 'Peças por folha?' : 'Folhas por peça?'}</label>
                                        <input type="number" step="1" min="1" className="w-full p-3 bg-white border border-yellow-200 rounded-xl font-bold text-center" value={usageValue} onChange={e => setUsageValue(parseFloat(e.target.value) || 1)} />
                                     </div>
                                   )}
                                   <div className="space-y-2 pt-2">
-                                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Printer size={10} /> Valor da Impressão (por folha)</label>
+                                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Printer size={10} /> Custo Impressão (por folha)</label>
                                      <input type="number" step="0.01" className="w-full p-3 bg-white border border-yellow-200 rounded-xl font-bold text-blue-600" placeholder="R$ 0,00" value={printingCost} onChange={e => setPrintingCost(parseFloat(e.target.value) || 0)} />
                                   </div>
                                </div>
                              ) : isMetro ? (
                                <div className="space-y-3">
                                   <div className="space-y-2">
-                                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Ruler size={10} /> Quantos centímetros (cm) foram usados?</label>
+                                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Ruler size={10} /> Quantos centímetros (cm) usados?</label>
                                      <input type="number" step="0.1" min="0.1" className="w-full p-3 bg-white border border-yellow-200 rounded-xl font-bold text-center text-blue-600" value={cmValue} onChange={e => setCmValue(parseFloat(e.target.value) || 0)} />
-                                     <p className="text-[9px] text-gray-400 italic text-center">Isso equivale a {(cmValue / 100).toFixed(2)} metro(s).</p>
+                                     <p className="text-[9px] text-gray-400 italic text-center">Equivale a {(cmValue / 100).toFixed(2)} metro(s).</p>
                                   </div>
                                </div>
                              ) : (
@@ -377,7 +442,7 @@ export const Products: React.FC<ProductsProps> = ({
                                   </div>
                                </div>
                              )}
-                             <button type="button" onClick={addMaterial} className="w-full bg-yellow-400 text-yellow-900 p-4 rounded-xl hover:bg-yellow-500 transition-all font-black uppercase text-[10px] tracking-widest shadow-md">Adicionar Material</button>
+                             <button type="button" onClick={addMaterial} className="w-full bg-yellow-400 text-yellow-900 p-4 rounded-xl hover:bg-yellow-500 transition-all font-black uppercase text-[10px] tracking-widest shadow-md">Adicionar à Peça</button>
                           </div>
                         )}
                      </div>
@@ -401,7 +466,7 @@ export const Products: React.FC<ProductsProps> = ({
 
                   <div className="flex gap-4 pt-6">
                     <button type="button" onClick={() => setShowForm(false)} className="flex-1 px-8 py-5 border-2 border-gray-50 text-gray-400 rounded-3xl font-black uppercase tracking-widest hover:bg-gray-50 transition-all">Cancelar</button>
-                    <button type="submit" className="flex-1 px-8 py-5 bg-yellow-400 text-yellow-900 font-black rounded-3xl hover:bg-yellow-500 transition-all shadow-lg">Salvar Precificação</button>
+                    <button type="submit" className="flex-1 px-8 py-5 bg-yellow-400 text-yellow-900 font-black rounded-3xl hover:bg-yellow-500 transition-all shadow-lg">Finalizar Cadastro</button>
                   </div>
                </div>
             </form>

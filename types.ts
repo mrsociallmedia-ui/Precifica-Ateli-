@@ -56,6 +56,7 @@ export interface Product {
   materials: ProjectItem[];
   category: string;
   profitMargin: number;
+  marketPrice?: number; // Preço de mercado para comparação
 }
 
 export interface ProjectItemEntry {
@@ -72,7 +73,7 @@ export interface Project {
   name: string;
   customerId: string;
   description: string;
-  items: ProjectItemEntry[]; // Agora suporta múltiplos itens precificados
+  items: ProjectItemEntry[];
   platformId: string;
   excedente: number;
   status: 'pending' | 'approved' | 'delayed' | 'in_progress' | 'completed';
@@ -87,7 +88,6 @@ export interface Project {
   cakeShape?: 'round' | 'square';
   cakeSize?: string;
   notes?: string;
-  // Campos legados para compatibilidade se necessário (serão preenchidos pelo primeiro item ou agregados)
   hoursToMake: number;
   materials: ProjectItem[];
   profitMargin: number;
