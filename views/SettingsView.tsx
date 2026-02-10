@@ -160,42 +160,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
           </div>
           <div className="text-center">
-            <h3 className="font-black text-gray-800 text-2xl tracking-tight">{companyData.name || 'Seu Ateliê'}</h3>
+            <h3 className="font-black text-gray-800 text-2xl tracking-tight leading-tight">{companyData.name || 'Seu Ateliê'}</h3>
             <p className="text-pink-500 font-black text-[10px] uppercase tracking-widest mt-1">Gestão Profissional</p>
           </div>
 
           {/* Seção Banco de Dados */}
-          <div className="w-full bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
-             <div className="flex items-center gap-2 mb-2">
-                <Database size={18} className="text-blue-500" />
-                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Banco de Dados</h4>
+          <div className="w-full bg-white p-7 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
+             <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-blue-50 text-blue-500 rounded-xl"><Database size={18} /></div>
+                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Banco de Dados</h4>
              </div>
              
              <div className="space-y-3">
                <button 
                 onClick={handleExportData}
-                className="w-full py-3 bg-gray-50 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                className="w-full py-3.5 bg-gray-50 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
                >
                  {backupStatus === 'success' ? <CheckCircle2 size={16} /> : <Download size={16} />}
-                 {backupStatus === 'success' ? 'Backup Concluído' : 'Exportar Backup'}
+                 {backupStatus === 'success' ? 'Backup Baixado' : 'Baixar Cópia (Backup)'}
                </button>
 
-               <label className="w-full py-3 bg-gray-50 hover:bg-yellow-50 text-gray-600 hover:text-yellow-600 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer">
-                 <Upload size={16} /> Importar Banco
+               <label className="w-full py-3.5 bg-gray-50 hover:bg-yellow-50 text-gray-600 hover:text-yellow-600 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer">
+                 <Upload size={16} /> Restaurar Banco
                  <input type="file" accept=".json" className="hidden" onChange={handleImportData} />
                </label>
              </div>
              
              <div className="pt-4 border-t border-gray-50 flex items-center gap-2">
                 <ShieldCheck size={14} className="text-green-500" />
-                <span className="text-[9px] font-black text-gray-300 uppercase">Seus dados estão seguros</span>
+                <span className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Dados protegidos no navegador</span>
              </div>
           </div>
           
           <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex gap-3 items-start">
              <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
              <p className="text-[11px] text-blue-700 font-bold leading-relaxed">
-               As alterações são salvas automaticamente no banco de dados do usuário: <span className="text-blue-600">{currentUser}</span>.
+               Banco de dados vinculado ao usuário: <br/><span className="text-blue-600 font-black">{currentUser}</span>.
              </p>
           </div>
         </div>
@@ -316,7 +316,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {showPlatformForm && (
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
+          <div className="bg-white w-full max-md rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-yellow-400"></div>
             <button onClick={() => setShowPlatformForm(false)} className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors"><X size={24} /></button>
             <h3 className="text-2xl font-black text-gray-800 mb-8 flex items-center gap-3">
