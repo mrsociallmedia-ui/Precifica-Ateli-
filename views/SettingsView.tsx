@@ -5,13 +5,16 @@ import {
   Plus, 
   Trash2, 
   Building2, 
-  Calendar, 
   DollarSign, 
-  Star, 
   Zap, 
   Edit3, 
   X,
-  Info
+  Info,
+  Database,
+  Download,
+  Upload,
+  CheckCircle2,
+  ShieldCheck
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 
@@ -20,15 +23,17 @@ interface SettingsViewProps {
   setCompanyData: React.Dispatch<React.SetStateAction<CompanyData>>;
   platforms: Platform[];
   setPlatforms: React.Dispatch<React.SetStateAction<Platform[]>>;
+  currentUser: string;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ 
-  companyData, setCompanyData, platforms, setPlatforms 
+  companyData, setCompanyData, platforms, setPlatforms, currentUser 
 }) => {
   const [showPlatformForm, setShowPlatformForm] = useState(false);
   const [editingPlatform, setEditingPlatform] = useState<Platform | null>(null);
   const [platformName, setPlatformName] = useState('');
   const [platformFee, setPlatformFee] = useState('');
+  const [backupStatus, setBackupStatus] = useState<'idle' | 'success'>('idle');
 
   useEffect(() => {
     const totalMonthlyCosts = (Number(companyData.desiredSalary) || 0) + 
@@ -78,12 +83,61 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setShowPlatformForm(false);
   };
 
+  const handleExportData = () => {
+    const userKey = currentUser.trim().toLowerCase();
+    const keys = [
+      'craft_company', 'craft_materials', 'craft_customers', 
+      'craft_platforms', 'craft_projects', 'craft_products', 
+      'craft_transactions', 'craft_prod_categories', 
+      'craft_trans_categories', 'craft_pay_methods'
+    ];
+    
+    const db: Record<string, any> = {};
+    keys.forEach(k => {
+      const data = localStorage.getItem(`${userKey}_${k}`);
+      if (data) db[k] = JSON.parse(data);
+    });
+
+    const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup_precifica_${userKey}_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    setBackupStatus('success');
+    setTimeout(() => setBackupStatus('idle'), 3000);
+  };
+
+  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const db = JSON.parse(event.target?.result as string);
+        const userKey = currentUser.trim().toLowerCase();
+        
+        if (confirm('Atenção: A importação irá substituir seus dados atuais. Deseja continuar?')) {
+          Object.entries(db).forEach(([k, v]) => {
+            localStorage.setItem(`${userKey}_${k}`, JSON.stringify(v));
+          });
+          alert('Dados importados com sucesso! O sistema irá reiniciar para aplicar as mudanças.');
+          window.location.reload();
+        }
+      } catch (err) {
+        alert('Erro ao importar arquivo. Verifique se o formato está correto.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-12 animate-fadeIn pb-20">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-4xl font-black text-gray-800 tracking-tight">Configurações do <span className="text-blue-500">Ateliê</span></h2>
-          <p className="text-gray-400 font-medium text-sm">Gerencie os dados da sua empresa e base de cálculos.</p>
+          <p className="text-gray-400 font-medium text-sm">Gerencie seu banco de dados e base de cálculos.</p>
         </div>
       </div>
 
@@ -109,11 +163,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <h3 className="font-black text-gray-800 text-2xl tracking-tight">{companyData.name || 'Seu Ateliê'}</h3>
             <p className="text-pink-500 font-black text-[10px] uppercase tracking-widest mt-1">Gestão Profissional</p>
           </div>
+
+          {/* Seção Banco de Dados */}
+          <div className="w-full bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
+             <div className="flex items-center gap-2 mb-2">
+                <Database size={18} className="text-blue-500" />
+                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Banco de Dados</h4>
+             </div>
+             
+             <div className="space-y-3">
+               <button 
+                onClick={handleExportData}
+                className="w-full py-3 bg-gray-50 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+               >
+                 {backupStatus === 'success' ? <CheckCircle2 size={16} /> : <Download size={16} />}
+                 {backupStatus === 'success' ? 'Backup Concluído' : 'Exportar Backup'}
+               </button>
+
+               <label className="w-full py-3 bg-gray-50 hover:bg-yellow-50 text-gray-600 hover:text-yellow-600 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer">
+                 <Upload size={16} /> Importar Banco
+                 <input type="file" accept=".json" className="hidden" onChange={handleImportData} />
+               </label>
+             </div>
+             
+             <div className="pt-4 border-t border-gray-50 flex items-center gap-2">
+                <ShieldCheck size={14} className="text-green-500" />
+                <span className="text-[9px] font-black text-gray-300 uppercase">Seus dados estão seguros</span>
+             </div>
+          </div>
           
           <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex gap-3 items-start">
              <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
              <p className="text-[11px] text-blue-700 font-bold leading-relaxed">
-               Todas as alterações feitas nesta tela são salvas automaticamente e aplicadas em todos os orçamentos do sistema.
+               As alterações são salvas automaticamente no banco de dados do usuário: <span className="text-blue-600">{currentUser}</span>.
              </p>
           </div>
         </div>

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -42,15 +42,18 @@ const App: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
+  
+  // Referência para evitar salvamento antes do carregamento completo
+  const dataLoadedRef = useRef(false);
 
-  // Carregamento Robusto de Dados
+  // Carregamento Robusto de Dados por Usuário
   const loadUserData = <T,>(key: string, defaultValue: T): T => {
     const userEmail = currentUser || localStorage.getItem('precifica_current_user');
     if (!userEmail) return defaultValue;
     const fullKey = `${userEmail.trim().toLowerCase()}_${key}`;
     try {
       const saved = localStorage.getItem(fullKey);
-      if (saved && saved !== "undefined") return JSON.parse(saved);
+      if (saved && saved !== "undefined" && saved !== "null") return JSON.parse(saved);
     } catch (e) {
       console.error(`Erro ao carregar ${fullKey}:`, e);
     }
@@ -68,8 +71,10 @@ const App: React.FC = () => {
   const [transactionCategories, setTransactionCategories] = useState<string[]>(() => loadUserData('craft_trans_categories', ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']));
   const [paymentMethods, setPaymentMethods] = useState<string[]>(() => loadUserData('craft_pay_methods', ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']));
 
+  // Função para salvar o estado atual no "Banco de Dados" (LocalStorage)
   const persistAllData = useCallback((targetUser: string) => {
-    if (!targetUser || isLoggingOut) return;
+    if (!targetUser || isLoggingOut || !dataLoadedRef.current) return;
+    
     const userKey = targetUser.trim().toLowerCase();
     setIsSaving(true);
     
@@ -87,17 +92,21 @@ const App: React.FC = () => {
       
       setTimeout(() => setIsSaving(false), 300);
     } catch (error) {
-      console.error("Falha no salvamento:", error);
+      console.error("Falha ao salvar no banco de dados local:", error);
       setIsSaving(false);
     }
   }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, isLoggingOut]);
 
+  // Efeito para marcar que o carregamento terminou
   useEffect(() => {
-    const timer = setTimeout(() => setIsInitialLoadDone(true), 500);
+    const timer = setTimeout(() => {
+      setIsInitialLoadDone(true);
+      dataLoadedRef.current = true;
+    }, 1000);
     return () => clearTimeout(timer);
   }, []);
 
-  // Persistência Automática
+  // Persistência Automática ao alterar qualquer dado
   useEffect(() => {
     if (isAuthenticated && currentUser && isInitialLoadDone && !isLoggingOut) {
       persistAllData(currentUser);
@@ -110,15 +119,14 @@ const App: React.FC = () => {
     localStorage.setItem('precifica_session', 'true');
     setCurrentUser(cleanEmail);
     setIsAuthenticated(true);
-    // Força o recarregamento para puxar os dados do novo usuário corretamente
     window.location.reload(); 
   };
 
-  const handleLogout = async () => {
-    if (confirm('Deseja sair do sistema? Seus dados estão salvos com segurança.')) {
+  const handleLogout = () => {
+    if (confirm('Deseja sair do sistema? Seus dados estão salvos com segurança no seu usuário.')) {
       setIsLoggingOut(true);
-      // Salva uma última vez antes de limpar a sessão
-      if (currentUser) {
+      // Garante um salvamento final antes de limpar a sessão ativa
+      if (currentUser && dataLoadedRef.current) {
         persistAllData(currentUser);
       }
       
@@ -151,8 +159,8 @@ const App: React.FC = () => {
          <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-xl border border-pink-100">
             <Loader2 className="text-pink-500 animate-spin" size={32} />
          </div>
-         <h2 className="text-xl font-black text-gray-800">Salvando e Saindo...</h2>
-         <p className="text-gray-400 font-medium mt-1">Até a próxima!</p>
+         <h2 className="text-xl font-black text-gray-800">Sincronizando Banco de Dados...</h2>
+         <p className="text-gray-400 font-medium mt-1">Saindo com segurança.</p>
       </div>
     );
   }
@@ -166,7 +174,7 @@ const App: React.FC = () => {
       case 'pricing': return <PricingCalculator materials={materials} customers={customers} platforms={platforms} companyData={companyData} projects={projects} products={products} setProjects={setProjects} />;
       case 'schedule': return <Schedule projects={projects} setProjects={setProjects} customers={customers} materials={materials} platforms={platforms} companyData={companyData} />;
       case 'finance': return <FinancialControl transactions={transactions} setTransactions={setTransactions} projects={projects} materials={materials} platforms={platforms} companyData={companyData} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
-      case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} />;
+      case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
       default: return <Dashboard projects={projects} customers={customers} materials={materials} companyData={companyData} platforms={platforms} transactions={transactions} />;
     }
   };
@@ -216,7 +224,7 @@ const App: React.FC = () => {
                 <p className="text-xs font-bold text-gray-700 truncate">{companyData.name || 'Seu Ateliê'}</p>
                 <div className="flex items-center gap-1">
                    <div className={`w-1.5 h-1.5 rounded-full ${isSaving ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></div>
-                   <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{isSaving ? 'Gravando...' : 'Sincronizado'}</span>
+                   <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{isSaving ? 'Sincronizando...' : 'Online'}</span>
                 </div>
               </div>
             )}
@@ -239,7 +247,7 @@ const App: React.FC = () => {
           </button>
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex flex-col items-end">
-              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Usuário</p>
+              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Base de Dados</p>
               <p className="text-xs font-black text-blue-600">{currentUser}</p>
             </div>
             <div className="w-px h-8 bg-gray-100 mx-2"></div>
@@ -256,7 +264,7 @@ const App: React.FC = () => {
       {!isInitialLoadDone && (
         <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center gap-4">
            <RefreshCw className="text-pink-500 animate-spin" size={40} />
-           <p className="text-gray-400 font-black uppercase text-xs tracking-widest">Preparando seu Ateliê...</p>
+           <p className="text-gray-400 font-black uppercase text-xs tracking-widest">Abrindo seu Banco de Dados...</p>
         </div>
       )}
     </div>
