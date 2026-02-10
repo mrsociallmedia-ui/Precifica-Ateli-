@@ -1,21 +1,22 @@
 
 import React, { useState } from 'react';
-import { Lock, User, Sparkles, Heart, Eye, EyeOff, UserPlus, LogIn, ArrowLeft, Send, CheckCircle2, Loader2 } from 'lucide-react';
+import { Lock, User, Sparkles, Heart, Eye, EyeOff, UserPlus, LogIn, ArrowLeft, Send, CheckCircle2, Loader2, Save, KeyRound } from 'lucide-react';
 
 interface LoginViewProps {
   onLogin: (userEmail: string) => void;
 }
 
-type ViewMode = 'login' | 'register' | 'forgot-password';
+type ViewMode = 'login' | 'register' | 'forgot-password' | 'reset-password';
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
-  const [resetSent, setResetSent] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,21 +53,48 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       
       if (user || email === 'admin') {
         setIsSending(true);
-        // Simulação de tempo de envio automático para o e-mail
         setTimeout(() => {
           setIsSending(false);
-          setResetSent(true);
-        }, 1800);
+          setViewMode('reset-password');
+        }, 1200);
       } else {
-        alert('E-mail não encontrado em nossa base de dados! Verifique se digitou corretamente.');
+        alert('E-mail não encontrado em nossa base de dados!');
       }
+    } else if (viewMode === 'reset-password') {
+      if (password !== confirmPassword) {
+        alert('As senhas não coincidem!');
+        return;
+      }
+
+      if (password.length < 4) {
+        alert('A senha deve ter pelo menos 4 caracteres.');
+        return;
+      }
+
+      setIsSending(true);
+      setTimeout(() => {
+        const updatedUsers = users.map((u: any) => 
+          u.email === email ? { ...u, password: password } : u
+        );
+        
+        // Caso especial para o admin em ambiente de teste se necessário
+        if (email === 'admin') {
+          // Admin costuma ser fixo, mas aqui permitimos simular a troca
+        }
+
+        localStorage.setItem('precifica_users', JSON.stringify(updatedUsers));
+        setIsSending(false);
+        setResetSuccess(true);
+      }, 1500);
     }
   };
 
   const handleBackToLogin = () => {
     setViewMode('login');
-    setResetSent(false);
+    setResetSuccess(false);
     setIsSending(false);
+    setPassword('');
+    setConfirmPassword('');
   };
 
   return (
@@ -87,7 +115,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             <p className="text-gray-400 font-medium text-sm mt-1 uppercase tracking-widest opacity-60 text-center leading-tight">Sua Gestão Criativa e Financeira</p>
           </div>
 
-          {viewMode !== 'forgot-password' && (
+          {viewMode === 'login' || viewMode === 'register' ? (
             <div className="flex bg-gray-50 p-1 rounded-2xl mb-8">
               <button 
                 onClick={() => setViewMode('login')}
@@ -102,27 +130,27 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 Cadastro
               </button>
             </div>
-          )}
+          ) : null}
 
-          {viewMode === 'forgot-password' && resetSent ? (
+          {resetSuccess ? (
             <div className="text-center py-6 animate-scaleIn">
               <div className="w-20 h-20 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
                 <CheckCircle2 size={40} />
               </div>
-              <h3 className="text-xl font-black text-gray-800 mb-3">E-mail Enviado!</h3>
+              <h3 className="text-xl font-black text-gray-800 mb-3">Senha Atualizada!</h3>
               <p className="text-gray-400 text-sm font-medium mb-8 px-4">
-                As instruções de redefinição foram enviadas automaticamente para <span className="text-blue-500 font-bold">{email}</span>. Verifique sua caixa de entrada.
+                Sua nova senha foi salva com sucesso no banco de dados local. Agora você já pode acessar sua conta.
               </p>
               <button 
                 onClick={handleBackToLogin}
                 className="w-full py-4 bg-gray-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-900 transition-all shadow-lg active:scale-95"
               >
-                Voltar para o Login
+                Ir para o Login
               </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
-              {viewMode === 'forgot-password' && (
+              {(viewMode === 'forgot-password' || viewMode === 'reset-password') && (
                 <div className="mb-6 animate-fadeIn">
                   <button 
                     type="button"
@@ -132,8 +160,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   >
                     <ArrowLeft size={14} /> Voltar
                   </button>
-                  <h3 className="text-xl font-black text-gray-800">Recuperar Acesso</h3>
-                  <p className="text-gray-400 text-xs font-medium mt-1">O link de redefinição será enviado automaticamente para o seu e-mail cadastrado.</p>
+                  <h3 className="text-xl font-black text-gray-800">
+                    {viewMode === 'forgot-password' ? 'Recuperar Acesso' : 'Definir Nova Senha'}
+                  </h3>
+                  <p className="text-gray-400 text-xs font-medium mt-1">
+                    {viewMode === 'forgot-password' 
+                      ? 'Localize sua conta pelo e-mail cadastrado.' 
+                      : `Defina uma nova senha para o e-mail ${email}.`}
+                  </p>
                 </div>
               )}
 
@@ -153,22 +187,25 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">E-mail</label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                  <input 
-                    type="email" 
-                    required
-                    placeholder="seu@email.com"
-                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-pink-400 font-bold transition-all"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
+              {viewMode !== 'reset-password' && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">E-mail</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                    <input 
+                      type="email" 
+                      required
+                      placeholder="seu@email.com"
+                      disabled={viewMode === 'forgot-password' && isSending}
+                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-pink-400 font-bold transition-all disabled:opacity-50"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {viewMode !== 'forgot-password' && (
+              {viewMode === 'login' || viewMode === 'register' ? (
                 <div className="space-y-2 animate-fadeIn">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Senha</label>
                   <div className="relative">
@@ -190,6 +227,46 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     </button>
                   </div>
                 </div>
+              ) : null}
+
+              {viewMode === 'reset-password' && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nova Senha</label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                      <input 
+                        type={showPassword ? "text" : "password"}
+                        required
+                        placeholder="••••••••"
+                        className="w-full pl-12 pr-12 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-green-400 font-bold transition-all"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Confirmar Nova Senha</label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                      <input 
+                        type={showPassword ? "text" : "password"}
+                        required
+                        placeholder="••••••••"
+                        className="w-full pl-12 pr-12 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-green-400 font-bold transition-all"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 hover:text-gray-600 transition-colors"
+                  >
+                    {showPassword ? 'Ocultar senhas' : 'Mostrar senhas'}
+                  </button>
+                </div>
               )}
 
               <button 
@@ -200,18 +277,21 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-100' 
                     : viewMode === 'forgot-password'
                     ? 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900 shadow-yellow-100'
+                    : viewMode === 'reset-password'
+                    ? 'bg-green-500 hover:bg-green-600 text-white shadow-green-100'
                     : 'bg-pink-500 hover:bg-pink-600 text-white shadow-pink-100'
                 }`}
               >
                 {isSending ? (
                   <>
                     <Loader2 size={20} className="animate-spin" />
-                    Enviando...
+                    Processando...
                   </>
                 ) : (
                   <>
                     {viewMode === 'register' && <><UserPlus size={20} /> Criar Conta Grátis</>}
-                    {viewMode === 'forgot-password' && <><Send size={20} /> Enviar Instruções</>}
+                    {viewMode === 'forgot-password' && <><Send size={20} /> Localizar Conta</>}
+                    {viewMode === 'reset-password' && <><Save size={20} /> Salvar Nova Senha</>}
                     {viewMode === 'login' && <><LogIn size={20} /> Entrar no Ateliê</>}
                   </>
                 )}

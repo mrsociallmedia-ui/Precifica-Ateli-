@@ -35,7 +35,8 @@ export interface CompanyData {
   desiredSalary: number;
   fixedCostsMonthly: number;
   meiTax: number;
-  workHoursMonthly: number;
+  workHoursDaily: number;
+  workDaysMonthly: number;
   defaultProfitMargin: number;
   defaultExcedente: number;
 }

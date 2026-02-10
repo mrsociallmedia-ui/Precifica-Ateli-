@@ -12,8 +12,11 @@ export const calculateProjectBreakdown = (
   let totalFixedCosts = 0;
   let totalProfit = 0;
 
-  const hourlyFixedCost = companyData.workHoursMonthly > 0 
-    ? ((companyData.fixedCostsMonthly || 0) + (companyData.meiTax || 0)) / companyData.workHoursMonthly 
+  // Cálculo da capacidade mensal: Horas por Dia * Dias por Mês
+  const monthlyCapacityHours = (companyData.workHoursDaily || 1) * (companyData.workDaysMonthly || 1);
+
+  const hourlyFixedCost = monthlyCapacityHours > 0 
+    ? ((companyData.fixedCostsMonthly || 0) + (companyData.meiTax || 0)) / monthlyCapacityHours 
     : 0;
 
   // Se o projeto tiver a nova estrutura de itens múltiplos

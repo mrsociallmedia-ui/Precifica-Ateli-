@@ -34,10 +34,11 @@ export const INITIAL_COMPANY_DATA = {
   cnpj: '',
   openingDate: '',
   hourlyRate: 25.0,
-  desiredSalary: 3000.0, // Valor padrão inicial
+  desiredSalary: 3000.0,
   fixedCostsMonthly: 500.0,
-  meiTax: 72.0, // Valor médio DAS MEI
-  workHoursMonthly: 160,
+  meiTax: 72.0,
+  workHoursDaily: 8,
+  workDaysMonthly: 22,
   defaultProfitMargin: 30,
   defaultExcedente: 10
 };

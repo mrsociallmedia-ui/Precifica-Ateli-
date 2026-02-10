@@ -14,7 +14,8 @@ import {
   Download,
   Upload,
   CheckCircle2,
-  ShieldCheck
+  ShieldCheck,
+  Calendar
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 
@@ -39,13 +40,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const totalMonthlyCosts = (Number(companyData.desiredSalary) || 0) + 
                              (Number(companyData.fixedCostsMonthly) || 0) + 
                              (Number(companyData.meiTax) || 0);
-    const hours = Number(companyData.workHoursMonthly) || 1;
-    const calculatedRate = totalMonthlyCosts / hours;
+    
+    // Agora o cálculo é: Horas Diárias * Dias no Mês
+    const daily = Number(companyData.workHoursDaily) || 1;
+    const days = Number(companyData.workDaysMonthly) || 1;
+    const totalHours = daily * days;
+    
+    const calculatedRate = totalMonthlyCosts / totalHours;
     
     if (Math.abs(companyData.hourlyRate - calculatedRate) > 0.01) {
       setCompanyData(prev => ({ ...prev, hourlyRate: calculatedRate }));
     }
-  }, [companyData.desiredSalary, companyData.fixedCostsMonthly, companyData.meiTax, companyData.workHoursMonthly, companyData.hourlyRate, setCompanyData]);
+  }, [companyData.desiredSalary, companyData.fixedCostsMonthly, companyData.meiTax, companyData.workHoursDaily, companyData.workDaysMonthly, setCompanyData]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -137,7 +143,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-4xl font-black text-gray-800 tracking-tight">Configurações do <span className="text-blue-500">Ateliê</span></h2>
-          <p className="text-gray-400 font-medium text-sm">Gerencie seu banco de dados e base de cálculos.</p>
+          <p className="text-gray-400 font-medium text-sm">Gerencie sua rotina de trabalho e base de cálculos.</p>
         </div>
       </div>
 
@@ -164,7 +170,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <p className="text-pink-500 font-black text-[10px] uppercase tracking-widest mt-1">Gestão Profissional</p>
           </div>
 
-          {/* Seção Banco de Dados */}
           <div className="w-full bg-white p-7 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
              <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-blue-50 text-blue-500 rounded-xl"><Database size={18} /></div>
@@ -242,14 +247,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-8">
-            <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">
-              <div className="p-2 bg-pink-50 text-pink-500 rounded-xl"><DollarSign size={16} /></div>
-              Custos e Mão de Obra
-            </h4>
+            <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+              <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest">
+                <div className="p-2 bg-pink-50 text-pink-500 rounded-xl"><DollarSign size={16} /></div>
+                Custos e Rotina de Trabalho
+              </h4>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-pink-400 uppercase tracking-widest ml-1">Salário Desejado</label>
+                <label className="text-[10px] font-black text-pink-400 uppercase tracking-widest ml-1">Salário Desejado (Pró-Labore)</label>
                 <input 
                   type="number" step="100"
                   className="w-full p-4 bg-pink-50 border border-pink-100 rounded-2xl outline-none focus:ring-2 focus:ring-pink-400 font-black text-pink-600 text-xl"
@@ -258,12 +265,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Horas Mensais</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Custos Fixos Mensais</label>
                 <input 
-                  type="number"
+                  type="number" step="10"
                   className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-xl text-gray-700"
-                  value={companyData.workHoursMonthly}
-                  onChange={e => setCompanyData({...companyData, workHoursMonthly: parseInt(e.target.value) || 1})}
+                  value={companyData.fixedCostsMonthly}
+                  onChange={e => setCompanyData({...companyData, fixedCostsMonthly: parseFloat(e.target.value) || 0})}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-50">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                  <Zap size={12} /> Horas de Trabalho por Dia
+                </label>
+                <input 
+                  type="number" step="0.5"
+                  className="w-full p-4 bg-blue-50 border border-blue-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-400 font-black text-blue-600 text-xl text-center"
+                  value={companyData.workHoursDaily}
+                  onChange={e => setCompanyData({...companyData, workHoursDaily: parseFloat(e.target.value) || 1})}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                  <Calendar size={12} /> Dias de Trabalho por Mês
+                </label>
+                <input 
+                  type="number" step="1"
+                  className="w-full p-4 bg-blue-50 border border-blue-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-400 font-black text-blue-600 text-xl text-center"
+                  value={companyData.workDaysMonthly}
+                  onChange={e => setCompanyData({...companyData, workDaysMonthly: parseInt(e.target.value) || 1})}
                 />
               </div>
             </div>
@@ -271,16 +303,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="p-8 bg-blue-600 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden">
                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80 mb-1">Cálculo da sua Mão de Obra</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80 mb-1">Cálculo de Mão de Obra Automático</p>
                     <h4 className="text-xl font-black">Valor da sua Hora</h4>
                   </div>
                   <div className="bg-white/20 px-8 py-4 rounded-3xl backdrop-blur-md border border-white/30 text-center">
                     <p className="text-3xl font-black">R$ {companyData.hourlyRate.toFixed(2)}</p>
-                    <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">por hora</p>
+                    <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">por hora trabalhada</p>
                   </div>
                </div>
                <Zap className="absolute -bottom-4 -right-4 w-32 h-32 opacity-10" />
             </div>
+            
+            <p className="text-[11px] text-gray-400 font-medium italic text-center px-4">
+              Seu potencial produtivo mensal é de <span className="text-blue-500 font-black">{(companyData.workHoursDaily * companyData.workDaysMonthly).toFixed(0)} horas</span> com base nas configurações acima.
+            </p>
           </div>
 
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-yellow-50 space-y-6">
