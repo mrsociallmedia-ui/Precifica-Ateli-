@@ -2,15 +2,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Camera, 
-  Save, 
   Plus, 
   Trash2, 
   Building2, 
   Calendar, 
   DollarSign, 
-  Wallet, 
   Star, 
-  Info, 
   Zap, 
   Edit3, 
   X,
@@ -37,7 +34,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [platformFee, setPlatformFee] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Cálculo automático do valor da hora sempre que os campos dependentes mudarem
+  const currentUser = localStorage.getItem('precifica_current_user');
+
   useEffect(() => {
     const totalMonthlyCosts = (Number(companyData.desiredSalary) || 0) + 
                              (Number(companyData.fixedCostsMonthly) || 0) + 
@@ -86,46 +84,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setShowPlatformForm(false);
   };
 
-  // Funções de Backup
+  // Funções de Backup Isoloadas por Usuário
   const handleExportData = () => {
+    if (!currentUser) return;
+    
     const data: Record<string, any> = {};
-    const keys = [
+    const keysToExport = [
       'craft_company', 'craft_materials', 'craft_customers', 'craft_platforms', 
       'craft_projects', 'craft_products', 'craft_transactions', 
-      'craft_prod_categories', 'craft_trans_categories', 'craft_pay_methods',
-      'precifica_users'
+      'craft_prod_categories', 'craft_trans_categories', 'craft_pay_methods'
     ];
     
-    keys.forEach(key => {
-      const val = localStorage.getItem(key);
-      if (val) data[key] = JSON.parse(val);
+    // Pegamos apenas as chaves que começam com o e-mail do usuário logado
+    keysToExport.forEach(baseKey => {
+      const fullKey = `${currentUser}_${baseKey}`;
+      const val = localStorage.getItem(fullKey);
+      if (val) data[baseKey] = JSON.parse(val);
     });
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `backup_precifica_atelie_${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `backup_${currentUser}_${new Date().toISOString().split('T')[0]}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
   const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentUser) return;
 
-    if (!confirm('Atenção! Ao importar este backup, todos os dados ATUAIS serão substituídos. Deseja continuar?')) {
+    if (!confirm('Atenção! Ao importar este backup, os dados do seu ateliê ATUAL serão substituídos. Deseja continuar?')) {
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const data = JSON.parse(event.target?.result as string);
-        Object.entries(data).forEach(([key, value]) => {
-          localStorage.setItem(key, JSON.stringify(value));
+        const importedData = JSON.parse(event.target?.result as string);
+        
+        // Salvamos os dados importados vinculando ao usuário logado no momento
+        Object.entries(importedData).forEach(([key, value]) => {
+          // Removemos prefixos antigos se existirem no arquivo para garantir que entre no perfil correto
+          const cleanKey = key.includes('_craft_') ? key.split('_craft_')[1] : key;
+          localStorage.setItem(`${currentUser}_${cleanKey}`, JSON.stringify(value));
         });
-        alert('Dados restaurados com sucesso! O aplicativo será recarregado.');
+
+        alert('Dados restaurados com sucesso para o seu perfil! O aplicativo será recarregado.');
         window.location.reload();
       } catch (error) {
         alert('Erro ao processar o arquivo de backup. Certifique-se de que é um arquivo .json válido.');
@@ -144,7 +150,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Logo e Perfil */}
         <div className="md:col-span-1 flex flex-col items-center gap-6">
           <div className="relative group">
             <div className="w-48 h-48 bg-white rounded-[3rem] border-4 border-white shadow-2xl overflow-hidden flex items-center justify-center relative">
@@ -167,7 +172,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <p className="text-pink-500 font-black text-[10px] uppercase tracking-[0.2em] mt-1">Gestão Profissional</p>
           </div>
 
-          {/* Seção de Backup - Nova */}
           <div className="w-full bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-4">
             <h4 className="font-black text-gray-700 flex items-center gap-2 uppercase text-[10px] tracking-widest border-b border-gray-50 pb-3">
               <ShieldCheck size={14} className="text-green-500" /> Segurança dos Dados
@@ -177,13 +181,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 onClick={handleExportData}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
               >
-                <Download size={16} /> Exportar Backup
+                <Download size={16} /> Exportar Meu Backup
               </button>
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-yellow-50 text-gray-500 hover:text-yellow-700 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
               >
-                <Upload size={16} /> Restaurar Backup
+                <Upload size={16} /> Restaurar Meu Backup
               </button>
               <input 
                 type="file" 
@@ -196,15 +200,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="bg-yellow-50 p-3 rounded-xl flex gap-2">
                <AlertTriangle size={14} className="text-yellow-600 shrink-0" />
                <p className="text-[9px] text-yellow-800 font-bold leading-tight">
-                 Seus dados ficam salvos apenas neste navegador. Recomendamos baixar um backup semanalmente.
+                 Seus dados são privados e vinculados ao seu e-mail de login.
                </p>
             </div>
           </div>
         </div>
 
-        {/* Dados da Empresa */}
         <div className="md:col-span-2 space-y-8">
-          {/* Identificação */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-blue-50 space-y-8">
             <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">
               <div className="p-2 bg-blue-50 text-blue-500 rounded-xl"><Building2 size={16} /></div>
@@ -248,7 +250,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          {/* Precificação Base */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-8">
             <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">
               <div className="p-2 bg-pink-50 text-pink-500 rounded-xl"><DollarSign size={16} /></div>
@@ -295,7 +296,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          {/* Plataformas */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-yellow-50 space-y-6">
             <div className="flex items-center justify-between">
               <h4 className="font-black text-gray-700 flex items-center gap-2 uppercase text-xs tracking-widest">
@@ -327,7 +327,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* Modal Plataforma */}
       {showPlatformForm && (
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">

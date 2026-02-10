@@ -38,83 +38,93 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
 
-  // Helper para gerar chaves de localStorage específicas do usuário
-  const getUserKey = (key: string) => currentUser ? `${currentUser}_${key}` : key;
+  // Helper para gerar chaves de localStorage específicas do usuário (Obrigatório ter prefixo)
+  const getUserKey = (key: string) => currentUser ? `${currentUser}_${key}` : `guest_${key}`;
 
-  // Carregamento de estados com isolamento por usuário
+  // Carregamento de estados com isolamento restrito por usuário
   const [companyData, setCompanyData] = useState<CompanyData>(() => {
     const userEmail = localStorage.getItem('precifica_current_user');
-    const saved = localStorage.getItem(userEmail ? `${userEmail}_craft_company` : 'craft_company');
+    if (!userEmail) return INITIAL_COMPANY_DATA;
+    const saved = localStorage.getItem(`${userEmail}_craft_company`);
     return saved ? JSON.parse(saved) : INITIAL_COMPANY_DATA;
   });
 
   const [materials, setMaterials] = useState<Material[]>(() => {
     const userEmail = localStorage.getItem('precifica_current_user');
-    const saved = localStorage.getItem(userEmail ? `${userEmail}_craft_materials` : 'craft_materials');
+    if (!userEmail) return [];
+    const saved = localStorage.getItem(`${userEmail}_craft_materials`);
     return saved ? JSON.parse(saved) : [];
   });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     const userEmail = localStorage.getItem('precifica_current_user');
-    const saved = localStorage.getItem(userEmail ? `${userEmail}_craft_customers` : 'craft_customers');
+    if (!userEmail) return [];
+    const saved = localStorage.getItem(`${userEmail}_craft_customers`);
     return saved ? JSON.parse(saved) : [];
   });
 
   const [platforms, setPlatforms] = useState<Platform[]>(() => {
     const userEmail = localStorage.getItem('precifica_current_user');
-    const saved = localStorage.getItem(userEmail ? `${userEmail}_craft_platforms` : 'craft_platforms');
+    if (!userEmail) return PLATFORMS_DEFAULT;
+    const saved = localStorage.getItem(`${userEmail}_craft_platforms`);
     return saved ? JSON.parse(saved) : PLATFORMS_DEFAULT;
   });
 
   const [projects, setProjects] = useState<Project[]>(() => {
     const userEmail = localStorage.getItem('precifica_current_user');
-    const saved = localStorage.getItem(userEmail ? `${userEmail}_craft_projects` : 'craft_projects');
+    if (!userEmail) return [];
+    const saved = localStorage.getItem(`${userEmail}_craft_projects`);
     return saved ? JSON.parse(saved) : [];
   });
 
   const [products, setProducts] = useState<Product[]>(() => {
     const userEmail = localStorage.getItem('precifica_current_user');
-    const saved = localStorage.getItem(userEmail ? `${userEmail}_craft_products` : 'craft_products');
+    if (!userEmail) return [];
+    const saved = localStorage.getItem(`${userEmail}_craft_products`);
     return saved ? JSON.parse(saved) : [];
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const userEmail = localStorage.getItem('precifica_current_user');
-    const saved = localStorage.getItem(userEmail ? `${userEmail}_craft_transactions` : 'craft_transactions');
+    if (!userEmail) return [];
+    const saved = localStorage.getItem(`${userEmail}_craft_transactions`);
     return saved ? JSON.parse(saved) : [];
   });
 
   const [productCategories, setProductCategories] = useState<string[]>(() => {
     const userEmail = localStorage.getItem('precifica_current_user');
-    const saved = localStorage.getItem(userEmail ? `${userEmail}_craft_prod_categories` : 'craft_prod_categories');
+    if (!userEmail) return ['Festas', 'Papelaria', 'Presentes', 'Geral'];
+    const saved = localStorage.getItem(`${userEmail}_craft_prod_categories`);
     return saved ? JSON.parse(saved) : ['Festas', 'Papelaria', 'Presentes', 'Geral'];
   });
 
   const [transactionCategories, setTransactionCategories] = useState<string[]>(() => {
     const userEmail = localStorage.getItem('precifica_current_user');
-    const saved = localStorage.getItem(userEmail ? `${userEmail}_craft_trans_categories` : 'craft_trans_categories');
+    if (!userEmail) return ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros'];
+    const saved = localStorage.getItem(`${userEmail}_craft_trans_categories`);
     return saved ? JSON.parse(saved) : ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros'];
   });
 
   const [paymentMethods, setPaymentMethods] = useState<string[]>(() => {
     const userEmail = localStorage.getItem('precifica_current_user');
-    const saved = localStorage.getItem(userEmail ? `${userEmail}_craft_pay_methods` : 'craft_pay_methods');
+    if (!userEmail) return ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência'];
+    const saved = localStorage.getItem(`${userEmail}_craft_pay_methods`);
     return saved ? JSON.parse(saved) : ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência'];
   });
 
-  // Atualiza os dados sempre que o usuário mudar (Login/Logout)
+  // Atualiza os dados apenas do usuário logado
   useEffect(() => {
     if (isAuthenticated && currentUser) {
-      localStorage.setItem(getUserKey('craft_company'), JSON.stringify(companyData));
-      localStorage.setItem(getUserKey('craft_materials'), JSON.stringify(materials));
-      localStorage.setItem(getUserKey('craft_customers'), JSON.stringify(customers));
-      localStorage.setItem(getUserKey('craft_platforms'), JSON.stringify(platforms));
-      localStorage.setItem(getUserKey('craft_projects'), JSON.stringify(projects));
-      localStorage.setItem(getUserKey('craft_products'), JSON.stringify(products));
-      localStorage.setItem(getUserKey('craft_transactions'), JSON.stringify(transactions));
-      localStorage.setItem(getUserKey('craft_prod_categories'), JSON.stringify(productCategories));
-      localStorage.setItem(getUserKey('craft_trans_categories'), JSON.stringify(transactionCategories));
-      localStorage.setItem(getUserKey('craft_pay_methods'), JSON.stringify(paymentMethods));
+      localStorage.setItem(`${currentUser}_craft_company`, JSON.stringify(companyData));
+      localStorage.setItem(`${currentUser}_craft_materials`, JSON.stringify(materials));
+      localStorage.setItem(`${currentUser}_craft_customers`, JSON.stringify(customers));
+      localStorage.setItem(`${currentUser}_craft_platforms`, JSON.stringify(platforms));
+      localStorage.setItem(`${currentUser}_craft_projects`, JSON.stringify(projects));
+      localStorage.setItem(`${currentUser}_craft_products`, JSON.stringify(products));
+      localStorage.setItem(`${currentUser}_craft_transactions`, JSON.stringify(transactions));
+      localStorage.setItem(`${currentUser}_craft_prod_categories`, JSON.stringify(productCategories));
+      localStorage.setItem(`${currentUser}_craft_trans_categories`, JSON.stringify(transactionCategories));
+      localStorage.setItem(`${currentUser}_craft_pay_methods`, JSON.stringify(paymentMethods));
     }
   }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, isAuthenticated, currentUser]);
 
@@ -123,7 +133,7 @@ const App: React.FC = () => {
     setIsAuthenticated(true);
     localStorage.setItem('precifica_session', 'true');
     localStorage.setItem('precifica_current_user', userEmail);
-    // Recarregar os estados para os dados do novo usuário
+    // Recarregamos para garantir que todos os hooks useState(init) peguem os dados corretos do novo prefixo
     window.location.reload(); 
   };
 
@@ -133,6 +143,7 @@ const App: React.FC = () => {
       localStorage.removeItem('precifica_session');
       localStorage.removeItem('precifica_current_user');
       setCurrentUser(null);
+      window.location.reload(); // Limpa estados da memória
     }
   };
 

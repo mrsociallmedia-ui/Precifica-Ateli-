@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Lock, User, Sparkles, Heart, Eye, EyeOff, UserPlus, LogIn, ArrowLeft, Send, CheckCircle2 } from 'lucide-react';
+import { Lock, User, Sparkles, Heart, Eye, EyeOff, UserPlus, LogIn, ArrowLeft, Send, CheckCircle2, Loader2 } from 'lucide-react';
 
 interface LoginViewProps {
   onLogin: (userEmail: string) => void;
@@ -15,6 +15,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [resetSent, setResetSent] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,10 +49,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       }
     } else if (viewMode === 'forgot-password') {
       const user = users.find((u: any) => u.email === email);
+      
       if (user || email === 'admin') {
-        setResetSent(true);
+        setIsSending(true);
+        // Simulação de tempo de envio automático para o e-mail
+        setTimeout(() => {
+          setIsSending(false);
+          setResetSent(true);
+        }, 1800);
       } else {
-        alert('E-mail não encontrado em nossa base de dados!');
+        alert('E-mail não encontrado em nossa base de dados! Verifique se digitou corretamente.');
       }
     }
   };
@@ -59,15 +66,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const handleBackToLogin = () => {
     setViewMode('login');
     setResetSent(false);
+    setIsSending(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#fffcf5] flex items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#fffcf5] flex items-center justify-center p-6 relative overflow-hidden font-['Quicksand']">
+      {/* Elementos decorativos de fundo */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-pink-200/20 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-200/20 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="w-full max-w-md animate-fadeIn">
-        <div className="bg-white rounded-[3rem] shadow-2xl border border-pink-50 p-10 relative overflow-hidden">
+        <div className="bg-white rounded-[3rem] shadow-2xl border border-pink-50 p-10 relative overflow-hidden transition-all duration-500">
           <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-pink-400 via-yellow-400 to-blue-400"></div>
           
           <div className="flex flex-col items-center mb-10">
@@ -75,7 +84,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               <Sparkles size={40} />
             </div>
             <h1 className="text-3xl font-black text-gray-800 tracking-tight">Precifica <span className="text-pink-500">Ateliê</span></h1>
-            <p className="text-gray-400 font-medium text-sm mt-1 uppercase tracking-widest opacity-60">Sua Gestão Criativa</p>
+            <p className="text-gray-400 font-medium text-sm mt-1 uppercase tracking-widest opacity-60 text-center leading-tight">Sua Gestão Criativa e Financeira</p>
           </div>
 
           {viewMode !== 'forgot-password' && (
@@ -96,17 +105,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           )}
 
           {viewMode === 'forgot-password' && resetSent ? (
-            <div className="text-center py-6 animate-fadeIn">
-              <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                <CheckCircle2 size={32} />
+            <div className="text-center py-6 animate-scaleIn">
+              <div className="w-20 h-20 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                <CheckCircle2 size={40} />
               </div>
-              <h3 className="text-xl font-black text-gray-800 mb-2">Instruções Enviadas!</h3>
-              <p className="text-gray-400 text-sm font-medium mb-8">
-                Enviamos um link de redefinição para <span className="text-blue-500 font-bold">{email}</span>. Verifique sua caixa de entrada e spam.
+              <h3 className="text-xl font-black text-gray-800 mb-3">E-mail Enviado!</h3>
+              <p className="text-gray-400 text-sm font-medium mb-8 px-4">
+                As instruções de redefinição foram enviadas automaticamente para <span className="text-blue-500 font-bold">{email}</span>. Verifique sua caixa de entrada.
               </p>
               <button 
                 onClick={handleBackToLogin}
-                className="w-full py-4 bg-gray-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-900 transition-all shadow-lg"
+                className="w-full py-4 bg-gray-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-900 transition-all shadow-lg active:scale-95"
               >
                 Voltar para o Login
               </button>
@@ -118,12 +127,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   <button 
                     type="button"
                     onClick={handleBackToLogin}
-                    className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-pink-500 transition-colors mb-6"
+                    disabled={isSending}
+                    className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-pink-500 transition-colors mb-6 disabled:opacity-50"
                   >
-                    <ArrowLeft size={14} /> Voltar para Login
+                    <ArrowLeft size={14} /> Voltar
                   </button>
-                  <h3 className="text-xl font-black text-gray-800">Recuperar Senha</h3>
-                  <p className="text-gray-400 text-xs font-medium mt-1">Insira seu e-mail para receber as instruções de acesso.</p>
+                  <h3 className="text-xl font-black text-gray-800">Recuperar Acesso</h3>
+                  <p className="text-gray-400 text-xs font-medium mt-1">O link de redefinição será enviado automaticamente para o seu e-mail cadastrado.</p>
                 </div>
               )}
 
@@ -134,7 +144,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                     <input 
                       type="text" 
-                      placeholder="Como você se chama?"
+                      placeholder="Ex: Papel e Amor"
                       className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-400 font-bold transition-all"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -148,7 +158,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                   <input 
-                    type="text" 
+                    type="email" 
+                    required
                     placeholder="seu@email.com"
                     className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-pink-400 font-bold transition-all"
                     value={email}
@@ -164,6 +175,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                     <input 
                       type={showPassword ? "text" : "password"}
+                      required
                       placeholder="••••••••"
                       className="w-full pl-12 pr-12 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-pink-400 font-bold transition-all"
                       value={password}
@@ -182,7 +194,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
               <button 
                 type="submit"
-                className={`w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2 ${
+                disabled={isSending}
+                className={`w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2 disabled:opacity-80 disabled:cursor-not-allowed ${
                   viewMode === 'register' 
                     ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-100' 
                     : viewMode === 'forgot-password'
@@ -190,12 +203,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     : 'bg-pink-500 hover:bg-pink-600 text-white shadow-pink-100'
                 }`}
               >
-                {viewMode === 'register' ? (
-                  <><UserPlus size={20} /> Criar Conta Grátis</>
-                ) : viewMode === 'forgot-password' ? (
-                  <><Send size={20} /> Enviar Instruções</>
+                {isSending ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    Enviando...
+                  </>
                 ) : (
-                  <><LogIn size={20} /> Entrar no Ateliê</>
+                  <>
+                    {viewMode === 'register' && <><UserPlus size={20} /> Criar Conta Grátis</>}
+                    {viewMode === 'forgot-password' && <><Send size={20} /> Enviar Instruções</>}
+                    {viewMode === 'login' && <><LogIn size={20} /> Entrar no Ateliê</>}
+                  </>
                 )}
               </button>
             </form>
@@ -211,8 +229,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           )}
         </div>
         
-        <p className="mt-10 text-center text-gray-400 text-xs font-medium">
-          Feito com <Heart size={12} className="inline text-pink-500 fill-pink-500 mx-1" /> para artesãs extraordinárias.
+        <p className="mt-10 text-center text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] opacity-50">
+          Feito com <Heart size={10} className="inline text-pink-500 fill-pink-500 mx-1" /> para artesãs extraordinárias.
         </p>
       </div>
     </div>
