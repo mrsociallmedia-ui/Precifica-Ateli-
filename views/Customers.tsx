@@ -14,7 +14,8 @@ import {
   X, 
   DollarSign, 
   CheckCircle2, 
-  Clock 
+  Clock,
+  Edit3
 } from 'lucide-react';
 import { Customer, Project, Material, Platform, CompanyData } from '../types';
 import { calculateProjectBreakdown } from '../utils';
@@ -37,27 +38,49 @@ export const Customers: React.FC<CustomersProps> = ({
   companyData 
 }) => {
   const [showForm, setShowForm] = useState(false);
+  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<Customer | null>(null);
   const [newCustomer, setNewCustomer] = useState<Partial<Customer>>({
     name: '', birthDate: '', phone: '', address: '', neighborhood: '', zipCode: ''
   });
 
-  const handleAddCustomer = (e: React.FormEvent) => {
+  const handleOpenAdd = () => {
+    setEditingCustomerId(null);
+    setNewCustomer({ name: '', birthDate: '', phone: '', address: '', neighborhood: '', zipCode: '' });
+    setShowForm(true);
+  };
+
+  const handleOpenEdit = (customer: Customer) => {
+    setEditingCustomerId(customer.id);
+    setNewCustomer({ ...customer });
+    setShowForm(true);
+  };
+
+  const handleSaveCustomer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustomer.name) return;
 
-    const customer: Customer = {
-      id: Date.now().toString(),
-      name: newCustomer.name!,
-      birthDate: newCustomer.birthDate || '',
-      phone: newCustomer.phone || '',
-      address: newCustomer.address || '',
-      neighborhood: newCustomer.neighborhood || '',
-      zipCode: newCustomer.zipCode || ''
-    };
+    if (editingCustomerId) {
+      setCustomers(prev => prev.map(c => 
+        c.id === editingCustomerId 
+          ? { ...c, ...newCustomer as Customer } 
+          : c
+      ));
+    } else {
+      const customer: Customer = {
+        id: Date.now().toString(),
+        name: newCustomer.name!,
+        birthDate: newCustomer.birthDate || '',
+        phone: newCustomer.phone || '',
+        address: newCustomer.address || '',
+        neighborhood: newCustomer.neighborhood || '',
+        zipCode: newCustomer.zipCode || ''
+      };
+      setCustomers([...customers, customer]);
+    }
 
-    setCustomers([...customers, customer]);
     setNewCustomer({ name: '', birthDate: '', phone: '', address: '', neighborhood: '', zipCode: '' });
+    setEditingCustomerId(null);
     setShowForm(false);
   };
 
@@ -73,7 +96,6 @@ export const Customers: React.FC<CustomersProps> = ({
     return `${day}/${month}/${year}`;
   };
 
-  // Filtrar pedidos do cliente selecionado para o histórico
   const customerOrders = useMemo(() => {
     if (!historyCustomer) return [];
     return projects.filter(p => p.customerId === historyCustomer.id);
@@ -94,7 +116,7 @@ export const Customers: React.FC<CustomersProps> = ({
           <p className="text-gray-400 font-medium">Gerencie contatos e datas especiais.</p>
         </div>
         <button 
-          onClick={() => setShowForm(true)}
+          onClick={handleOpenAdd}
           className="bg-pink-400 hover:bg-pink-500 text-white font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg shadow-pink-100 active:scale-95"
         >
           <Plus size={20} />
@@ -111,12 +133,20 @@ export const Customers: React.FC<CustomersProps> = ({
                 <div className="w-14 h-14 bg-pink-50 rounded-2xl flex items-center justify-center text-pink-500 shadow-sm group-hover:bg-pink-500 group-hover:text-white transition-all">
                   <User size={28} />
                 </div>
-                <button 
-                  onClick={() => deleteCustomer(customer.id)}
-                  className="text-gray-200 hover:text-red-500 transition-colors p-2"
-                >
-                  <Trash2 size={20} />
-                </button>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => handleOpenEdit(customer)}
+                    className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"
+                  >
+                    <Edit3 size={20} />
+                  </button>
+                  <button 
+                    onClick={() => deleteCustomer(customer.id)}
+                    className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
               
               <div className="mb-6">
@@ -173,7 +203,7 @@ export const Customers: React.FC<CustomersProps> = ({
         )}
       </div>
 
-      {/* Modal Histórico de Pedidos */}
+      {/* Modal Histórico */}
       {historyCustomer && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-3xl rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
@@ -257,16 +287,23 @@ export const Customers: React.FC<CustomersProps> = ({
       {showForm && (
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-2xl rounded-[3rem] p-12 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-2 bg-pink-400"></div>
+            <div className={`absolute top-0 left-0 w-full h-2 ${editingCustomerId ? 'bg-blue-400' : 'bg-pink-400'}`}></div>
+            <button 
+              onClick={() => setShowForm(false)}
+              className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors"
+            >
+              <X size={24} />
+            </button>
             <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
-               <div className="p-3 bg-pink-50 text-pink-500 rounded-2xl"><Plus size={24} /></div>
-               Novo Cliente
+               <div className={`p-3 rounded-2xl ${editingCustomerId ? 'bg-blue-50 text-blue-500' : 'bg-pink-50 text-pink-500'}`}>
+                 {editingCustomerId ? <Edit3 size={24} /> : <Plus size={24} />}
+               </div>
+               {editingCustomerId ? 'Editar Cliente' : 'Novo Cliente'}
             </h3>
-            <form onSubmit={handleAddCustomer} className="space-y-6">
-              {/* Row 1: Name and BirthDate */}
+            <form onSubmit={handleSaveCustomer} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome Completo</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome Completo</label>
                   <input 
                     type="text" required
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold"
@@ -288,7 +325,6 @@ export const Customers: React.FC<CustomersProps> = ({
                 </div>
               </div>
               
-              {/* Row 2: WhatsApp and Address */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
@@ -316,7 +352,6 @@ export const Customers: React.FC<CustomersProps> = ({
                 </div>
               </div>
 
-              {/* Row 3: Neighborhood and ZIP Code */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Bairro</label>
@@ -352,9 +387,9 @@ export const Customers: React.FC<CustomersProps> = ({
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 px-8 py-5 bg-pink-400 text-white font-black rounded-3xl hover:bg-pink-500 transition-all shadow-lg shadow-pink-100"
+                  className={`flex-1 px-8 py-5 text-white font-black rounded-3xl transition-all shadow-lg ${editingCustomerId ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-100' : 'bg-pink-400 hover:bg-pink-500 shadow-pink-100'}`}
                 >
-                  Salvar Cliente
+                  {editingCustomerId ? 'Salvar Alterações' : 'Salvar Cliente'}
                 </button>
               </div>
             </form>

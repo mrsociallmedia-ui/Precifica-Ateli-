@@ -1,6 +1,6 @@
 
-import React, { useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, User } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -16,6 +16,8 @@ interface ScheduleProps {
 export const Schedule: React.FC<ScheduleProps> = ({ 
   projects, setProjects, customers, materials, platforms, companyData 
 }) => {
+  const [showBirthdaysModal, setShowBirthdaysModal] = useState(false);
+
   const updateStatus = (id: string, newStatus: Project['status']) => {
     setProjects(projects.map(p => p.id === id ? { ...p, status: newStatus } : p));
   };
@@ -55,6 +57,8 @@ export const Schedule: React.FC<ScheduleProps> = ({
       .sort((a, b) => a.day - b.day);
   }, [customers]);
 
+  const currentMonthName = new Date().toLocaleDateString('pt-BR', { month: 'long' });
+
   return (
     <div className="space-y-10 animate-fadeIn pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -64,22 +68,29 @@ export const Schedule: React.FC<ScheduleProps> = ({
         </div>
         
         {/* Birthday Widget */}
-        <div className="bg-pink-50 p-6 rounded-[2rem] border border-pink-100 flex items-center gap-6 min-w-[300px] shadow-sm">
-           <div className="p-4 bg-pink-500 text-white rounded-2xl shadow-lg animate-bounce">
+        <button 
+          onClick={() => upcomingBirthdays.length > 0 && setShowBirthdaysModal(true)}
+          className={`bg-pink-50 p-6 rounded-[2rem] border border-pink-100 flex items-center gap-6 min-w-[300px] shadow-sm transition-all text-left ${upcomingBirthdays.length > 0 ? 'hover:shadow-md hover:scale-105 active:scale-95' : 'cursor-default opacity-80'}`}
+        >
+           <div className={`p-4 bg-pink-500 text-white rounded-2xl shadow-lg ${upcomingBirthdays.length > 0 ? 'animate-bounce' : ''}`}>
               <Gift size={24} />
            </div>
            <div>
-              <p className="text-[10px] font-black text-pink-400 uppercase tracking-[0.2em]">Aniversariantes do Mês</p>
+              <p className="text-[10px] font-black text-pink-400 uppercase tracking-[0.2em]">Aniversariantes de {currentMonthName}</p>
               {upcomingBirthdays.length > 0 ? (
-                <p className="text-sm font-black text-gray-800">
-                  {upcomingBirthdays[0].name} ({upcomingBirthdays[0].day})
-                  {upcomingBirthdays.length > 1 && <span className="text-xs text-pink-500 ml-2">+{upcomingBirthdays.length - 1} outros</span>}
-                </p>
+                <div className="flex flex-col">
+                  <p className="text-sm font-black text-gray-800">
+                    {upcomingBirthdays[0].name} ({upcomingBirthdays[0].day})
+                  </p>
+                  {upcomingBirthdays.length > 1 && (
+                    <span className="text-[10px] font-black text-pink-500 uppercase mt-0.5">+ {upcomingBirthdays.length - 1} outros (Ver todos)</span>
+                  )}
+                </div>
               ) : (
                 <p className="text-sm font-bold text-gray-400">Ninguém este mês 🎈</p>
               )}
            </div>
-        </div>
+        </button>
       </div>
 
       {/* Grid horizontal scrollable on mobile */}
@@ -214,6 +225,61 @@ export const Schedule: React.FC<ScheduleProps> = ({
           </div>
         ))}
       </div>
+
+      {/* Modal Aniversariantes do Mês */}
+      {showBirthdaysModal && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+            <div className="bg-pink-500 p-8 text-white">
+              <button 
+                onClick={() => setShowBirthdaysModal(false)}
+                className="absolute top-6 right-6 p-2 bg-white/20 hover:bg-white/40 rounded-full transition-all"
+              >
+                <X size={24} />
+              </button>
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-white rounded-[1.5rem] flex items-center justify-center text-pink-500 shadow-xl">
+                  <Gift size={32} />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black">Aniversariantes</h3>
+                  <p className="text-pink-100 font-bold text-xs uppercase tracking-widest">Calendário de {currentMonthName}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-8 max-h-[60vh] overflow-y-auto custom-scrollbar space-y-4">
+              {upcomingBirthdays.map(customer => (
+                <div key={customer.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                   <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-pink-100 text-pink-600 rounded-full flex items-center justify-center font-black">
+                         {customer.day}
+                      </div>
+                      <div>
+                         <p className="font-black text-gray-800">{customer.name}</p>
+                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            {customer.phone || 'Sem telefone'}
+                         </p>
+                      </div>
+                   </div>
+                   <div className="p-3 bg-white text-pink-400 rounded-xl shadow-sm">
+                      <CalendarIcon size={18} />
+                   </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-8 border-t border-gray-100 bg-white">
+               <button 
+                 onClick={() => setShowBirthdaysModal(false)}
+                 className="w-full py-4 bg-gray-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-gray-900 transition-all"
+               >
+                 Fechar Lista
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

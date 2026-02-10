@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Plus, Trash2, Edit3, Search, Truck, Tag, DollarSign, FileSpreadsheet, Upload, CheckCircle2, AlertCircle, Loader2, Package, X } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Truck, Tag, DollarSign, Loader2, Package, X } from 'lucide-react';
 import { Material } from '../types';
 
 interface InventoryProps {
@@ -12,8 +12,6 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
   const [showForm, setShowForm] = useState(false);
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [newMaterial, setNewMaterial] = useState<Partial<Material>>({
     name: '', unit: 'unidade', price: 0, quantity: 1, supplier: ''
@@ -36,14 +34,12 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
     if (!newMaterial.name) return;
     
     if (editingMaterialId) {
-      // Atualizar material existente
       setMaterials(prev => prev.map(m => 
         m.id === editingMaterialId 
           ? { ...m, ...newMaterial as Material } 
           : m
       ));
     } else {
-      // Criar novo material
       const material: Material = {
         id: Date.now().toString(),
         name: newMaterial.name!,
@@ -66,57 +62,6 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
     }
   };
 
-  // Função de Importação Excel (XLSX) Aprimorada
-  const handleImportXLSX = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImportStatus('loading');
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = (window as any).XLSX.read(data, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const jsonData = (window as any).XLSX.utils.sheet_to_json(worksheet);
-
-        if (jsonData.length === 0) {
-          throw new Error("Planilha vazia");
-        }
-
-        const importedMaterials: Material[] = jsonData.map((row: any, index: number) => {
-          const getVal = (possibleKeys: string[]) => {
-            const key = Object.keys(row).find(k => 
-              possibleKeys.some(pk => k.toLowerCase().trim().includes(pk.toLowerCase()))
-            );
-            return key ? row[key] : null;
-          };
-
-          return {
-            id: `xlsx-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
-            name: String(getVal(['nome', 'name', 'item', 'material', 'descrição', 'produto']) || `Material ${index + 1}`),
-            unit: String(getVal(['unid', 'unit', 'medida', 'unidade', 'tipo']) || "unidade"),
-            price: parseFloat(String(getVal(['preço', 'preco', 'price', 'valor', 'custo', 'total']) || "0").replace('R$', '').replace(',', '.')),
-            quantity: parseFloat(String(getVal(['qtd', 'quantidade', 'quant', 'quantity', 'vol', 'estoque']) || "1")),
-            supplier: String(getVal(['fornecedor', 'supplier', 'loja', 'onde', 'vendedor']) || "")
-          };
-        });
-
-        setMaterials(prev => [...prev, ...importedMaterials]);
-        setImportStatus('success');
-        setTimeout(() => setImportStatus('idle'), 3000);
-      } catch (error) {
-        console.error("Erro ao importar planilha Excel:", error);
-        setImportStatus('error');
-        setTimeout(() => setImportStatus('idle'), 4000);
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
   const filteredMaterials = materials.filter(m => 
     m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -130,43 +75,13 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
           <p className="text-gray-400 font-medium">Controle de insumos e fornecedores.</p>
         </div>
         
-        <div className="flex flex-wrap gap-3">
-          <input 
-            type="file" 
-            accept=".xlsx, .xls" 
-            ref={fileInputRef} 
-            onChange={handleImportXLSX} 
-            className="hidden" 
-          />
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importStatus === 'loading'}
-            className={`font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-sm active:scale-95 text-sm ${
-              importStatus === 'loading' ? 'bg-gray-100 text-gray-400' : 
-              importStatus === 'success' ? 'bg-green-50 text-green-600' :
-              importStatus === 'error' ? 'bg-red-50 text-red-600' :
-              'bg-blue-50 hover:bg-blue-100 text-blue-600'
-            }`}
-          >
-            {importStatus === 'loading' ? (
-              <Loader2 className="animate-spin" size={20} />
-            ) : (
-              <FileSpreadsheet size={20} />
-            )}
-            {importStatus === 'loading' ? 'Lendo...' : 
-             importStatus === 'success' ? 'Importado!' : 
-             importStatus === 'error' ? 'Erro Planilha' : 
-             'Importar Excel'}
-          </button>
-          
-          <button 
-            onClick={handleOpenAdd}
-            className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg shadow-yellow-100 active:scale-95"
-          >
-            <Plus size={20} />
-            Novo Material
-          </button>
-        </div>
+        <button 
+          onClick={handleOpenAdd}
+          className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg shadow-yellow-100 active:scale-95"
+        >
+          <Plus size={20} />
+          Novo Material
+        </button>
       </div>
 
       <div className="relative group">
