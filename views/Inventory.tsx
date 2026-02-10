@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Plus, Trash2, Edit3, Search, Truck, Tag, DollarSign, FileSpreadsheet, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Truck, Tag, DollarSign, FileSpreadsheet, Upload, CheckCircle2, AlertCircle, Loader2, Package, X } from 'lucide-react';
 import { Material } from '../types';
 
 interface InventoryProps {
@@ -10,42 +10,68 @@ interface InventoryProps {
 
 export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials }) => {
   const [showForm, setShowForm] = useState(false);
+  const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [newMaterial, setNewMaterial] = useState<Partial<Material>>({
     name: '', unit: 'unidade', price: 0, quantity: 1, supplier: ''
   });
 
-  const handleAddMaterial = (e: React.FormEvent) => {
+  const handleOpenAdd = () => {
+    setEditingMaterialId(null);
+    setNewMaterial({ name: '', unit: 'unidade', price: 0, quantity: 1, supplier: '' });
+    setShowForm(true);
+  };
+
+  const handleOpenEdit = (material: Material) => {
+    setEditingMaterialId(material.id);
+    setNewMaterial({ ...material });
+    setShowForm(true);
+  };
+
+  const handleSaveMaterial = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMaterial.name) return;
     
-    const material: Material = {
-      id: Date.now().toString(),
-      name: newMaterial.name!,
-      unit: newMaterial.unit!,
-      price: Number(newMaterial.price),
-      quantity: Number(newMaterial.quantity),
-      supplier: newMaterial.supplier || ''
-    };
+    if (editingMaterialId) {
+      // Atualizar material existente
+      setMaterials(prev => prev.map(m => 
+        m.id === editingMaterialId 
+          ? { ...m, ...newMaterial as Material } 
+          : m
+      ));
+    } else {
+      // Criar novo material
+      const material: Material = {
+        id: Date.now().toString(),
+        name: newMaterial.name!,
+        unit: newMaterial.unit!,
+        price: Number(newMaterial.price),
+        quantity: Number(newMaterial.quantity),
+        supplier: newMaterial.supplier || ''
+      };
+      setMaterials(prev => [...prev, material]);
+    }
 
-    setMaterials([...materials, material]);
     setNewMaterial({ name: '', unit: 'unidade', price: 0, quantity: 1, supplier: '' });
+    setEditingMaterialId(null);
     setShowForm(false);
   };
 
   const deleteMaterial = (id: string) => {
-    if(confirm('Excluir este material?')) {
+    if(confirm('Excluir este material? Esta ação não pode ser desfeita.')) {
       setMaterials(materials.filter(m => m.id !== id));
     }
   };
 
-  // Função de Importação Excel (XLSX)
+  // Função de Importação Excel (XLSX) Aprimorada
   const handleImportXLSX = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setImportStatus('loading');
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -61,21 +87,20 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
         }
 
         const importedMaterials: Material[] = jsonData.map((row: any, index: number) => {
-          // Normalização de chaves para suportar vários nomes de colunas
           const getVal = (possibleKeys: string[]) => {
             const key = Object.keys(row).find(k => 
-              possibleKeys.some(pk => k.toLowerCase().includes(pk.toLowerCase()))
+              possibleKeys.some(pk => k.toLowerCase().trim().includes(pk.toLowerCase()))
             );
             return key ? row[key] : null;
           };
 
           return {
-            id: `xlsx-${Date.now()}-${index}`,
-            name: String(getVal(['nome', 'name', 'item', 'material']) || `Material ${index + 1}`),
-            unit: String(getVal(['unid', 'unit', 'medida']) || "unidade"),
-            price: parseFloat(String(getVal(['preço', 'preco', 'price', 'valor', 'custo']) || "0")),
-            quantity: parseFloat(String(getVal(['qtd', 'quantidade', 'quant', 'quantity']) || "1")),
-            supplier: String(getVal(['fornecedor', 'supplier', 'loja']) || "")
+            id: `xlsx-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+            name: String(getVal(['nome', 'name', 'item', 'material', 'descrição', 'produto']) || `Material ${index + 1}`),
+            unit: String(getVal(['unid', 'unit', 'medida', 'unidade', 'tipo']) || "unidade"),
+            price: parseFloat(String(getVal(['preço', 'preco', 'price', 'valor', 'custo', 'total']) || "0").replace('R$', '').replace(',', '.')),
+            quantity: parseFloat(String(getVal(['qtd', 'quantidade', 'quant', 'quantity', 'vol', 'estoque']) || "1")),
+            supplier: String(getVal(['fornecedor', 'supplier', 'loja', 'onde', 'vendedor']) || "")
           };
         });
 
@@ -83,7 +108,7 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
         setImportStatus('success');
         setTimeout(() => setImportStatus('idle'), 3000);
       } catch (error) {
-        console.error("Erro Excel:", error);
+        console.error("Erro ao importar planilha Excel:", error);
         setImportStatus('error');
         setTimeout(() => setImportStatus('idle'), 4000);
       }
@@ -98,7 +123,7 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
   );
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn pb-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-gray-800 tracking-tight">Estoque de <span className="text-yellow-500">Materiais</span></h2>
@@ -115,14 +140,27 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
           />
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="bg-blue-50 hover:bg-blue-100 text-blue-600 font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-sm active:scale-95 text-sm"
+            disabled={importStatus === 'loading'}
+            className={`font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-sm active:scale-95 text-sm ${
+              importStatus === 'loading' ? 'bg-gray-100 text-gray-400' : 
+              importStatus === 'success' ? 'bg-green-50 text-green-600' :
+              importStatus === 'error' ? 'bg-red-50 text-red-600' :
+              'bg-blue-50 hover:bg-blue-100 text-blue-600'
+            }`}
           >
-            <FileSpreadsheet size={20} />
-            {importStatus === 'success' ? 'Planilha Importada!' : importStatus === 'error' ? 'Erro na Planilha' : 'Importar Excel (XLSX)'}
+            {importStatus === 'loading' ? (
+              <Loader2 className="animate-spin" size={20} />
+            ) : (
+              <FileSpreadsheet size={20} />
+            )}
+            {importStatus === 'loading' ? 'Lendo...' : 
+             importStatus === 'success' ? 'Importado!' : 
+             importStatus === 'error' ? 'Erro Planilha' : 
+             'Importar Excel'}
           </button>
           
           <button 
-            onClick={() => setShowForm(true)}
+            onClick={handleOpenAdd}
             className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg shadow-yellow-100 active:scale-95"
           >
             <Plus size={20} />
@@ -130,20 +168,6 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
           </button>
         </div>
       </div>
-
-      {importStatus === 'success' && (
-        <div className="bg-green-50 border border-green-100 p-4 rounded-2xl flex items-center gap-3 animate-slideDown">
-          <CheckCircle2 className="text-green-500" size={20} />
-          <p className="text-green-700 font-bold text-sm">Materiais importados com sucesso da sua planilha Excel!</p>
-        </div>
-      )}
-
-      {importStatus === 'error' && (
-        <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 animate-slideDown">
-          <AlertCircle className="text-red-500" size={20} />
-          <p className="text-red-700 font-bold text-sm">Ocorreu um erro ao ler o arquivo. Certifique-se de que é um arquivo .xlsx ou .xls válido.</p>
-        </div>
-      )}
 
       <div className="relative group">
         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
@@ -196,12 +220,15 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-all">
+                        <button 
+                          onClick={() => handleOpenEdit(m)}
+                          className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"
+                        >
                           <Edit3 size={18} />
                         </button>
                         <button 
                           onClick={() => deleteMaterial(m.id)}
-                          className="p-2.5 text-gray-200 hover:text-red-500 transition-colors"
+                          className="p-2.5 text-gray-300 hover:text-red-500 transition-colors"
                         >
                           <Trash2 size={18} />
                         </button>
@@ -210,6 +237,16 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
                   </tr>
                 );
               })}
+              {filteredMaterials.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-8 py-20 text-center">
+                    <div className="flex flex-col items-center gap-3 text-gray-300">
+                      <Package size={48} className="opacity-10" />
+                      <p className="font-black text-xs uppercase tracking-widest">Nenhum material encontrado.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -218,13 +255,21 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
       {showForm && (
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-xl rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-2 bg-yellow-400"></div>
+            <div className={`absolute top-0 left-0 w-full h-2 ${editingMaterialId ? 'bg-blue-400' : 'bg-yellow-400'}`}></div>
+            <button 
+              onClick={() => setShowForm(false)}
+              className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors"
+            >
+              <X size={24} />
+            </button>
             <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
-               <div className="p-3 bg-yellow-100 text-yellow-600 rounded-2xl"><Plus size={24} /></div>
-               Novo Material
+               <div className={`p-3 rounded-2xl ${editingMaterialId ? 'bg-blue-50 text-blue-500' : 'bg-yellow-100 text-yellow-600'}`}>
+                 {editingMaterialId ? <Edit3 size={24} /> : <Plus size={24} />}
+               </div>
+               {editingMaterialId ? 'Editar Material' : 'Novo Material'}
             </h3>
             
-            <form onSubmit={handleAddMaterial} className="space-y-6">
+            <form onSubmit={handleSaveMaterial} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Nome do Material</label>
@@ -278,7 +323,7 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Preço Total</label>
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Preço Total Pago</label>
                   <input 
                     type="number" step="0.01" required
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 outline-none font-black text-blue-600"
@@ -305,9 +350,9 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 px-6 py-4 bg-yellow-400 text-yellow-900 font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-100"
+                  className={`flex-1 px-6 py-4 text-white font-black rounded-2xl transition-all shadow-lg ${editingMaterialId ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-100' : 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 shadow-yellow-100'}`}
                 >
-                  Salvar Material
+                  {editingMaterialId ? 'Salvar Alterações' : 'Salvar Material'}
                 </button>
               </div>
             </form>
