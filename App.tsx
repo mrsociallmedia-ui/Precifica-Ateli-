@@ -12,7 +12,8 @@ import {
   Heart,
   Sparkles,
   Wallet2,
-  LogOut
+  LogOut,
+  RefreshCw
 } from 'lucide-react';
 import { Dashboard } from './views/Dashboard';
 import { Inventory } from './views/Inventory';
@@ -37,8 +38,9 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const [isBackupSyncing, setIsBackupSyncing] = useState(false);
 
-  // Helper para gerar chaves de localStorage específicas do usuário (Obrigatório ter prefixo)
+  // Helper para gerar chaves de localStorage específicas do usuário
   const getUserKey = (key: string) => currentUser ? `${currentUser}_${key}` : `guest_${key}`;
 
   // Carregamento de estados com isolamento restrito por usuário
@@ -112,9 +114,14 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência'];
   });
 
-  // Atualiza os dados apenas do usuário logado
+  // Atualiza os dados apenas do usuário logado E cria backup automático
   useEffect(() => {
     if (isAuthenticated && currentUser) {
+      const dataToSave = {
+        companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods
+      };
+
+      // Salvamento Principal
       localStorage.setItem(`${currentUser}_craft_company`, JSON.stringify(companyData));
       localStorage.setItem(`${currentUser}_craft_materials`, JSON.stringify(materials));
       localStorage.setItem(`${currentUser}_craft_customers`, JSON.stringify(customers));
@@ -125,6 +132,17 @@ const App: React.FC = () => {
       localStorage.setItem(`${currentUser}_craft_prod_categories`, JSON.stringify(productCategories));
       localStorage.setItem(`${currentUser}_craft_trans_categories`, JSON.stringify(transactionCategories));
       localStorage.setItem(`${currentUser}_craft_pay_methods`, JSON.stringify(paymentMethods));
+
+      // Sistema de Auto-Backup (Snapshot Interno)
+      setIsBackupSyncing(true);
+      const snapshot = {
+        timestamp: new Date().toISOString(),
+        data: dataToSave
+      };
+      localStorage.setItem(`${currentUser}_system_snapshot`, JSON.stringify(snapshot));
+      
+      const timeout = setTimeout(() => setIsBackupSyncing(false), 800);
+      return () => clearTimeout(timeout);
     }
   }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, isAuthenticated, currentUser]);
 
@@ -133,7 +151,6 @@ const App: React.FC = () => {
     setIsAuthenticated(true);
     localStorage.setItem('precifica_session', 'true');
     localStorage.setItem('precifica_current_user', userEmail);
-    // Recarregamos para garantir que todos os hooks useState(init) peguem os dados corretos do novo prefixo
     window.location.reload(); 
   };
 
@@ -143,7 +160,7 @@ const App: React.FC = () => {
       localStorage.removeItem('precifica_session');
       localStorage.removeItem('precifica_current_user');
       setCurrentUser(null);
-      window.location.reload(); // Limpa estados da memória
+      window.location.reload(); 
     }
   };
 
@@ -247,6 +264,14 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-pink-50 space-y-2">
+          {/* Indicador de Auto-Backup */}
+          {isSidebarOpen && (
+            <div className="flex items-center gap-2 px-2 py-1 mb-2">
+              <RefreshCw size={10} className={`text-green-500 ${isBackupSyncing ? 'animate-spin' : ''}`} />
+              <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Backup Sincronizado</span>
+            </div>
+          )}
+
           <div className="flex items-center gap-3 bg-gray-50/50 p-2 rounded-2xl">
             <div className="w-10 h-10 rounded-full overflow-hidden bg-yellow-100 border-2 border-white shadow-sm shrink-0">
                {companyData.logo ? (

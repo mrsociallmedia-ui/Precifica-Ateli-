@@ -14,7 +14,9 @@ import {
   Download,
   Upload,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  History,
+  RefreshCcw
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 
@@ -32,11 +34,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [editingPlatform, setEditingPlatform] = useState<Platform | null>(null);
   const [platformName, setPlatformName] = useState('');
   const [platformFee, setPlatformFee] = useState('');
+  const [lastSnapshot, setLastSnapshot] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentUser = localStorage.getItem('precifica_current_user');
 
   useEffect(() => {
+    // Verificar último snapshot interno
+    if (currentUser) {
+      const snap = localStorage.getItem(`${currentUser}_system_snapshot`);
+      if (snap) {
+        const parsed = JSON.parse(snap);
+        setLastSnapshot(new Date(parsed.timestamp).toLocaleString('pt-BR'));
+      }
+    }
+
     const totalMonthlyCosts = (Number(companyData.desiredSalary) || 0) + 
                              (Number(companyData.fixedCostsMonthly) || 0) + 
                              (Number(companyData.meiTax) || 0);
@@ -46,7 +58,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     if (Math.abs(companyData.hourlyRate - calculatedRate) > 0.01) {
       setCompanyData(prev => ({ ...prev, hourlyRate: calculatedRate }));
     }
-  }, [companyData.desiredSalary, companyData.fixedCostsMonthly, companyData.meiTax, companyData.workHoursMonthly, companyData.hourlyRate, setCompanyData]);
+  }, [companyData.desiredSalary, companyData.fixedCostsMonthly, companyData.meiTax, companyData.workHoursMonthly, companyData.hourlyRate, setCompanyData, currentUser]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -95,7 +107,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       'craft_prod_categories', 'craft_trans_categories', 'craft_pay_methods'
     ];
     
-    // Pegamos apenas as chaves que começam com o e-mail do usuário logado
     keysToExport.forEach(baseKey => {
       const fullKey = `${currentUser}_${baseKey}`;
       const val = localStorage.getItem(fullKey);
@@ -123,14 +134,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     reader.onload = (event) => {
       try {
         const importedData = JSON.parse(event.target?.result as string);
-        
-        // Salvamos os dados importados vinculando ao usuário logado no momento
         Object.entries(importedData).forEach(([key, value]) => {
-          // Removemos prefixos antigos se existirem no arquivo para garantir que entre no perfil correto
           const cleanKey = key.includes('_craft_') ? key.split('_craft_')[1] : key;
           localStorage.setItem(`${currentUser}_${cleanKey}`, JSON.stringify(value));
         });
-
         alert('Dados restaurados com sucesso para o seu perfil! O aplicativo será recarregado.');
         window.location.reload();
       } catch (error) {
@@ -138,6 +145,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleRestoreFromSnapshot = () => {
+    if (!currentUser) return;
+    const snap = localStorage.getItem(`${currentUser}_system_snapshot`);
+    if (!snap) return;
+
+    if (confirm('Deseja restaurar os dados do último backup automático do sistema? Isso substituirá as mudanças atuais.')) {
+      const { data } = JSON.parse(snap);
+      localStorage.setItem(`${currentUser}_craft_company`, JSON.stringify(data.companyData));
+      localStorage.setItem(`${currentUser}_craft_materials`, JSON.stringify(data.materials));
+      localStorage.setItem(`${currentUser}_craft_customers`, JSON.stringify(data.customers));
+      localStorage.setItem(`${currentUser}_craft_platforms`, JSON.stringify(data.platforms));
+      localStorage.setItem(`${currentUser}_craft_projects`, JSON.stringify(data.projects));
+      localStorage.setItem(`${currentUser}_craft_products`, JSON.stringify(data.products));
+      localStorage.setItem(`${currentUser}_craft_transactions`, JSON.stringify(data.transactions));
+      localStorage.setItem(`${currentUser}_craft_prod_categories`, JSON.stringify(data.productCategories));
+      localStorage.setItem(`${currentUser}_craft_trans_categories`, JSON.stringify(data.transactionCategories));
+      localStorage.setItem(`${currentUser}_craft_pay_methods`, JSON.stringify(data.paymentMethods));
+      
+      alert('Sistema restaurado do ponto automático! Recarregando...');
+      window.location.reload();
+    }
   };
 
   return (
@@ -172,35 +202,60 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <p className="text-pink-500 font-black text-[10px] uppercase tracking-[0.2em] mt-1">Gestão Profissional</p>
           </div>
 
+          {/* Backup & Segurança */}
           <div className="w-full bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-4">
             <h4 className="font-black text-gray-700 flex items-center gap-2 uppercase text-[10px] tracking-widest border-b border-gray-50 pb-3">
               <ShieldCheck size={14} className="text-green-500" /> Segurança dos Dados
             </h4>
-            <div className="space-y-3">
-              <button 
-                onClick={handleExportData}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
-              >
-                <Download size={16} /> Exportar Meu Backup
-              </button>
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-yellow-50 text-gray-500 hover:text-yellow-700 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
-              >
-                <Upload size={16} /> Restaurar Meu Backup
-              </button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept=".json" 
-                onChange={handleImportData} 
-              />
+            
+            <div className="space-y-4">
+               {/* Auto Backup Info */}
+               <div className="bg-green-50 p-4 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black text-green-600 uppercase tracking-widest">Backup Automático</span>
+                    <RefreshCcw size={10} className="text-green-400" />
+                  </div>
+                  <p className="text-[10px] text-green-800 font-bold leading-tight">
+                    O sistema salva seus dados em segundo plano sempre que você faz alterações.
+                  </p>
+                  {lastSnapshot && (
+                    <p className="text-[8px] text-green-600 font-black uppercase">Último Sincronismo: {lastSnapshot}</p>
+                  )}
+               </div>
+
+               <div className="space-y-2">
+                  <button 
+                    onClick={handleRestoreFromSnapshot}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-green-100 text-gray-500 hover:text-green-700 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
+                  >
+                    <History size={16} /> Restaurar do Auto-Backup
+                  </button>
+                  <button 
+                    onClick={handleExportData}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
+                  >
+                    <Download size={16} /> Exportar Backup Manual
+                  </button>
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-yellow-50 text-gray-500 hover:text-yellow-700 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
+                  >
+                    <Upload size={16} /> Carregar Arquivo de Backup
+                  </button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept=".json" 
+                    onChange={handleImportData} 
+                  />
+               </div>
             </div>
+
             <div className="bg-yellow-50 p-3 rounded-xl flex gap-2">
                <AlertTriangle size={14} className="text-yellow-600 shrink-0" />
                <p className="text-[9px] text-yellow-800 font-bold leading-tight">
-                 Seus dados são privados e vinculados ao seu e-mail de login.
+                 Dica: Exporte seu backup mensalmente para um local externo (Google Drive/Pendrive) para segurança extra.
                </p>
             </div>
           </div>

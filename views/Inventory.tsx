@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Plus, Trash2, Edit3, Search, Truck, Tag, DollarSign } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Plus, Trash2, Edit3, Search, Truck, Tag, DollarSign, FileCode, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Material } from '../types';
 
 interface InventoryProps {
@@ -11,6 +11,9 @@ interface InventoryProps {
 export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials }) => {
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [newMaterial, setNewMaterial] = useState<Partial<Material>>({
     name: '', unit: 'unidade', price: 0, quantity: 1, supplier: ''
   });
@@ -39,6 +42,51 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
     }
   };
 
+  // Função de Importação XML
+  const handleImportXML = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(event.target?.result as string, "text/xml");
+        const materialNodes = xmlDoc.getElementsByTagName("material");
+        
+        if (materialNodes.length === 0) {
+          throw new Error("Nenhum material encontrado no XML");
+        }
+
+        const importedMaterials: Material[] = [];
+        
+        for (let i = 0; i < materialNodes.length; i++) {
+          const node = materialNodes[i];
+          const getVal = (tag: string) => node.getElementsByTagName(tag)[0]?.textContent || "";
+          
+          importedMaterials.push({
+            id: `xml-${Date.now()}-${i}`,
+            name: getVal("nome") || getVal("name"),
+            unit: getVal("unidade") || getVal("unit") || "unidade",
+            price: parseFloat(getVal("preco") || getVal("price") || "0"),
+            quantity: parseFloat(getVal("quantidade") || getVal("quantity") || "1"),
+            supplier: getVal("fornecedor") || getVal("supplier") || ""
+          });
+        }
+
+        setMaterials(prev => [...prev, ...importedMaterials]);
+        setImportStatus('success');
+        setTimeout(() => setImportStatus('idle'), 3000);
+      } catch (error) {
+        console.error("Erro XML:", error);
+        setImportStatus('error');
+        setTimeout(() => setImportStatus('idle'), 4000);
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const filteredMaterials = materials.filter(m => 
     m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -51,14 +99,39 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
           <h2 className="text-3xl font-black text-gray-800 tracking-tight">Estoque de <span className="text-yellow-500">Materiais</span></h2>
           <p className="text-gray-400 font-medium">Controle de insumos e fornecedores.</p>
         </div>
-        <button 
-          onClick={() => setShowForm(true)}
-          className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg shadow-yellow-100 active:scale-95"
-        >
-          <Plus size={20} />
-          Novo Material
-        </button>
+        
+        <div className="flex flex-wrap gap-3">
+          <input 
+            type="file" 
+            accept=".xml" 
+            ref={fileInputRef} 
+            onChange={handleImportXML} 
+            className="hidden" 
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-blue-50 hover:bg-blue-100 text-blue-600 font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-sm active:scale-95 text-sm"
+          >
+            <FileCode size={20} />
+            {importStatus === 'success' ? 'Importado!' : importStatus === 'error' ? 'Erro no XML' : 'Importar XML'}
+          </button>
+          
+          <button 
+            onClick={() => setShowForm(true)}
+            className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg shadow-yellow-100 active:scale-95"
+          >
+            <Plus size={20} />
+            Novo Material
+          </button>
+        </div>
       </div>
+
+      {importStatus === 'success' && (
+        <div className="bg-green-50 border border-green-100 p-4 rounded-2xl flex items-center gap-3 animate-slideDown">
+          <CheckCircle2 className="text-green-500" size={20} />
+          <p className="text-green-700 font-bold text-sm">Materiais importados com sucesso do arquivo XML!</p>
+        </div>
+      )}
 
       <div className="relative group">
         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
