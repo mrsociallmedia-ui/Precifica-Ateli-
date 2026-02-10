@@ -18,7 +18,6 @@ import {
   CheckCircle2,
   Database,
   Cloud,
-  CloudCheck,
   CloudOff,
   UploadCloud
 } from 'lucide-react';
