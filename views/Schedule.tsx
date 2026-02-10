@@ -1,0 +1,219 @@
+
+import React, { useMemo } from 'react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Project, Customer, Material, Platform, CompanyData } from '../types';
+import { calculateProjectBreakdown } from '../utils';
+
+interface ScheduleProps {
+  projects: Project[];
+  setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
+  customers: Customer[];
+  materials: Material[];
+  platforms: Platform[];
+  companyData: CompanyData;
+}
+
+export const Schedule: React.FC<ScheduleProps> = ({ 
+  projects, setProjects, customers, materials, platforms, companyData 
+}) => {
+  const updateStatus = (id: string, newStatus: Project['status']) => {
+    setProjects(projects.map(p => p.id === id ? { ...p, status: newStatus } : p));
+  };
+
+  const getCustomerName = (id: string) => customers.find(c => c.id === id)?.name || 'Cliente Avulso';
+
+  const statusLabels = {
+    pending: 'Aguardando Aprovação',
+    approved: 'Aprovado',
+    delayed: 'Atrasado',
+    in_progress: 'Produzindo',
+    completed: 'Finalizado',
+  };
+
+  const statusColors = {
+    pending: 'border-yellow-200 bg-yellow-50 text-yellow-700',
+    approved: 'border-blue-200 bg-blue-50 text-blue-700',
+    delayed: 'border-red-200 bg-red-50 text-red-700',
+    in_progress: 'border-purple-200 bg-purple-50 text-purple-700',
+    completed: 'border-green-200 bg-green-50 text-green-700',
+  };
+
+  const upcomingBirthdays = useMemo(() => {
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    
+    return customers
+      .filter(c => {
+        if (!c.birthDate) return false;
+        const [_, month] = c.birthDate.split('-').map(Number);
+        return month === currentMonth;
+      })
+      .map(c => {
+        const [y, m, d] = c.birthDate.split('-').map(Number);
+        return { ...c, day: d };
+      })
+      .sort((a, b) => a.day - b.day);
+  }, [customers]);
+
+  return (
+    <div className="space-y-10 animate-fadeIn pb-20">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h2 className="text-4xl font-black text-gray-800 tracking-tight">Cronograma <span className="text-blue-500">& Produção</span></h2>
+          <p className="text-gray-400 font-medium">Acompanhe seus prazos e etapas do pedido.</p>
+        </div>
+        
+        {/* Birthday Widget */}
+        <div className="bg-pink-50 p-6 rounded-[2rem] border border-pink-100 flex items-center gap-6 min-w-[300px] shadow-sm">
+           <div className="p-4 bg-pink-500 text-white rounded-2xl shadow-lg animate-bounce">
+              <Gift size={24} />
+           </div>
+           <div>
+              <p className="text-[10px] font-black text-pink-400 uppercase tracking-[0.2em]">Aniversariantes do Mês</p>
+              {upcomingBirthdays.length > 0 ? (
+                <p className="text-sm font-black text-gray-800">
+                  {upcomingBirthdays[0].name} ({upcomingBirthdays[0].day})
+                  {upcomingBirthdays.length > 1 && <span className="text-xs text-pink-500 ml-2">+{upcomingBirthdays.length - 1} outros</span>}
+                </p>
+              ) : (
+                <p className="text-sm font-bold text-gray-400">Ninguém este mês 🎈</p>
+              )}
+           </div>
+        </div>
+      </div>
+
+      {/* Grid horizontal scrollable on mobile */}
+      <div className="flex gap-6 overflow-x-auto pb-6 -mx-4 px-4 xl:grid xl:grid-cols-5 xl:overflow-visible">
+        {(['pending', 'approved', 'delayed', 'in_progress', 'completed'] as const).map(status => (
+          <div key={status} className="flex flex-col gap-6 min-w-[280px] flex-shrink-0 xl:min-w-0">
+            <div className={`flex items-center justify-between px-6 py-4 rounded-3xl border ${statusColors[status]} shadow-sm`}>
+              <h3 className="font-black uppercase text-[10px] tracking-[0.15em]">{statusLabels[status]}</h3>
+              <span className="bg-white/80 px-2 py-0.5 rounded-full text-[10px] font-black shadow-sm">
+                {projects.filter(p => p.status === status).length}
+              </span>
+            </div>
+            
+            <div className="space-y-6 min-h-[400px]">
+              {projects.filter(p => p.status === status).map(project => {
+                const { finalPrice } = calculateProjectBreakdown(project, materials, platforms, companyData);
+                return (
+                  <div key={project.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl hover:scale-[1.01] transition-all group relative overflow-hidden flex flex-col">
+                    {status === 'completed' && (
+                      <div className="absolute top-0 right-0 p-2 bg-green-500 text-white rounded-bl-2xl">
+                        <CheckCircle size={12} />
+                      </div>
+                    )}
+                    {status === 'delayed' && (
+                      <div className="absolute top-0 right-0 p-2 bg-red-500 text-white rounded-bl-2xl animate-pulse">
+                        <AlertTriangle size={12} />
+                      </div>
+                    )}
+                    
+                    <h4 className="font-black text-gray-800 text-base mb-1 truncate">{project.theme}</h4>
+                    <p className="text-[10px] text-pink-500 font-black uppercase tracking-widest mb-4 truncate">{getCustomerName(project.customerId)}</p>
+                    
+                    <div className="grid grid-cols-1 gap-2 mb-6">
+                      <div className="bg-gray-50/50 p-2 rounded-xl flex items-center gap-2 text-[10px] font-bold text-gray-500">
+                        <Clock size={12} className="text-blue-400" /> Produção: {project.hoursToMake}h
+                      </div>
+                      <div className={`bg-gray-50/50 p-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-tighter ${status === 'delayed' ? 'text-red-500 bg-red-50' : 'text-gray-500'}`}>
+                        <CalendarIcon size={12} className={status === 'delayed' ? 'text-red-400' : 'text-pink-400'} /> Entrega: {new Date(project.deliveryDate).toLocaleDateString('pt-BR')}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mb-6 pb-4 border-b border-dashed border-gray-100">
+                       <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Valor</span>
+                       <span className="text-base font-black text-blue-600">R$ {finalPrice.toFixed(2)}</span>
+                    </div>
+
+                    <div className="flex gap-2 mt-auto">
+                      {status === 'pending' && (
+                        <>
+                          <button 
+                            onClick={() => updateStatus(project.id, 'approved')}
+                            className="flex-1 py-3 bg-yellow-400 text-yellow-900 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-yellow-500 transition-all shadow-md shadow-yellow-50 flex items-center justify-center gap-1"
+                          >
+                            <MousePointer2 size={12} /> Aprovar
+                          </button>
+                          <button 
+                            onClick={() => updateStatus(project.id, 'delayed')}
+                            className="p-3 bg-red-100 text-red-500 rounded-2xl hover:bg-red-200 transition-all"
+                            title="Mover para Atrasado"
+                          >
+                            <AlertTriangle size={14} />
+                          </button>
+                        </>
+                      )}
+                      {status === 'approved' && (
+                        <>
+                          <button 
+                            onClick={() => updateStatus(project.id, 'in_progress')}
+                            className="flex-1 py-3 bg-blue-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md shadow-blue-50 flex items-center justify-center gap-1"
+                          >
+                            <PlayCircle size={12} /> Produzir
+                          </button>
+                          <button 
+                            onClick={() => updateStatus(project.id, 'delayed')}
+                            className="p-3 bg-red-100 text-red-500 rounded-2xl hover:bg-red-200 transition-all"
+                            title="Mover para Atrasado"
+                          >
+                            <AlertTriangle size={14} />
+                          </button>
+                        </>
+                      )}
+                      {status === 'delayed' && (
+                        <button 
+                          onClick={() => updateStatus(project.id, 'in_progress')}
+                          className="flex-1 py-3 bg-gray-800 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-gray-900 transition-all shadow-md flex items-center justify-center gap-1"
+                        >
+                          <PlayCircle size={12} /> Retomar Produção
+                        </button>
+                      )}
+                      {status === 'in_progress' && (
+                        <>
+                          <button 
+                            onClick={() => updateStatus(project.id, 'completed')}
+                            className="flex-1 py-3 bg-green-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-md shadow-green-50 flex items-center justify-center gap-1"
+                          >
+                            <CheckCircle2 size={12} /> Finalizar
+                          </button>
+                          <button 
+                            onClick={() => updateStatus(project.id, 'delayed')}
+                            className="p-3 bg-red-100 text-red-500 rounded-2xl hover:bg-red-200 transition-all"
+                          >
+                            <AlertTriangle size={14} />
+                          </button>
+                        </>
+                      )}
+                      {status === 'completed' && (
+                        <div className="flex-1 py-3 text-center text-green-500 font-black text-[9px] uppercase tracking-[0.2em] bg-green-50 rounded-2xl">
+                          Finalizado ✓
+                        </div>
+                      )}
+                      <button 
+                        onClick={() => {
+                          if(confirm('Excluir este pedido?')) {
+                             setProjects(projects.filter(p => p.id !== project.id));
+                          }
+                        }}
+                        className="p-3 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              {projects.filter(p => p.status === status).length === 0 && (
+                <div className="h-40 border-2 border-dashed border-gray-100 rounded-[2.5rem] flex flex-col items-center justify-center text-gray-300 gap-2">
+                   <AlertCircle size={20} className="opacity-10" />
+                   <span className="text-[9px] font-black uppercase tracking-widest opacity-40">Vazio</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
