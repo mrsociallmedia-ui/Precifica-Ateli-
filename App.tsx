@@ -16,7 +16,11 @@ import {
   Loader2,
   RefreshCw,
   CheckCircle2,
-  Database
+  Database,
+  Cloud,
+  CloudCheck,
+  CloudOff,
+  UploadCloud
 } from 'lucide-react';
 import { Dashboard } from './views/Dashboard';
 import { Inventory } from './views/Inventory';
@@ -29,6 +33,8 @@ import { FinancialControl } from './views/FinancialControl';
 import { LoginView } from './views/LoginView';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
+
+type CloudStatus = 'idle' | 'syncing' | 'success' | 'error';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -44,10 +50,11 @@ const App: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState<CloudStatus>('idle');
   
   const initializedRef = useRef(false);
+  const syncTimeoutRef = useRef<number | null>(null);
 
-  // Monitorar largura da tela para responsividade
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 1024) {
@@ -84,6 +91,48 @@ const App: React.FC = () => {
   const [transactionCategories, setTransactionCategories] = useState<string[]>(() => loadUserData('craft_trans_categories', ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']));
   const [paymentMethods, setPaymentMethods] = useState<string[]>(() => loadUserData('craft_pay_methods', ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']));
 
+  // Função para Sincronização Automática em Nuvem
+  const autoCloudSync = useCallback(async () => {
+    const syncId = localStorage.getItem('precifica_sync_id');
+    if (!syncId || !currentUser) return;
+
+    setCloudStatus('syncing');
+    
+    const userKey = currentUser.trim().toLowerCase();
+    const keys = [
+      'craft_company', 'craft_materials', 'craft_customers', 
+      'craft_platforms', 'craft_projects', 'craft_products', 
+      'craft_transactions', 'craft_prod_categories', 
+      'craft_trans_categories', 'craft_pay_methods'
+    ];
+    
+    const db: Record<string, any> = {};
+    keys.forEach(k => {
+      const data = localStorage.getItem(`${userKey}_${k}`);
+      if (data) db[k] = JSON.parse(data);
+    });
+    db['precifica_users'] = JSON.parse(localStorage.getItem('precifica_users') || '[]');
+
+    try {
+      const response = await fetch(`https://api.npoint.io/${syncId.replace('PR-', '')}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(db)
+      });
+      
+      if (response.ok) {
+        setCloudStatus('success');
+        // Mantém o ícone de sucesso por 5 segundos
+        if (syncTimeoutRef.current) window.clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = window.setTimeout(() => setCloudStatus('idle'), 5000);
+      } else {
+        setCloudStatus('error');
+      }
+    } catch (error) {
+      setCloudStatus('error');
+    }
+  }, [currentUser]);
+
   const saveToDatabase = useCallback(() => {
     if (!currentUser || !initializedRef.current || isLoggingOut) return;
     const userKey = currentUser.trim().toLowerCase();
@@ -104,12 +153,17 @@ const App: React.FC = () => {
       Object.entries(data).forEach(([key, value]) => {
         localStorage.setItem(`${userKey}_${key}`, JSON.stringify(value));
       });
+      
+      // Agenda sincronização na nuvem com debounce de 3 segundos
+      if (syncTimeoutRef.current) window.clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = window.setTimeout(autoCloudSync, 3000);
+
       setTimeout(() => setIsSaving(false), 500);
     } catch (error) {
       console.error("Erro crítico de salvamento:", error);
       setIsSaving(false);
     }
-  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser, isLoggingOut]);
+  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser, isLoggingOut, autoCloudSync]);
 
   useEffect(() => {
     initializedRef.current = true;
@@ -130,14 +184,13 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    if (confirm('Sair do sistema? Todos os dados do seu usuário foram salvos.')) {
+    if (confirm('Sair do sistema? Todos os dados do seu usuário foram salvos localmente e na nuvem.')) {
       setIsLoggingOut(true);
-      saveToDatabase();
-      setTimeout(() => {
+      autoCloudSync().finally(() => {
         localStorage.removeItem('precifica_session');
         localStorage.removeItem('precifica_current_user');
         window.location.reload(); 
-      }, 500);
+      });
     }
   };
 
@@ -158,14 +211,13 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#fffcf5] flex flex-col items-center justify-center animate-fadeIn">
          <Loader2 className="text-pink-500 animate-spin mb-6" size={48} />
-         <h2 className="text-xl font-black text-gray-800 tracking-tight">Salvando Banco de Dados...</h2>
+         <h2 className="text-xl font-black text-gray-800 tracking-tight">Sincronizando com a Nuvem...</h2>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-screen bg-[#fffcf5] animate-fadeIn font-['Quicksand'] overflow-x-hidden">
-      {/* Sidebar Desktop e Mobile Drawer */}
       <div className={`fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-30 transition-opacity lg:hidden ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)}></div>
       
       <aside className={`fixed lg:static inset-y-0 left-0 z-40 bg-white border-r border-pink-100 flex flex-col shadow-xl lg:shadow-none transition-transform duration-300 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${isSidebarOpen ? 'w-64' : 'lg:w-20'}`}>
@@ -205,7 +257,6 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Principal */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-16 bg-white/70 backdrop-blur-xl border-b border-pink-50 flex items-center justify-between px-6 z-10 shrink-0">
           <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-gray-50 hover:bg-pink-50 rounded-xl text-gray-400 transition-colors">
@@ -213,6 +264,19 @@ const App: React.FC = () => {
           </button>
           
           <div className="flex items-center gap-4">
+            {/* Indicador de Status da Nuvem */}
+            <div className="flex items-center gap-2 bg-gray-50/50 px-3 py-1.5 rounded-full border border-gray-100">
+               {cloudStatus === 'syncing' && <RefreshCw size={14} className="text-blue-500 animate-spin" />}
+               {cloudStatus === 'success' && <div className="animate-bounce"><CheckCircle2 size={14} className="text-green-500" /></div>}
+               {cloudStatus === 'error' && <CloudOff size={14} className="text-red-400" />}
+               {cloudStatus === 'idle' && <Cloud size={14} className="text-gray-300" />}
+               <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+                  {cloudStatus === 'syncing' ? 'Sincronizando' : 
+                   cloudStatus === 'success' ? 'Salvo na Nuvem' : 
+                   cloudStatus === 'error' ? 'Erro ao Salvar' : 'Nuvem Ativa'}
+               </span>
+            </div>
+
             <div className="hidden sm:flex flex-col items-end">
               <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Ateliê</p>
               <p className="text-xs font-black text-blue-600 truncate max-w-[120px]">{companyData.name}</p>
@@ -241,7 +305,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Barra de Navegação Inferior para Mobile */}
         <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-pink-100 flex items-center justify-around p-3 lg:hidden z-30 mobile-nav-animation shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
           {navItems.filter(item => item.mobile).map(item => (
             <button
