@@ -15,8 +15,7 @@ import {
   LogOut,
   RefreshCw,
   Loader2,
-  CheckCircle2,
-  AlertTriangle
+  CheckCircle2
 } from 'lucide-react';
 import { Dashboard } from './views/Dashboard';
 import { Inventory } from './views/Inventory';
@@ -31,7 +30,6 @@ import { CompanyData, Material, Customer, Platform, Project, Product, Transactio
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 
 const App: React.FC = () => {
-  // Estado de Autenticação
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return localStorage.getItem('precifica_session') === 'true';
   });
@@ -40,23 +38,19 @@ const App: React.FC = () => {
     return localStorage.getItem('precifica_current_user');
   });
 
-  // UI States
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [isBackupSyncing, setIsBackupSyncing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
 
-  // Estados principais da aplicação inicializados com carregamento seguro
   const loadUserData = <T,>(key: string, defaultValue: T): T => {
     const userEmail = localStorage.getItem('precifica_current_user');
     if (!userEmail) return defaultValue;
     const fullKey = `${userEmail.trim().toLowerCase()}_${key}`;
     try {
       const saved = localStorage.getItem(fullKey);
-      if (saved && saved !== "undefined") {
-        return JSON.parse(saved);
-      }
+      if (saved && saved !== "undefined") return JSON.parse(saved);
     } catch (e) {
       console.error(`Erro ao carregar ${fullKey}:`, e);
     }
@@ -74,91 +68,61 @@ const App: React.FC = () => {
   const [transactionCategories, setTransactionCategories] = useState<string[]>(() => loadUserData('craft_trans_categories', ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']));
   const [paymentMethods, setPaymentMethods] = useState<string[]>(() => loadUserData('craft_pay_methods', ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']));
 
-  // Função robusta de salvamento
   const persistAllData = useCallback((targetUser: string) => {
     if (!targetUser) return;
     const userKey = targetUser.trim().toLowerCase();
-    
-    setIsBackupSyncing(true);
+    setIsSaving(true);
     
     try {
-      const dataMapping: Record<string, any> = {
-        'craft_company': companyData,
-        'craft_materials': materials,
-        'craft_customers': customers,
-        'craft_platforms': platforms,
-        'craft_projects': projects,
-        'craft_products': products,
-        'craft_transactions': transactions,
-        'craft_prod_categories': productCategories,
-        'craft_trans_categories': transactionCategories,
-        'craft_pay_methods': paymentMethods
-      };
-
-      // Gravação Serial
-      Object.entries(dataMapping).forEach(([key, value]) => {
-        localStorage.setItem(`${userKey}_${key}`, JSON.stringify(value));
-      });
-
-      // Gravação do Snapshot do Sistema para restauração de emergência
-      const snapshot = {
-        timestamp: new Date().toISOString(),
-        data: dataMapping
-      };
-      localStorage.setItem(`${userKey}_system_snapshot`, JSON.stringify(snapshot));
-
-      // Feedback visual de sucesso
-      setTimeout(() => setIsBackupSyncing(false), 600);
+      localStorage.setItem(`${userKey}_craft_company`, JSON.stringify(companyData));
+      localStorage.setItem(`${userKey}_craft_materials`, JSON.stringify(materials));
+      localStorage.setItem(`${userKey}_craft_customers`, JSON.stringify(customers));
+      localStorage.setItem(`${userKey}_craft_platforms`, JSON.stringify(platforms));
+      localStorage.setItem(`${userKey}_craft_projects`, JSON.stringify(projects));
+      localStorage.setItem(`${userKey}_craft_products`, JSON.stringify(products));
+      localStorage.setItem(`${userKey}_craft_transactions`, JSON.stringify(transactions));
+      localStorage.setItem(`${userKey}_craft_prod_categories`, JSON.stringify(productCategories));
+      localStorage.setItem(`${userKey}_craft_trans_categories`, JSON.stringify(transactionCategories));
+      localStorage.setItem(`${userKey}_craft_pay_methods`, JSON.stringify(paymentMethods));
+      
+      setTimeout(() => setIsSaving(false), 500);
     } catch (error) {
-      console.error("Falha na persistência:", error);
-      setIsBackupSyncing(false);
-      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-        alert("Atenção: O espaço de armazenamento do navegador está cheio! Tente remover imagens pesadas da logomarca.");
-      }
+      console.error("Falha no salvamento:", error);
+      setIsSaving(false);
     }
   }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods]);
 
-  // Efeito de Inicialização: Impede que o auto-save sobrescreva dados no primeiro render
   useEffect(() => {
     const timer = setTimeout(() => setIsInitialLoadDone(true), 500);
     return () => clearTimeout(timer);
   }, []);
 
-  // Efeito de Auto-Save em tempo real (com debounce automático do React em estados agrupados)
   useEffect(() => {
     if (isAuthenticated && currentUser && isInitialLoadDone && !isLoggingOut) {
       persistAllData(currentUser);
     }
   }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, isAuthenticated, currentUser, isInitialLoadDone, isLoggingOut, persistAllData]);
 
-  // Handlers de Sessão
   const handleLogin = (userEmail: string) => {
     const cleanEmail = userEmail.trim().toLowerCase();
     localStorage.setItem('precifica_current_user', cleanEmail);
     localStorage.setItem('precifica_session', 'true');
     setCurrentUser(cleanEmail);
     setIsAuthenticated(true);
-    // Recarregamos para forçar os inicializadores de estado a lerem do disco com o novo userEmail
     window.location.reload(); 
   };
 
   const handleLogout = async () => {
-    if (confirm('Deseja sair do sistema? Seus dados serão salvos agora.')) {
+    if (confirm('Deseja sair do sistema? Seus dados estão salvos.')) {
       setIsLoggingOut(true);
-      
-      // Salva uma última vez antes de limpar
-      if (currentUser) {
-        persistAllData(currentUser);
-      }
-
-      // Pequeno delay para garantir que o IO do localStorage terminou
+      if (currentUser) persistAllData(currentUser);
       setTimeout(() => {
         localStorage.removeItem('precifica_session');
         localStorage.removeItem('precifica_current_user');
         setIsAuthenticated(false);
         setCurrentUser(null);
         window.location.reload(); 
-      }, 1000);
+      }, 800);
     }
   };
 
@@ -173,20 +137,16 @@ const App: React.FC = () => {
     { id: 'settings', label: 'Configurações', icon: Settings, color: 'text-gray-600' },
   ];
 
-  if (!isAuthenticated) {
-    return <LoginView onLogin={handleLogin} />;
-  }
+  if (!isAuthenticated) return <LoginView onLogin={handleLogin} />;
 
   if (isLoggingOut) {
     return (
       <div className="min-h-screen bg-[#fffcf5] flex flex-col items-center justify-center animate-fadeIn">
-         <div className="w-24 h-24 bg-white rounded-[2.5rem] flex items-center justify-center mb-6 shadow-xl shadow-pink-50 border border-pink-100">
-            <Loader2 className="text-pink-500 animate-spin" size={40} />
+         <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-xl border border-pink-100">
+            <Loader2 className="text-pink-500 animate-spin" size={32} />
          </div>
-         <h2 className="text-2xl font-black text-gray-800">Salvando tudo...</h2>
-         <p className="text-gray-400 font-medium mt-2 flex items-center gap-2">
-           <CheckCircle2 size={16} className="text-green-500" /> Seu ateliê está seguro. Até logo!
-         </p>
+         <h2 className="text-xl font-black text-gray-800">Até logo!</h2>
+         <p className="text-gray-400 font-medium mt-1">Dados salvos com sucesso.</p>
       </div>
     );
   }
@@ -211,7 +171,7 @@ const App: React.FC = () => {
         <div className="p-6 flex items-center justify-between">
           {isSidebarOpen ? (
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">P</div>
+              <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center text-white font-bold">P</div>
               <h1 className="text-pink-500 font-bold text-xl tracking-tight">Precifica Ateliê</h1>
             </div>
           ) : (
@@ -219,7 +179,7 @@ const App: React.FC = () => {
           )}
         </div>
 
-        <nav className="flex-1 mt-6 px-4 space-y-2 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 mt-6 px-4 space-y-1 overflow-y-auto custom-scrollbar">
           {navItems.map((item) => (
             <button
               key={item.id}
@@ -230,34 +190,28 @@ const App: React.FC = () => {
                   : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
               }`}
             >
-              <item.icon className={`w-6 h-6 ${activeTab === item.id ? (item.color) : 'text-gray-300'}`} />
+              <item.icon className={`w-5 h-5 ${activeTab === item.id ? item.color : 'text-gray-300'}`} />
               {isSidebarOpen && <span className="font-semibold text-sm">{item.label}</span>}
             </button>
           ))}
         </nav>
 
         <div className="p-4 border-t border-pink-50 space-y-2">
-          {isSidebarOpen && (
-            <div className="flex items-center gap-2 px-2 py-1 mb-2">
-              <div className={`w-2 h-2 rounded-full ${isBackupSyncing ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></div>
-              <span className={`text-[8px] font-black uppercase tracking-widest ${isBackupSyncing ? 'text-yellow-600' : 'text-green-600'}`}>
-                {isBackupSyncing ? 'Salvando Alterações...' : 'Backup Sincronizado'}
-              </span>
-            </div>
-          )}
-
           <div className="flex items-center gap-3 bg-gray-50/50 p-2 rounded-2xl border border-gray-100">
-            <div className="w-10 h-10 rounded-full overflow-hidden bg-yellow-100 border border-white shadow-sm shrink-0">
+            <div className="w-9 h-9 rounded-full overflow-hidden bg-yellow-100 border border-white shrink-0">
                {companyData.logo ? (
                  <img src={companyData.logo} alt="Logo" className="w-full h-full object-cover" />
                ) : (
-                 <div className="w-full h-full flex items-center justify-center text-yellow-600 font-bold text-xs">A</div>
+                 <div className="w-full h-full flex items-center justify-center text-yellow-600 font-bold text-xs uppercase">A</div>
                )}
             </div>
             {isSidebarOpen && (
               <div className="overflow-hidden">
                 <p className="text-xs font-bold text-gray-700 truncate">{companyData.name || 'Seu Ateliê'}</p>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">{currentUser}</p>
+                <div className="flex items-center gap-1">
+                   <div className={`w-1.5 h-1.5 rounded-full ${isSaving ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></div>
+                   <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{isSaving ? 'Gravando...' : 'Sincronizado'}</span>
+                </div>
               </div>
             )}
           </div>
@@ -266,7 +220,7 @@ const App: React.FC = () => {
             onClick={handleLogout}
             className={`w-full flex items-center gap-4 p-3 rounded-2xl text-red-400 hover:bg-red-50 transition-all ${!isSidebarOpen && 'justify-center'}`}
           >
-            <LogOut size={20} />
+            <LogOut size={18} />
             {isSidebarOpen && <span className="font-bold text-sm">Sair do Sistema</span>}
           </button>
         </div>
@@ -274,37 +228,29 @@ const App: React.FC = () => {
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-16 bg-white/80 backdrop-blur-md border-b border-pink-50 flex items-center justify-between px-8 z-10">
-          <button 
-            onClick={() => setSidebarOpen(!isSidebarOpen)}
-            className="p-2 hover:bg-gray-50 rounded-full text-gray-400 transition-colors"
-          >
-            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-gray-50 rounded-full text-gray-400">
+            {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
-          
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex flex-col items-end">
-              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest leading-none">Status da Conta</p>
-              <p className="text-xs font-black text-green-500 flex items-center gap-1">
-                 <CheckCircle2 size={12} /> Dados Persistentes
-              </p>
+              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Usuário Logado</p>
+              <p className="text-xs font-black text-blue-600">{currentUser}</p>
             </div>
             <div className="w-px h-8 bg-gray-100 mx-2"></div>
-            <div className="p-2.5 bg-pink-100 text-pink-500 rounded-2xl shadow-sm">
-               <Heart size={18} fill="currentColor" />
+            <div className="p-2.5 bg-pink-100 text-pink-500 rounded-2xl">
+               <Heart size={16} fill="currentColor" />
             </div>
           </div>
         </header>
-
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 sm:p-10">
           {renderView()}
         </div>
       </main>
 
-      {/* Alerta de carregamento inicial para feedback ao usuário */}
       {!isInitialLoadDone && (
-        <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center gap-4 animate-fadeOut">
-           <RefreshCw className="text-pink-500 animate-spin" size={48} />
-           <p className="text-gray-400 font-black uppercase text-xs tracking-[0.2em]">Sincronizando Banco de Dados...</p>
+        <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center gap-4">
+           <RefreshCw className="text-pink-500 animate-spin" size={40} />
+           <p className="text-gray-400 font-black uppercase text-xs tracking-widest">Carregando seus dados...</p>
         </div>
       )}
     </div>

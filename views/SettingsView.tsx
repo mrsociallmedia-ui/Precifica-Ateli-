@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Camera, 
   Plus, 
@@ -11,12 +11,7 @@ import {
   Zap, 
   Edit3, 
   X,
-  Download,
-  Upload,
-  ShieldCheck,
-  AlertTriangle,
-  History,
-  RefreshCcw
+  Info
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 
@@ -34,21 +29,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [editingPlatform, setEditingPlatform] = useState<Platform | null>(null);
   const [platformName, setPlatformName] = useState('');
   const [platformFee, setPlatformFee] = useState('');
-  const [lastSnapshot, setLastSnapshot] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const currentUser = localStorage.getItem('precifica_current_user');
 
   useEffect(() => {
-    // Verificar último snapshot interno
-    if (currentUser) {
-      const snap = localStorage.getItem(`${currentUser}_system_snapshot`);
-      if (snap) {
-        const parsed = JSON.parse(snap);
-        setLastSnapshot(new Date(parsed.timestamp).toLocaleString('pt-BR'));
-      }
-    }
-
     const totalMonthlyCosts = (Number(companyData.desiredSalary) || 0) + 
                              (Number(companyData.fixedCostsMonthly) || 0) + 
                              (Number(companyData.meiTax) || 0);
@@ -58,7 +40,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     if (Math.abs(companyData.hourlyRate - calculatedRate) > 0.01) {
       setCompanyData(prev => ({ ...prev, hourlyRate: calculatedRate }));
     }
-  }, [companyData.desiredSalary, companyData.fixedCostsMonthly, companyData.meiTax, companyData.workHoursMonthly, companyData.hourlyRate, setCompanyData, currentUser]);
+  }, [companyData.desiredSalary, companyData.fixedCostsMonthly, companyData.meiTax, companyData.workHoursMonthly, companyData.hourlyRate, setCompanyData]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,86 +78,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setShowPlatformForm(false);
   };
 
-  // Funções de Backup Isoloadas por Usuário
-  const handleExportData = () => {
-    if (!currentUser) return;
-    
-    const data: Record<string, any> = {};
-    const keysToExport = [
-      'craft_company', 'craft_materials', 'craft_customers', 'craft_platforms', 
-      'craft_projects', 'craft_products', 'craft_transactions', 
-      'craft_prod_categories', 'craft_trans_categories', 'craft_pay_methods'
-    ];
-    
-    keysToExport.forEach(baseKey => {
-      const fullKey = `${currentUser}_${baseKey}`;
-      const val = localStorage.getItem(fullKey);
-      if (val) data[baseKey] = JSON.parse(val);
-    });
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `backup_${currentUser}_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !currentUser) return;
-
-    if (!confirm('Atenção! Ao importar este backup, os dados do seu ateliê ATUAL serão substituídos. Deseja continuar?')) {
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const importedData = JSON.parse(event.target?.result as string);
-        Object.entries(importedData).forEach(([key, value]) => {
-          const cleanKey = key.includes('_craft_') ? key.split('_craft_')[1] : key;
-          localStorage.setItem(`${currentUser}_${cleanKey}`, JSON.stringify(value));
-        });
-        alert('Dados restaurados com sucesso para o seu perfil! O aplicativo será recarregado.');
-        window.location.reload();
-      } catch (error) {
-        alert('Erro ao processar o arquivo de backup. Certifique-se de que é um arquivo .json válido.');
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleRestoreFromSnapshot = () => {
-    if (!currentUser) return;
-    const snap = localStorage.getItem(`${currentUser}_system_snapshot`);
-    if (!snap) return;
-
-    if (confirm('Deseja restaurar os dados do último backup automático do sistema? Isso substituirá as mudanças atuais.')) {
-      const { data } = JSON.parse(snap);
-      localStorage.setItem(`${currentUser}_craft_company`, JSON.stringify(data.companyData));
-      localStorage.setItem(`${currentUser}_craft_materials`, JSON.stringify(data.materials));
-      localStorage.setItem(`${currentUser}_craft_customers`, JSON.stringify(data.customers));
-      localStorage.setItem(`${currentUser}_craft_platforms`, JSON.stringify(data.platforms));
-      localStorage.setItem(`${currentUser}_craft_projects`, JSON.stringify(data.projects));
-      localStorage.setItem(`${currentUser}_craft_products`, JSON.stringify(data.products));
-      localStorage.setItem(`${currentUser}_craft_transactions`, JSON.stringify(data.transactions));
-      localStorage.setItem(`${currentUser}_craft_prod_categories`, JSON.stringify(data.productCategories));
-      localStorage.setItem(`${currentUser}_craft_trans_categories`, JSON.stringify(data.transactionCategories));
-      localStorage.setItem(`${currentUser}_craft_pay_methods`, JSON.stringify(data.paymentMethods));
-      
-      alert('Sistema restaurado do ponto automático! Recarregando...');
-      window.location.reload();
-    }
-  };
-
   return (
     <div className="max-w-4xl mx-auto space-y-12 animate-fadeIn pb-20">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-4xl font-black text-gray-800 tracking-tight">Configurações do <span className="text-blue-500">Ateliê</span></h2>
-          <p className="text-gray-400 font-medium">Dados da sua empresa e base de cálculos automáticos.</p>
+          <p className="text-gray-400 font-medium text-sm">Gerencie os dados da sua empresa e base de cálculos.</p>
         </div>
       </div>
 
@@ -199,65 +107,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
           <div className="text-center">
             <h3 className="font-black text-gray-800 text-2xl tracking-tight">{companyData.name || 'Seu Ateliê'}</h3>
-            <p className="text-pink-500 font-black text-[10px] uppercase tracking-[0.2em] mt-1">Gestão Profissional</p>
+            <p className="text-pink-500 font-black text-[10px] uppercase tracking-widest mt-1">Gestão Profissional</p>
           </div>
-
-          {/* Backup & Segurança */}
-          <div className="w-full bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-4">
-            <h4 className="font-black text-gray-700 flex items-center gap-2 uppercase text-[10px] tracking-widest border-b border-gray-50 pb-3">
-              <ShieldCheck size={14} className="text-green-500" /> Segurança dos Dados
-            </h4>
-            
-            <div className="space-y-4">
-               {/* Auto Backup Info */}
-               <div className="bg-green-50 p-4 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-black text-green-600 uppercase tracking-widest">Backup Automático</span>
-                    <RefreshCcw size={10} className="text-green-400" />
-                  </div>
-                  <p className="text-[10px] text-green-800 font-bold leading-tight">
-                    O sistema salva seus dados em segundo plano sempre que você faz alterações.
-                  </p>
-                  {lastSnapshot && (
-                    <p className="text-[8px] text-green-600 font-black uppercase">Último Sincronismo: {lastSnapshot}</p>
-                  )}
-               </div>
-
-               <div className="space-y-2">
-                  <button 
-                    onClick={handleRestoreFromSnapshot}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-green-100 text-gray-500 hover:text-green-700 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
-                  >
-                    <History size={16} /> Restaurar do Auto-Backup
-                  </button>
-                  <button 
-                    onClick={handleExportData}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
-                  >
-                    <Download size={16} /> Exportar Backup Manual
-                  </button>
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-yellow-50 text-gray-500 hover:text-yellow-700 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
-                  >
-                    <Upload size={16} /> Carregar Arquivo de Backup
-                  </button>
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    accept=".json" 
-                    onChange={handleImportData} 
-                  />
-               </div>
-            </div>
-
-            <div className="bg-yellow-50 p-3 rounded-xl flex gap-2">
-               <AlertTriangle size={14} className="text-yellow-600 shrink-0" />
-               <p className="text-[9px] text-yellow-800 font-bold leading-tight">
-                 Dica: Exporte seu backup mensalmente para um local externo (Google Drive/Pendrive) para segurança extra.
-               </p>
-            </div>
+          
+          <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex gap-3 items-start">
+             <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
+             <p className="text-[11px] text-blue-700 font-bold leading-relaxed">
+               Todas as alterações feitas nesta tela são salvas automaticamente e aplicadas em todos os orçamentos do sistema.
+             </p>
           </div>
         </div>
 
@@ -265,37 +122,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-blue-50 space-y-8">
             <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">
               <div className="p-2 bg-blue-50 text-blue-500 rounded-xl"><Building2 size={16} /></div>
-              Identificação & Contato
+              Dados da Empresa
             </h4>
             
             <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome do Ateliê / Logomarca</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome do Ateliê / Fantasia</label>
                 <input 
                   type="text" 
                   className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-400 font-bold"
                   value={companyData.name}
                   onChange={e => setCompanyData({...companyData, name: e.target.value})}
-                  placeholder="Ex: Doce Papel Ateliê"
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">WhatsApp de Vendas</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">WhatsApp de Vendas</label>
                   <input 
                     type="text" 
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-400 font-bold"
                     value={companyData.phone}
                     onChange={e => setCompanyData({...companyData, phone: e.target.value})}
-                    placeholder="(00) 00000-0000"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">CNPJ (Opcional)</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">CNPJ (Opcional)</label>
                   <input 
                     type="text" 
-                    placeholder="00.000.000/0000-00"
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-400 font-bold"
                     value={companyData.cnpj}
                     onChange={e => setCompanyData({...companyData, cnpj: e.target.value})}
@@ -308,14 +162,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-8">
             <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">
               <div className="p-2 bg-pink-50 text-pink-500 rounded-xl"><DollarSign size={16} /></div>
-              Base de Cálculo da Sua Hora
+              Custos e Mão de Obra
             </h4>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-pink-400 uppercase tracking-widest flex items-center gap-1">
-                   <Star size={10} /> Salário Desejado (Pró-labore)
-                </label>
+                <label className="text-[10px] font-black text-pink-400 uppercase tracking-widest ml-1">Salário Desejado</label>
                 <input 
                   type="number" step="100"
                   className="w-full p-4 bg-pink-50 border border-pink-100 rounded-2xl outline-none focus:ring-2 focus:ring-pink-400 font-black text-pink-600 text-xl"
@@ -324,41 +176,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                   <Calendar size={10} /> Horas de Trabalho por Mês
-                </label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Horas Mensais</label>
                 <input 
                   type="number"
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-xl"
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-xl text-gray-700"
                   value={companyData.workHoursMonthly}
                   onChange={e => setCompanyData({...companyData, workHoursMonthly: parseInt(e.target.value) || 1})}
                 />
               </div>
             </div>
 
-            <div className="p-8 bg-blue-500 rounded-[2.5rem] shadow-xl shadow-blue-100 text-white relative overflow-hidden group">
+            <div className="p-8 bg-blue-600 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden">
                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80 mb-1">Cálculo Automático</p>
-                    <h4 className="text-xl font-black">Seu Valor de Hora Trabalhada</h4>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80 mb-1">Cálculo da sua Mão de Obra</p>
+                    <h4 className="text-xl font-black">Valor da sua Hora</h4>
                   </div>
                   <div className="bg-white/20 px-8 py-4 rounded-3xl backdrop-blur-md border border-white/30 text-center">
                     <p className="text-3xl font-black">R$ {companyData.hourlyRate.toFixed(2)}</p>
                     <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">por hora</p>
                   </div>
                </div>
-               <Zap className="absolute -bottom-4 -right-4 w-32 h-32 opacity-10 group-hover:scale-110 transition-transform" />
+               <Zap className="absolute -bottom-4 -right-4 w-32 h-32 opacity-10" />
             </div>
           </div>
 
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-yellow-50 space-y-6">
             <div className="flex items-center justify-between">
               <h4 className="font-black text-gray-700 flex items-center gap-2 uppercase text-xs tracking-widest">
-                Plataformas & Maquininhas
+                Plataformas de Venda
               </h4>
               <button 
                 onClick={() => openPlatformForm()}
-                className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm"
+                className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
               >
                 + Adicionar
               </button>
@@ -372,8 +222,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <span className="text-[10px] font-bold text-yellow-600 uppercase tracking-widest">{p.feePercentage}% de taxa</span>
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openPlatformForm(p)} className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"><Edit3 size={18} /></button>
-                    <button onClick={() => setPlatforms(platforms.filter(plat => plat.id !== p.id))} className="p-2 text-gray-200 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+                    <button onClick={() => openPlatformForm(p)} className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"><Edit3 size={16} /></button>
+                    <button onClick={() => setPlatforms(platforms.filter(plat => plat.id !== p.id))} className="p-2 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                   </div>
                 </div>
               ))}
@@ -389,20 +239,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <button onClick={() => setShowPlatformForm(false)} className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors"><X size={24} /></button>
             <h3 className="text-2xl font-black text-gray-800 mb-8 flex items-center gap-3">
                <div className="p-3 bg-yellow-100 text-yellow-600 rounded-2xl">{editingPlatform ? <Edit3 size={20} /> : <Plus size={20} />}</div>
-               {editingPlatform ? 'Editar Taxa' : 'Nova Plataforma'}
+               {editingPlatform ? 'Editar Taxa' : 'Nova Taxa'}
             </h3>
             <form onSubmit={handleSavePlatform} className="space-y-6">
               <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Nome</label>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Nome da Plataforma/Maquininha</label>
                 <input type="text" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-yellow-400 font-bold" value={platformName} onChange={e => setPlatformName(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Taxa (%)</label>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Taxa de Desconto (%)</label>
                 <input type="number" step="0.01" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-yellow-400 font-bold" value={platformFee} onChange={e => setPlatformFee(e.target.value)} />
               </div>
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => setShowPlatformForm(false)} className="flex-1 px-6 py-4 border-2 border-gray-50 text-gray-400 rounded-2xl font-black uppercase tracking-widest hover:bg-gray-50 transition-all">Cancelar</button>
-                <button type="submit" className="flex-1 px-6 py-4 bg-yellow-400 text-yellow-900 font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg">Confirmar</button>
+                <button type="submit" className="flex-1 px-6 py-4 bg-yellow-400 text-yellow-900 font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg">Salvar Taxa</button>
               </div>
             </form>
           </div>

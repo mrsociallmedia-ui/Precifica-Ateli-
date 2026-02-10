@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Plus, Trash2, Edit3, Search, Truck, Tag, DollarSign, FileCode, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Truck, Tag, DollarSign, FileSpreadsheet, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Material } from '../types';
 
 interface InventoryProps {
@@ -42,48 +42,53 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
     }
   };
 
-  // Função de Importação XML
-  const handleImportXML = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Função de Importação Excel (XLSX)
+  const handleImportXLSX = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(event.target?.result as string, "text/xml");
-        const materialNodes = xmlDoc.getElementsByTagName("material");
-        
-        if (materialNodes.length === 0) {
-          throw new Error("Nenhum material encontrado no XML");
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = (window as any).XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = (window as any).XLSX.utils.sheet_to_json(worksheet);
+
+        if (jsonData.length === 0) {
+          throw new Error("Planilha vazia");
         }
 
-        const importedMaterials: Material[] = [];
-        
-        for (let i = 0; i < materialNodes.length; i++) {
-          const node = materialNodes[i];
-          const getVal = (tag: string) => node.getElementsByTagName(tag)[0]?.textContent || "";
-          
-          importedMaterials.push({
-            id: `xml-${Date.now()}-${i}`,
-            name: getVal("nome") || getVal("name"),
-            unit: getVal("unidade") || getVal("unit") || "unidade",
-            price: parseFloat(getVal("preco") || getVal("price") || "0"),
-            quantity: parseFloat(getVal("quantidade") || getVal("quantity") || "1"),
-            supplier: getVal("fornecedor") || getVal("supplier") || ""
-          });
-        }
+        const importedMaterials: Material[] = jsonData.map((row: any, index: number) => {
+          // Normalização de chaves para suportar vários nomes de colunas
+          const getVal = (possibleKeys: string[]) => {
+            const key = Object.keys(row).find(k => 
+              possibleKeys.some(pk => k.toLowerCase().includes(pk.toLowerCase()))
+            );
+            return key ? row[key] : null;
+          };
+
+          return {
+            id: `xlsx-${Date.now()}-${index}`,
+            name: String(getVal(['nome', 'name', 'item', 'material']) || `Material ${index + 1}`),
+            unit: String(getVal(['unid', 'unit', 'medida']) || "unidade"),
+            price: parseFloat(String(getVal(['preço', 'preco', 'price', 'valor', 'custo']) || "0")),
+            quantity: parseFloat(String(getVal(['qtd', 'quantidade', 'quant', 'quantity']) || "1")),
+            supplier: String(getVal(['fornecedor', 'supplier', 'loja']) || "")
+          };
+        });
 
         setMaterials(prev => [...prev, ...importedMaterials]);
         setImportStatus('success');
         setTimeout(() => setImportStatus('idle'), 3000);
       } catch (error) {
-        console.error("Erro XML:", error);
+        console.error("Erro Excel:", error);
         setImportStatus('error');
         setTimeout(() => setImportStatus('idle'), 4000);
       }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -103,17 +108,17 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
         <div className="flex flex-wrap gap-3">
           <input 
             type="file" 
-            accept=".xml" 
+            accept=".xlsx, .xls" 
             ref={fileInputRef} 
-            onChange={handleImportXML} 
+            onChange={handleImportXLSX} 
             className="hidden" 
           />
           <button 
             onClick={() => fileInputRef.current?.click()}
             className="bg-blue-50 hover:bg-blue-100 text-blue-600 font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-sm active:scale-95 text-sm"
           >
-            <FileCode size={20} />
-            {importStatus === 'success' ? 'Importado!' : importStatus === 'error' ? 'Erro no XML' : 'Importar XML'}
+            <FileSpreadsheet size={20} />
+            {importStatus === 'success' ? 'Planilha Importada!' : importStatus === 'error' ? 'Erro na Planilha' : 'Importar Excel (XLSX)'}
           </button>
           
           <button 
@@ -129,7 +134,14 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
       {importStatus === 'success' && (
         <div className="bg-green-50 border border-green-100 p-4 rounded-2xl flex items-center gap-3 animate-slideDown">
           <CheckCircle2 className="text-green-500" size={20} />
-          <p className="text-green-700 font-bold text-sm">Materiais importados com sucesso do arquivo XML!</p>
+          <p className="text-green-700 font-bold text-sm">Materiais importados com sucesso da sua planilha Excel!</p>
+        </div>
+      )}
+
+      {importStatus === 'error' && (
+        <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 animate-slideDown">
+          <AlertCircle className="text-red-500" size={20} />
+          <p className="text-red-700 font-bold text-sm">Ocorreu um erro ao ler o arquivo. Certifique-se de que é um arquivo .xlsx ou .xls válido.</p>
         </div>
       )}
 
