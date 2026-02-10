@@ -3,19 +3,32 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Precifica Ateliê - Gestão para Artesanato</title>
+    
+    <!-- Meta tags para PWA e Mobile -->
+    <meta name="theme-color" content="#ec4899">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Precifica">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/10044/10044874.png">
+    <link rel="manifest" href="/manifest.json">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <!-- Bibliotecas para PDF e Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
     <style>
         body {
             font-family: 'Quicksand', sans-serif;
             background-color: #fffaf0;
             color: #4b5563;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: contain;
         }
         ::-webkit-scrollbar {
             width: 8px;
@@ -39,6 +52,13 @@
             color: black;
             font-family: 'Quicksand', sans-serif;
         }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .mobile-nav-animation {
+            animation: slideUp 0.3s ease-out;
+        }
     </style>
 <script type="importmap">
 {
@@ -56,7 +76,6 @@
 <body>
     <div id="root"></div>
     <div id="pdf-container"></div>
-    <!-- Script principal para o Vite processar -->
     <script type="module" src="/index.tsx"></script>
 </body>
 </html>
