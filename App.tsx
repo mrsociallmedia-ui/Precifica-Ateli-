@@ -15,9 +15,7 @@ import {
   LogOut,
   Loader2,
   RefreshCw,
-  CheckCircle2,
-  Cloud,
-  CloudOff
+  CheckCircle2
 } from 'lucide-react';
 import { Dashboard } from './views/Dashboard';
 import { Inventory } from './views/Inventory';
@@ -30,8 +28,6 @@ import { FinancialControl } from './views/FinancialControl';
 import { LoginView } from './views/LoginView';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
-
-const GOOGLE_DRIVE_FILENAME = 'precifica_atelie_backup.json';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -46,11 +42,8 @@ const App: React.FC = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
   const [isSaving, setIsSaving] = useState(false);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   
   const initializedRef = useRef(false);
-  // Fixed "Cannot find namespace 'NodeJS'" error by using any for the timeout ref type in the browser environment.
-  const syncTimeoutRef = useRef<any | null>(null);
 
   const loadUserData = <T,>(key: string, defaultValue: T): T => {
     const userEmail = currentUser || localStorage.getItem('precifica_current_user');
@@ -78,55 +71,6 @@ const App: React.FC = () => {
   const [transactionCategories, setTransactionCategories] = useState<string[]>(() => loadUserData('craft_trans_categories', ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']));
   const [paymentMethods, setPaymentMethods] = useState<string[]>(() => loadUserData('craft_pay_methods', ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']));
 
-  // Função para salvar no Google Drive
-  const saveToGoogleDrive = useCallback(async (data: any) => {
-    const accessToken = localStorage.getItem('google_drive_token');
-    if (!accessToken) return;
-
-    try {
-      setSyncStatus('syncing');
-      
-      // 1. Procurar se o arquivo já existe
-      const listResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=name='${GOOGLE_DRIVE_FILENAME}' and trashed=false`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      const listData = await listResponse.json();
-      const fileId = listData.files?.[0]?.id;
-
-      const metadata = {
-        name: GOOGLE_DRIVE_FILENAME,
-        mimeType: 'application/json',
-      };
-
-      const formData = new FormData();
-      formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-      formData.append('file', new Blob([JSON.stringify(data)], { type: 'application/json' }));
-
-      if (fileId) {
-        // Atualizar existente
-        await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
-          method: 'PATCH',
-          headers: { Authorization: `Bearer ${accessToken}` },
-          body: formData,
-        });
-      } else {
-        // Criar novo
-        await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}` },
-          body: formData,
-        });
-      }
-      
-      setSyncStatus('success');
-      setTimeout(() => setSyncStatus('idle'), 2000);
-    } catch (error) {
-      console.error("Erro ao sincronizar com Google Drive:", error);
-      setSyncStatus('error');
-    }
-  }, []);
-
   const saveToDatabase = useCallback(() => {
     if (!currentUser || !initializedRef.current) return;
     const userKey = currentUser.trim().toLowerCase();
@@ -150,18 +94,12 @@ const App: React.FC = () => {
         localStorage.setItem(`${userKey}_${key}`, JSON.stringify(value));
       });
       
-      // Debounce do Sync com Google Drive
-      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-      syncTimeoutRef.current = setTimeout(() => {
-        saveToGoogleDrive(data);
-      }, 5000); // Aguarda 5 segundos de inatividade para sincronizar
-
       setTimeout(() => setIsSaving(false), 500);
     } catch (error) {
       console.error("Erro crítico de salvamento:", error);
       setIsSaving(false);
     }
-  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser, saveToGoogleDrive]);
+  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser]);
 
   useEffect(() => {
     initializedRef.current = true;
@@ -185,7 +123,6 @@ const App: React.FC = () => {
     if (confirm('Sair do sistema?')) {
       localStorage.removeItem('precifica_session');
       localStorage.removeItem('precifica_current_user');
-      localStorage.removeItem('google_drive_token');
       window.location.reload(); 
     }
   };
@@ -250,22 +187,6 @@ const App: React.FC = () => {
             <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-gray-50 hover:bg-pink-50 rounded-xl text-gray-400 transition-colors">
               {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
-            
-            {/* Indicador de Sync */}
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
-               {syncStatus === 'syncing' ? (
-                 <RefreshCw className="text-blue-500 animate-spin" size={14} />
-               ) : syncStatus === 'success' ? (
-                 <CheckCircle2 className="text-green-500" size={14} />
-               ) : syncStatus === 'error' ? (
-                 <CloudOff className="text-red-500" size={14} />
-               ) : (
-                 <Cloud className="text-gray-300" size={14} />
-               )}
-               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest hidden sm:inline">
-                 {syncStatus === 'syncing' ? 'Sincronizando...' : syncStatus === 'success' ? 'Salvo na Nuvem' : syncStatus === 'error' ? 'Erro na Nuvem' : 'Google Drive Ativo'}
-               </span>
-            </div>
           </div>
           
           <div className="flex items-center gap-4">

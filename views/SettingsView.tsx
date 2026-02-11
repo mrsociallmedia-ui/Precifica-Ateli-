@@ -13,10 +13,7 @@ import {
   Clock,
   Briefcase,
   Calendar,
-  Cloud,
-  CheckCircle2,
-  RefreshCw,
-  LogOut
+  CheckCircle2
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 
@@ -35,8 +32,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [editingPlatform, setEditingPlatform] = useState<Platform | null>(null);
   const [platformName, setPlatformName] = useState('');
   const [platformFee, setPlatformFee] = useState('');
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [driveConnected, setDriveConnected] = useState(!!localStorage.getItem('google_drive_token'));
 
   // Cálculo Automático do Valor por Hora
   useEffect(() => {
@@ -54,37 +49,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setCompanyData(prev => ({ ...prev, hourlyRate: calculatedRate }));
     }
   }, [companyData.desiredSalary, companyData.fixedCostsMonthly, companyData.meiTax, companyData.workHoursDaily, companyData.workDaysMonthly, setCompanyData]);
-
-  // Função para conectar Google Drive
-  const handleConnectDrive = () => {
-    setIsConnecting(true);
-    try {
-      const client = (window as any).google.accounts.oauth2.initTokenClient({
-        client_id: 'SEU_CLIENT_ID_AQUI.apps.googleusercontent.com', // O usuário precisaria de um ClientID aqui
-        scope: 'https://www.googleapis.com/auth/drive.file',
-        callback: (response: any) => {
-          if (response.access_token) {
-            localStorage.setItem('google_drive_token', response.access_token);
-            setDriveConnected(true);
-            alert('Google Drive conectado com sucesso! Seus dados serão sincronizados automaticamente.');
-          }
-          setIsConnecting(false);
-        },
-      });
-      client.requestAccessToken();
-    } catch (e) {
-      console.error(e);
-      alert('Certifique-se de configurar o ClientID do Google Drive ou que o script carregou corretamente.');
-      setIsConnecting(false);
-    }
-  };
-
-  const handleDisconnectDrive = () => {
-    if (confirm('Deseja desconectar o Google Drive? A sincronização automática será desativada.')) {
-      localStorage.removeItem('google_drive_token');
-      setDriveConnected(false);
-    }
-  };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -134,12 +98,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl md:text-4xl font-black text-gray-800 tracking-tight">Configuração do <span className="text-blue-500">Ateliê</span></h2>
-          <p className="text-gray-400 font-medium text-sm">Gerencie seu perfil, horários e sincronização.</p>
+          <p className="text-gray-400 font-medium text-sm">Gerencie seu perfil, horários e canais de venda.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* LADO ESQUERDO: PERFIL E SYNC */}
+        {/* LADO ESQUERDO: PERFIL */}
         <div className="md:col-span-1 flex flex-col items-center gap-6">
           <div className="relative group">
             <div className="w-48 h-48 bg-white rounded-[3rem] border-4 border-white shadow-2xl overflow-hidden flex items-center justify-center relative">
@@ -158,39 +122,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
           </div>
           
-          <div className="w-full bg-white p-7 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
-             <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-blue-50 text-blue-500 rounded-xl"><Cloud size={18} /></div>
-                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Nuvem & Sync</h4>
-             </div>
-             
-             {driveConnected ? (
-               <div className="space-y-4">
-                 <div className="flex items-center gap-3 p-4 bg-green-50 rounded-2xl border border-green-100">
-                    <CheckCircle2 className="text-green-500 shrink-0" size={20} />
-                    <p className="text-xs font-bold text-green-700">Google Drive Conectado</p>
-                 </div>
-                 <button 
-                   onClick={handleDisconnectDrive}
-                   className="w-full py-3.5 bg-gray-50 hover:bg-red-50 text-red-400 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-                 >
-                   <LogOut size={16} /> Desconectar Nuvem
-                 </button>
-               </div>
-             ) : (
-               <button 
-                 onClick={handleConnectDrive}
-                 disabled={isConnecting}
-                 className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100 disabled:opacity-50"
-               >
-                 {isConnecting ? <RefreshCw className="animate-spin" size={16} /> : <Cloud size={16} />}
-                 Conectar Google Drive
-               </button>
-             )}
-             
-             <p className="text-[9px] text-gray-400 text-center font-medium leading-relaxed px-2">
-                Ao conectar, seus dados serão salvos automaticamente no seu Google Drive pessoal de forma privada.
-             </p>
+          <div className="p-6 bg-blue-50/50 rounded-[2rem] border border-blue-100/50 text-center">
+             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Status da Conta</p>
+             <p className="text-xs font-bold text-blue-700">Armazenamento Local Ativo</p>
           </div>
         </div>
 
