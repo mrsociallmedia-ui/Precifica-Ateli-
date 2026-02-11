@@ -30,7 +30,10 @@ import {
   CheckCircle2,
   AlertCircle,
   FileDown,
-  Printer
+  Printer,
+  Table as TableIcon,
+  Layers,
+  Receipt
 } from 'lucide-react';
 import { 
   Material, 
@@ -360,7 +363,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
   return (
     <div className="space-y-12 pb-24">
-      {/* 1. Lista de Pedidos (Agora no Topo) */}
+      {/* 1. Lista de Pedidos */}
       <div className="space-y-8 animate-fadeIn">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
           <div className="flex flex-col gap-1">
@@ -463,12 +466,6 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               </div>
             );
           })}
-          {filteredHistory.length === 0 && (
-            <div className="col-span-full py-20 text-center text-gray-300 border-2 border-dashed border-gray-100 rounded-[3.5rem] bg-gray-50/30">
-               <Calculator size={56} className="mx-auto mb-4 opacity-10" />
-               <p className="font-black text-xs uppercase tracking-widest">Nenhum pedido encontrado nesta lista.</p>
-            </div>
-          )}
         </div>
       </div>
 
@@ -481,8 +478,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 <Calculator size={28} />
               </div>
               <div>
-                <h2 className="text-3xl font-black text-gray-800 tracking-tight">Novo Orçamento</h2>
-                <p className="text-gray-400 font-medium text-sm">Monte o pedido completo com várias peças do seu catálogo.</p>
+                <h2 className="text-3xl font-black text-gray-800 tracking-tight">Montar Orçamento</h2>
+                <p className="text-gray-400 font-medium text-sm">Combine produtos e visualize os custos detalhadamente.</p>
               </div>
             </div>
           </div>
@@ -490,162 +487,54 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-blue-50 space-y-6">
             <div className="flex items-center gap-2 border-b border-gray-50 pb-4">
                <Users size={20} className="text-pink-400" />
-               <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">1. Dados do Cliente & Título do Pedido</h3>
+               <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">1. Dados do Cliente & Título</h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Título / Tema do Orçamento</label>
-                <input 
-                  type="text" 
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none font-black text-gray-700"
-                  placeholder="Ex: Festa Mickey Luxo"
-                  value={currentProject.theme}
-                  onChange={e => setCurrentProject({...currentProject, theme: e.target.value})}
-                />
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Título / Tema</label>
+                <input type="text" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: Batizado Lucas" value={currentProject.theme} onChange={e => setCurrentProject({...currentProject, theme: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Cliente</label>
-                <select 
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none font-medium text-gray-700"
-                  value={currentProject.customerId}
-                  onChange={e => setCurrentProject({...currentProject, customerId: e.target.value})}
-                >
+                <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-gray-700" value={currentProject.customerId} onChange={e => setCurrentProject({...currentProject, customerId: e.target.value})}>
                   <option value="">Selecione um cliente...</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Nome do Celebrante</label>
-                <input 
-                  type="text" 
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none text-gray-600 font-bold"
-                  placeholder="Nome que vai nas peças"
-                  value={currentProject.celebrantName}
-                  onChange={e => setCurrentProject({...currentProject, celebrantName: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Idade / Data da Festa</label>
-                <input 
-                  type="text" 
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none text-gray-600 font-bold"
-                  placeholder="Ex: 5 anos"
-                  value={currentProject.celebrantAge}
-                  onChange={e => setCurrentProject({...currentProject, celebrantAge: e.target.value})}
-                />
-              </div>
-            </div>
-
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <div className="space-y-2">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                    <Calendar size={12} className="text-blue-500" /> Data de Entrega
-                  </label>
-                  <input 
-                    type="date" 
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none font-black text-gray-600"
-                    value={currentProject.deliveryDate}
-                    onChange={e => setCurrentProject({...currentProject, deliveryDate: e.target.value})}
-                  />
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Data de Entrega</label>
+                  <input type="date" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600" value={currentProject.deliveryDate} onChange={e => setCurrentProject({...currentProject, deliveryDate: e.target.value})} />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Data do Pedido</label>
-                  <input 
-                    type="date" 
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none text-gray-500 font-bold"
-                    value={currentProject.orderDate}
-                    onChange={e => setCurrentProject({...currentProject, orderDate: e.target.value})}
-                  />
+                <div className="space-y-2 flex flex-col justify-end">
+                   <div className="flex items-center gap-2 p-4 bg-yellow-50 rounded-2xl border border-yellow-100">
+                      <Clock size={16} className="text-yellow-500" />
+                      <p className="text-[10px] font-bold text-yellow-700 leading-tight">Lembre-se: O cálculo do valor por hora utiliza os dados de custos fixos e salários das configurações.</p>
+                   </div>
                 </div>
             </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                 <Cake size={20} className="text-pink-400" />
-                 <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">2. Detalhes de Topo de Bolo (Opcional)</h3>
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer bg-pink-50 px-4 py-2 rounded-xl">
-                <span className="text-[10px] font-black text-pink-500 uppercase tracking-widest">Habilitar</span>
-                <input 
-                  type="checkbox" 
-                  className="w-5 h-5 accent-pink-500 rounded-lg"
-                  checked={currentProject.isCakeTopper}
-                  onChange={e => setCurrentProject({...currentProject, isCakeTopper: e.target.checked})}
-                />
-              </label>
-            </div>
-
-            {currentProject.isCakeTopper && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 animate-fadeIn">
-                <div className="space-y-4">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Formato do Bolo</label>
-                  <div className="flex gap-4">
-                    <button 
-                      onClick={() => setCurrentProject({...currentProject, cakeShape: 'round'})}
-                      className={`flex-1 p-4 rounded-2xl border-2 transition-all font-black text-xs uppercase tracking-widest ${
-                        currentProject.cakeShape === 'round' ? 'border-pink-500 bg-pink-50 text-pink-600' : 'border-gray-50 text-gray-400'
-                      }`}
-                    >
-                      Redondo
-                    </button>
-                    <button 
-                      onClick={() => setCurrentProject({...currentProject, cakeShape: 'square'})}
-                      className={`flex-1 p-4 rounded-2xl border-2 transition-all font-black text-xs uppercase tracking-widest ${
-                        currentProject.cakeShape === 'square' ? 'border-pink-500 bg-pink-50 text-pink-600' : 'border-gray-50 text-gray-400'
-                      }`}
-                    >
-                      Quadrado
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Tamanho / Peso</label>
-                  <input 
-                    type="text" 
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-pink-400 font-bold text-gray-600"
-                    placeholder="Ex: 20cm / 2kg"
-                    value={currentProject.cakeSize}
-                    onChange={e => setCurrentProject({...currentProject, cakeSize: e.target.value})}
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-yellow-100 space-y-6">
             <div className="flex items-center justify-between border-b border-gray-50 pb-4">
                <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest flex items-center gap-2">
-                 <Package size={18} className="text-yellow-500" /> 3. Itens e Peças do Pedido
+                 <Package size={18} className="text-yellow-500" /> 2. Itens do Pedido
                </h3>
-               <button 
-                 onClick={() => setShowCatalog(!showCatalog)}
-                 className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2"
-               >
-                 <PlusCircle size={14} /> Adicionar Item
+               <button onClick={() => setShowCatalog(!showCatalog)} className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2">
+                 <PlusCircle size={14} /> Catálogo
                </button>
             </div>
 
             {showCatalog && (
               <div className="bg-yellow-50/50 p-6 rounded-3xl border border-yellow-100 animate-fadeIn space-y-4">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Selecione uma peça do seu catálogo:</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                    {products.map(p => (
-                     <button 
-                       key={p.id}
-                       onClick={() => addItemFromCatalog(p)}
-                       className="w-full text-left p-4 bg-white border border-yellow-100 rounded-2xl hover:bg-yellow-100 transition-all flex items-center justify-between group"
-                     >
-                        <div>
-                           <p className="font-black text-gray-700">{p.name}</p>
-                           <p className="text-[9px] font-bold text-gray-400 uppercase">{p.category}</p>
-                        </div>
-                        <Plus size={16} className="text-yellow-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                     <button key={p.id} onClick={() => addItemFromCatalog(p)} className="w-full text-left p-4 bg-white border border-yellow-100 rounded-2xl hover:bg-yellow-100 transition-all flex items-center justify-between group">
+                        <div><p className="font-black text-gray-700">{p.name}</p></div>
+                        <Plus size={16} className="text-yellow-500" />
                      </button>
                    ))}
                 </div>
@@ -654,73 +543,126 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
             <div className="space-y-4">
                {currentProject.items?.map((item, index) => (
-                 <div key={index} className="flex items-center justify-between bg-gray-50/50 p-5 rounded-2xl border border-gray-100 group">
+                 <div key={index} className="flex items-center justify-between bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
                     <div className="flex items-center gap-4">
-                       <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400 font-black shadow-sm border border-gray-100 group-hover:text-blue-500 transition-colors">
-                          {index + 1}
-                       </div>
-                       <div>
-                          <p className="font-black text-gray-700">{item.name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                             <Clock size={10} className="text-blue-400" />
-                             <span className="text-[9px] font-black text-gray-400 uppercase">{(item.hoursToMake * item.quantity).toFixed(1)}h de produção</span>
-                          </div>
-                       </div>
+                       <span className="font-black text-gray-400">{index + 1}</span>
+                       <p className="font-black text-gray-700">{item.name}</p>
                     </div>
-
                     <div className="flex items-center gap-6">
                        <div className="flex items-center gap-3">
-                          <button 
-                            onClick={() => updateItemQuantity(index, item.quantity - 1)}
-                            className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors shadow-sm"
-                          >
-                            -
-                          </button>
-                          <span className="w-8 text-center font-black text-gray-700">{item.quantity}</span>
-                          <button 
-                            onClick={() => updateItemQuantity(index, item.quantity + 1)}
-                            className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors shadow-sm"
-                          >
-                            +
-                          </button>
+                          <button onClick={() => updateItemQuantity(index, item.quantity - 1)} className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:text-blue-500">-</button>
+                          <span className="font-black text-gray-700">{item.quantity}</span>
+                          <button onClick={() => updateItemQuantity(index, item.quantity + 1)} className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:text-blue-500">+</button>
                        </div>
-                       <button 
-                         onClick={() => removeItem(index)}
-                         className="p-2 text-gray-200 hover:text-red-500 transition-colors"
-                       >
-                         <Trash2 size={18} />
-                       </button>
+                       <button onClick={() => removeItem(index)} className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button>
                     </div>
                  </div>
                ))}
+               {currentProject.items?.length === 0 && <p className="text-center py-8 text-gray-400 text-xs italic">Nenhum item adicionado ainda.</p>}
             </div>
-            
-            <div className="space-y-2 pt-4">
-              <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                <FileText size={12} className="text-gray-300" /> Observações para este Orçamento
-              </label>
-              <textarea 
-                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none resize-none min-h-[100px] text-gray-600 font-medium"
-                placeholder="Ex: Cores pastéis, fita dourada, envio por Sedex..."
-                value={currentProject.notes}
-                onChange={e => setCurrentProject({...currentProject, notes: e.target.value})}
-              />
-            </div>
+          </div>
+
+          {/* TABELA DE DETALHAMENTO DA PRECIFICAÇÃO */}
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-6">
+             <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+                <TableIcon size={20} className="text-blue-500" />
+                <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">3. Detalhamento da Precificação (Composição de Preço)</h3>
+             </div>
+
+             <div className="overflow-hidden rounded-[2rem] border border-gray-100 shadow-sm">
+                <table className="w-full text-left text-sm">
+                   <thead>
+                      <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                         <th className="px-6 py-4">Categoria de Custo</th>
+                         <th className="px-6 py-4 text-right">Valor Bruto</th>
+                         <th className="px-6 py-4 text-right">Participação (%)</th>
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y divide-gray-50">
+                      <tr>
+                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700">
+                            <Package size={14} className="text-yellow-500" /> Materiais (Papéis, Aviamentos, etc)
+                         </td>
+                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.variableCosts.toFixed(2)}</td>
+                         <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">
+                            {breakdown.finalPrice > 0 ? ((breakdown.variableCosts / breakdown.finalPrice) * 100).toFixed(1) : 0}%
+                         </td>
+                      </tr>
+                      <tr>
+                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700">
+                            <Clock size={14} className="text-blue-500" /> Mão de Obra (Seu Tempo)
+                         </td>
+                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.laborCosts.toFixed(2)}</td>
+                         <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">
+                            {breakdown.finalPrice > 0 ? ((breakdown.laborCosts / breakdown.finalPrice) * 100).toFixed(1) : 0}%
+                         </td>
+                      </tr>
+                      <tr>
+                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700">
+                            <Receipt size={14} className="text-red-400" /> Custos Fixos & Impostos (MEI/Luz/Internet)
+                         </td>
+                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.fixedCosts.toFixed(2)}</td>
+                         <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">
+                            {breakdown.finalPrice > 0 ? ((breakdown.fixedCosts / breakdown.finalPrice) * 100).toFixed(1) : 0}%
+                         </td>
+                      </tr>
+                      <tr>
+                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700">
+                            <Layers size={14} className="text-gray-400" /> Despesas Variáveis (Excedentes/Embalagens)
+                         </td>
+                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.excedente.toFixed(2)}</td>
+                         <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">
+                            {breakdown.finalPrice > 0 ? ((breakdown.excedente / breakdown.finalPrice) * 100).toFixed(1) : 0}%
+                         </td>
+                      </tr>
+                      <tr>
+                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700">
+                            <Store size={14} className="text-purple-500" /> Taxas do Canal de Venda
+                         </td>
+                         <td className="px-6 py-4 text-right font-black text-red-500">R$ {breakdown.platformFees.toFixed(2)}</td>
+                         <td className="px-6 py-4 text-right text-[10px] font-black text-red-400">
+                            {breakdown.finalPrice > 0 ? ((breakdown.platformFees / breakdown.finalPrice) * 100).toFixed(1) : 0}%
+                         </td>
+                      </tr>
+                      <tr className="bg-green-50">
+                         <td className="px-6 py-4 flex items-center gap-3 font-black text-green-700">
+                            <TrendingUp size={14} /> Lucro Líquido Real
+                         </td>
+                         <td className="px-6 py-4 text-right font-black text-green-700">R$ {breakdown.profit.toFixed(2)}</td>
+                         <td className="px-6 py-4 text-right text-[10px] font-black text-green-600">
+                            {breakdown.finalPrice > 0 ? ((breakdown.profit / breakdown.finalPrice) * 100).toFixed(1) : 0}%
+                         </td>
+                      </tr>
+                   </tbody>
+                   <tfoot>
+                      <tr className="bg-blue-600 text-white font-black">
+                         <td className="px-6 py-6">PREÇO FINAL SUGERIDO</td>
+                         <td className="px-6 py-6 text-right text-2xl" colSpan={2}>R$ {breakdown.finalPrice.toFixed(2)}</td>
+                      </tr>
+                   </tfoot>
+                </table>
+             </div>
+             
+             <div className="p-5 bg-blue-50 rounded-2xl border border-blue-100 flex gap-4 items-start">
+                <div className="p-2 bg-blue-500 text-white rounded-lg shrink-0"><AlertCircle size={16} /></div>
+                <p className="text-[11px] text-blue-800 leading-relaxed font-bold italic">
+                   Nota: O valor final é calculado por "Markup", garantindo que as taxas do canal de venda incidam sobre o preço final e não apenas sobre o custo, protegendo sua margem de lucro.
+                </p>
+             </div>
           </div>
         </div>
 
         <div className="xl:col-span-4 sticky top-8 space-y-6">
           <div className="bg-white rounded-[3rem] shadow-xl border border-pink-100 overflow-hidden">
             <div className="bg-blue-600 p-10 text-white text-center relative">
-              <h3 className="text-xs font-black opacity-70 uppercase tracking-[0.2em] mb-2">Valor do Orçamento</h3>
+              <h3 className="text-xs font-black opacity-70 uppercase tracking-[0.2em] mb-2">Valor Total</h3>
               <p className="text-5xl font-black">R$ {breakdown.finalPrice.toFixed(2)}</p>
-              <TrendingUp className="absolute top-4 right-4 opacity-20" size={40} />
             </div>
             
             <div className="p-10 space-y-8">
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1"><Store size={14} className="text-yellow-500" /> Plataforma / Taxa</span>
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1"><Store size={14} className="text-yellow-500" /> Canal de Venda</span>
                   <select 
                     className="bg-gray-50 px-3 py-1 rounded-lg font-black text-blue-600 outline-none text-right text-xs"
                     value={currentProject.platformId}
@@ -732,64 +674,33 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 
                 <div className="space-y-3 pt-4 border-t border-gray-50">
                   <div className="flex justify-between text-xs">
-                    <span className="text-gray-500 font-medium">Custo de Materiais</span>
-                    <span className="font-bold text-gray-700">R$ {breakdown.variableCosts.toFixed(2)}</span>
+                    <span className="text-gray-500 font-medium">Custos Totais</span>
+                    <span className="font-bold text-gray-700">R$ {(breakdown.variableCosts + breakdown.laborCosts + breakdown.fixedCosts + breakdown.excedente).toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500 font-medium">Mão de Obra</span>
-                    <span className="font-bold text-gray-700">R$ {breakdown.laborCosts.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500 font-medium">Custos Fixos</span>
-                    <span className="font-bold text-gray-700">R$ {breakdown.fixedCosts.toFixed(2)}</span>
-                  </div>
-                  <div className="h-px bg-gray-50 my-2"></div>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-400 font-black text-[10px] uppercase tracking-widest">Lucro Desejado</span>
-                    <span className="font-black text-pink-500">R$ {breakdown.profit.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-gray-300 font-bold uppercase tracking-widest">Taxas do Canal</span>
-                    <span className="font-bold text-red-400">R$ {breakdown.platformFees.toFixed(2)}</span>
+                    <span className="text-gray-400 font-black text-[10px] uppercase tracking-widest">Lucro do Projeto</span>
+                    <span className="font-black text-green-500">R$ {breakdown.profit.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <button 
-                  onClick={handleSaveProject}
-                  className="w-full py-5 bg-blue-600 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg shadow-blue-100 transition-all active:scale-95"
-                >
+                <button onClick={handleSaveProject} className="w-full py-5 bg-blue-600 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg shadow-blue-100 transition-all active:scale-95">
                   <Save size={20} /> Salvar Orçamento
                 </button>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <button 
-                    onClick={handleGeneratePDF}
-                    disabled={isGeneratingPDF}
-                    className="py-5 bg-gray-50 text-gray-500 font-black rounded-[1.5rem] flex flex-col items-center justify-center gap-1 shadow-sm transition-all active:scale-95 disabled:opacity-50"
-                  >
+                  <button onClick={handleGeneratePDF} disabled={isGeneratingPDF} className="py-5 bg-gray-50 text-gray-500 font-black rounded-[1.5rem] flex flex-col items-center justify-center gap-1 shadow-sm transition-all active:scale-95">
                     <FileDown size={20} />
-                    <span className="text-[10px] uppercase tracking-widest">Gerar PDF</span>
+                    <span className="text-[10px] uppercase tracking-widest">PDF Cliente</span>
                   </button>
-                  
-                  <button 
-                    onClick={handleWhatsAppShare}
-                    className="py-5 bg-green-500 text-white font-black rounded-[1.5rem] flex flex-col items-center justify-center gap-1 shadow-lg shadow-green-100 transition-all active:scale-95"
-                  >
+                  <button onClick={handleWhatsAppShare} className="py-5 bg-green-500 text-white font-black rounded-[1.5rem] flex flex-col items-center justify-center gap-1 shadow-lg shadow-green-100 transition-all active:scale-95">
                     <MessageCircle size={20} />
-                    <span className="text-[10px] uppercase tracking-widest">WhatsApp</span>
+                    <span className="text-[10px] uppercase tracking-widest">Enviar Zap</span>
                   </button>
                 </div>
               </div>
             </div>
-          </div>
-          
-          <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100 flex gap-4 items-start">
-             <div className="p-2 bg-blue-500 text-white rounded-lg shrink-0"><Info size={16} /></div>
-             <p className="text-[11px] text-blue-800 leading-relaxed font-bold">
-                Dica: O PDF gerado inclui sua logo e dados de contato. Baixe o arquivo e anexe no WhatsApp do seu cliente para um atendimento premium!
-             </p>
           </div>
         </div>
       </div>

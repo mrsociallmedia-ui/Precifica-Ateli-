@@ -13,7 +13,8 @@ import {
   Clock,
   Briefcase,
   Calendar,
-  CheckCircle2
+  CheckCircle2,
+  Receipt
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 
@@ -167,6 +168,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Custos Fixos Mensais (R$)</label>
                 <input type="number" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold" value={companyData.fixedCostsMonthly} onChange={e => setCompanyData({...companyData, fixedCostsMonthly: parseFloat(e.target.value) || 0})} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                  <Receipt size={12} className="text-red-400" /> Taxa MEI / Simples (R$)
+                </label>
+                <input type="number" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold" value={companyData.meiTax} onChange={e => setCompanyData({...companyData, meiTax: parseFloat(e.target.value) || 0})} />
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Clock size={12} /> Horas Trabalhadas por Dia</label>
