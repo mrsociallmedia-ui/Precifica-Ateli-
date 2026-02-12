@@ -149,7 +149,7 @@ export const Products: React.FC<ProductsProps> = ({
     <div className="space-y-8 animate-fadeIn pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black text-gray-800 tracking-tight">Precificação de <span className="text-yellow-500">Peças</span></h2>
+          <h2 className="text-3xl font-black text-gray-800 tracking-tight">Tabela de <span className="text-yellow-500">Precificação</span></h2>
           <p className="text-gray-400 font-medium">Cadastre suas peças padrão e veja os preços automáticos.</p>
         </div>
         <button 

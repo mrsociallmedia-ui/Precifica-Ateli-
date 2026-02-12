@@ -14,7 +14,10 @@ import {
   Briefcase,
   Calendar,
   CheckCircle2,
-  Receipt
+  Receipt,
+  Database,
+  Copy,
+  Check
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 
@@ -123,9 +126,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
           </div>
           
-          <div className="p-6 bg-blue-50/50 rounded-[2rem] border border-blue-100/50 text-center">
+          <div className="p-6 bg-blue-50/50 rounded-[2rem] border border-blue-100/50 text-center w-full">
              <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Status da Conta</p>
-             <p className="text-xs font-bold text-blue-700">Armazenamento Local Ativo</p>
+             <p className="text-xs font-bold text-blue-700 truncate">{currentUser}</p>
           </div>
         </div>
 

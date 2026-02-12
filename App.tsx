@@ -32,11 +32,8 @@ import { LoginView } from './views/LoginView';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 
-// Configuração do Supabase
-// Prioriza variáveis de ambiente do Vite (import.meta.env) ou fallback para process.env
 const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || (window as any).process?.env?.SUPABASE_URL || '';
 const SUPABASE_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (window as any).process?.env?.SUPABASE_ANON_KEY || '';
-
 const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 const App: React.FC = () => {
@@ -50,13 +47,13 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
-  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'offline'>('synced');
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   
   const initializedRef = useRef(false);
   const syncTimeoutRef = useRef<any>(null);
 
-  // Estados principais da aplicação
+  // Estados principais
   const [companyData, setCompanyData] = useState<CompanyData>(INITIAL_COMPANY_DATA);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -68,10 +65,10 @@ const App: React.FC = () => {
   const [transactionCategories, setTransactionCategories] = useState<string[]>(['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']);
   const [paymentMethods, setPaymentMethods] = useState<string[]>(['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']);
 
-  // Carregar do cache local (emergência/offline)
   const loadLocalCache = useCallback((email: string) => {
-    const userKey = email.trim().toLowerCase();
-    const dataKeys = {
+    const userKey = email.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+    
+    const setters: Record<string, Function> = {
       craft_company: setCompanyData,
       craft_materials: setMaterials,
       craft_customers: setCustomers,
@@ -84,19 +81,41 @@ const App: React.FC = () => {
       craft_pay_methods: setPaymentMethods
     };
 
-    Object.entries(dataKeys).forEach(([key, setter]) => {
+    Object.entries(setters).forEach(([key, setter]) => {
       const saved = localStorage.getItem(`${userKey}_${key}`);
       if (saved) {
-        try { setter(JSON.parse(saved)); } catch (e) { console.error(`Erro ao ler cache ${key}:`, e); }
+        try { setter(JSON.parse(saved)); } catch (e) { console.error(`Erro ao carregar cache ${key}`, e); }
       }
     });
   }, []);
 
-  // Buscar dados na Nuvem (Supabase)
+  const saveLocalCache = useCallback(() => {
+    if (!currentUser) return;
+    const userKey = currentUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+    
+    const data: Record<string, any> = {
+      craft_company: companyData,
+      craft_materials: materials,
+      craft_customers: customers,
+      craft_platforms: platforms,
+      craft_projects: projects,
+      craft_products: products,
+      craft_transactions: transactions,
+      craft_prod_categories: productCategories,
+      craft_trans_categories: transactionCategories,
+      craft_pay_methods: paymentMethods,
+    };
+
+    Object.entries(data).forEach(([key, value]) => {
+      localStorage.setItem(`${userKey}_${key}`, JSON.stringify(value));
+    });
+  }, [currentUser, companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods]);
+
   const fetchCloudData = useCallback(async (email: string) => {
+    loadLocalCache(email);
+
     if (!supabase) {
-      setSyncStatus('offline');
-      loadLocalCache(email);
+      setSyncStatus('synced');
       return;
     }
 
@@ -122,20 +141,18 @@ const App: React.FC = () => {
         if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
         if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
         if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
-      } else {
-        loadLocalCache(email);
       }
       setSyncStatus('synced');
     } catch (err) {
-      console.error("Erro no fetch cloud:", err);
+      console.error("Erro ao sincronizar nuvem", err);
       setSyncStatus('error');
-      loadLocalCache(email);
     }
   }, [loadLocalCache]);
 
-  // Enviar dados para Nuvem (Supabase)
   const pushCloudData = useCallback(async () => {
-    if (!currentUser || !initializedRef.current) return;
+    saveLocalCache();
+
+    if (!currentUser || !initializedRef.current || !supabase) return;
     
     const appState = {
       craft_company: companyData,
@@ -150,17 +167,6 @@ const App: React.FC = () => {
       craft_pay_methods: paymentMethods,
     };
 
-    // Salva localmente primeiro
-    const userKey = currentUser.trim().toLowerCase();
-    Object.entries(appState).forEach(([key, value]) => {
-      localStorage.setItem(`${userKey}_${key}`, JSON.stringify(value));
-    });
-
-    if (!supabase) {
-      setSyncStatus('offline');
-      return;
-    }
-
     setSyncStatus('syncing');
     try {
       const { error } = await supabase
@@ -174,15 +180,16 @@ const App: React.FC = () => {
       if (error) throw error;
       setSyncStatus('synced');
     } catch (err) {
-      console.error("Erro no push cloud:", err);
       setSyncStatus('error');
     }
-  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser]);
+  }, [saveLocalCache, companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser]);
 
   useEffect(() => {
     if (isAuthenticated && currentUser) {
       fetchCloudData(currentUser).then(() => {
         initializedRef.current = true;
+        setIsInitialLoadDone(true);
+      }).catch(() => {
         setIsInitialLoadDone(true);
       });
     } else {
@@ -192,12 +199,10 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isAuthenticated || !currentUser || !initializedRef.current) return;
-
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     syncTimeoutRef.current = setTimeout(() => {
       pushCloudData();
     }, 2000);
-
     return () => clearTimeout(syncTimeoutRef.current);
   }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, isAuthenticated, currentUser, pushCloudData]);
 
@@ -207,10 +212,12 @@ const App: React.FC = () => {
     localStorage.setItem('precifica_session', 'true');
     setCurrentUser(cleanEmail);
     setIsAuthenticated(true);
+    window.location.reload();
   };
 
-  const handleLogout = () => {
-    if (confirm('Deseja sair? Seus dados estão salvos na nuvem.')) {
+  const handleLogout = async () => {
+    if (confirm('Deseja sair do ateliê?')) {
+      if (supabase) await supabase.auth.signOut();
       localStorage.removeItem('precifica_session');
       localStorage.removeItem('precifica_current_user');
       window.location.reload(); 
@@ -218,14 +225,14 @@ const App: React.FC = () => {
   };
 
   const navItems = [
-    { id: 'dashboard', label: 'Início', icon: LayoutDashboard, color: 'text-pink-500', mobile: true },
-    { id: 'pricing', label: 'Orçamentos', icon: Calculator, color: 'text-blue-500', mobile: true },
-    { id: 'schedule', label: 'Cronograma', icon: Calendar, color: 'text-blue-500', mobile: true },
-    { id: 'finance', label: 'Financeiro', icon: Wallet2, color: 'text-green-500', mobile: true },
-    { id: 'products', label: 'Peças', icon: Sparkles, color: 'text-yellow-600', mobile: false },
-    { id: 'inventory', label: 'Estoque', icon: Package, color: 'text-yellow-600', mobile: false },
-    { id: 'customers', label: 'Clientes', icon: Users, color: 'text-pink-500', mobile: false },
-    { id: 'settings', label: 'Ajustes', icon: Settings, color: 'text-gray-600', mobile: false },
+    { id: 'dashboard', label: 'Início', icon: LayoutDashboard, color: 'text-pink-500' },
+    { id: 'pricing', label: 'Orçamentos', icon: Calculator, color: 'text-blue-500' },
+    { id: 'schedule', label: 'Cronograma', icon: Calendar, color: 'text-blue-500' },
+    { id: 'finance', label: 'Financeiro', icon: Wallet2, color: 'text-green-500' },
+    { id: 'products', label: 'Precificação', icon: Sparkles, color: 'text-yellow-600' },
+    { id: 'inventory', label: 'Estoque', icon: Package, color: 'text-yellow-600' },
+    { id: 'customers', label: 'Clientes', icon: Users, color: 'text-pink-500' },
+    { id: 'settings', label: 'Configurações', icon: Settings, color: 'text-gray-600' },
   ];
 
   if (!isAuthenticated) return <LoginView onLogin={handleLogin} />;
@@ -275,23 +282,8 @@ const App: React.FC = () => {
           </button>
           
           <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full border transition-all ${syncStatus === 'error' ? 'bg-red-50 border-red-100' : syncStatus === 'offline' ? 'bg-gray-50 border-gray-100' : 'bg-green-50 border-green-100'}`}>
-               {syncStatus === 'syncing' ? (
-                  <RefreshCw className="text-blue-500 animate-spin" size={14} />
-               ) : syncStatus === 'error' ? (
-                  <AlertCircle className="text-red-500" size={14} />
-               ) : syncStatus === 'offline' ? (
-                  <CloudOff className="text-gray-400" size={14} />
-               ) : (
-                  <Cloud className="text-green-500" size={14} />
-               )}
-               <span className={`text-[9px] font-black uppercase tracking-widest hidden sm:block ${syncStatus === 'error' ? 'text-red-500' : syncStatus === 'offline' ? 'text-gray-400' : 'text-green-600'}`}>
-                  {syncStatus === 'syncing' ? 'Salvando...' : syncStatus === 'error' ? 'Erro Nuvem' : syncStatus === 'offline' ? 'Offline' : 'Online'}
-               </span>
-            </div>
-
             <div className="hidden sm:flex flex-col items-end border-l border-gray-100 pl-4">
-              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Ateliê de</p>
+              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Conta Ativa</p>
               <p className="text-xs font-black text-pink-600 truncate max-w-[150px] leading-none">{currentUser}</p>
             </div>
           </div>
@@ -319,13 +311,10 @@ const App: React.FC = () => {
 
       {!isInitialLoadDone && (
         <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center gap-6">
-           <div className="relative">
-              <RefreshCw className="text-pink-500 animate-spin" size={56} />
-              <CloudDownload className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-pink-400" size={24} />
-           </div>
+           <RefreshCw className="text-pink-500 animate-spin" size={56} />
            <div className="text-center">
              <p className="text-gray-800 font-black uppercase text-xs tracking-[0.3em] mb-2">Sincronizando Ateliê</p>
-             <p className="text-gray-400 font-bold text-[10px] animate-pulse">Buscando os dados do seu ateliê para este dispositivo...</p>
+             <p className="text-gray-400 font-bold text-[10px] animate-pulse">Iniciando ambiente de trabalho...</p>
            </div>
         </div>
       )}

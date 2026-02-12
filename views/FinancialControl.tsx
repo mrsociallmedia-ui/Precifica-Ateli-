@@ -12,7 +12,14 @@ import {
   Tag, 
   CreditCard,
   X,
-  PlusCircle
+  PlusCircle,
+  ClipboardCheck,
+  Calendar,
+  ChevronRight,
+  PieChart,
+  Printer,
+  Download,
+  CheckCircle2
 } from 'lucide-react';
 import { Transaction, Project, Material, Platform, CompanyData } from '../types';
 
@@ -33,7 +40,10 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
   transactions, setTransactions, projects, materials, platforms, companyData, categories, setCategories, paymentMethods, setPaymentMethods
 }) => {
   const [showForm, setShowForm] = useState(false);
+  const [showClosure, setShowClosure] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [closureDate, setClosureDate] = useState(new Date().toISOString().split('T')[0]);
+  
   const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
     description: '',
     amount: 0,
@@ -48,6 +58,26 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     const expense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
     return { income, expense, balance: income - expense };
   }, [transactions]);
+
+  // Cálculos para o Fechamento de Caixa
+  const closureStats = useMemo(() => {
+    const filtered = transactions.filter(t => t.date === closureDate);
+    const income = filtered.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    const expense = filtered.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    
+    const byMethod: Record<string, number> = {};
+    filtered.forEach(t => {
+      const val = t.type === 'income' ? t.amount : -t.amount;
+      byMethod[t.paymentMethod] = (byMethod[t.paymentMethod] || 0) + val;
+    });
+
+    const byCategory: Record<string, number> = {};
+    filtered.forEach(t => {
+      byCategory[t.category] = (byCategory[t.category] || 0) + t.amount;
+    });
+
+    return { income, expense, balance: income - expense, count: filtered.length, byMethod, byCategory };
+  }, [transactions, closureDate]);
 
   const addCategory = () => {
     const name = prompt('Nome da nova categoria (Tipo de entrada/saída):');
@@ -110,13 +140,22 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
           <h2 className="text-4xl font-black text-gray-800 tracking-tight">Controle <span className="text-green-500">Financeiro</span></h2>
           <p className="text-gray-400 font-medium">Gestão de entradas, saídas e saúde do ateliê.</p>
         </div>
-        <button 
-          onClick={() => setShowForm(true)}
-          className="bg-green-500 hover:bg-green-600 text-white font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg active:scale-95"
-        >
-          <Plus size={20} />
-          Novo Lançamento
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setShowClosure(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg active:scale-95"
+          >
+            <ClipboardCheck size={20} />
+            Fechamento de Caixa
+          </button>
+          <button 
+            onClick={() => setShowForm(true)}
+            className="bg-green-500 hover:bg-green-600 text-white font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg active:scale-95"
+          >
+            <Plus size={20} />
+            Novo Lançamento
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -217,6 +256,105 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
           </div>
         </div>
       </div>
+
+      {/* MODAL DE FECHAMENTO DE CAIXA */}
+      {showClosure && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-blue-600 p-8 text-white relative">
+              <button onClick={() => setShowClosure(false)} className="absolute top-6 right-6 p-2 bg-white/20 hover:bg-white/40 rounded-full transition-all">
+                <X size={24} />
+              </button>
+              <div className="flex items-center gap-4">
+                <div className="p-4 bg-white/20 rounded-[1.5rem] backdrop-blur-sm"><ClipboardCheck size={32} /></div>
+                <div>
+                  <h3 className="text-2xl font-black">Fechamento de Caixa</h3>
+                  <p className="text-blue-100 font-bold text-xs uppercase tracking-widest">Resumo detalhado por período</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Data para Fechamento</label>
+                <div className="relative">
+                  <Calendar size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" />
+                  <input 
+                    type="date" 
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-black text-gray-700 outline-none focus:ring-2 focus:ring-blue-400" 
+                    value={closureDate} 
+                    onChange={e => setClosureDate(e.target.value)} 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-4 bg-green-50 rounded-2xl border border-green-100 text-center">
+                  <p className="text-[9px] font-black text-green-600 uppercase mb-1">Entradas</p>
+                  <p className="text-lg font-black text-gray-800">R$ {closureStats.income.toFixed(2)}</p>
+                </div>
+                <div className="p-4 bg-red-50 rounded-2xl border border-red-100 text-center">
+                  <p className="text-[9px] font-black text-red-600 uppercase mb-1">Saídas</p>
+                  <p className="text-lg font-black text-gray-800">R$ {closureStats.expense.toFixed(2)}</p>
+                </div>
+                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-center">
+                  <p className="text-[9px] font-black text-blue-600 uppercase mb-1">Saldo Líquido</p>
+                  <p className={`text-lg font-black ${closureStats.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    R$ {closureStats.balance.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                 <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                   <CreditCard size={14} className="text-blue-500" /> Saldo por Método de Pagamento
+                 </h4>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {Object.entries(closureStats.byMethod).map(([method, amount]) => (
+                       <div key={method} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between items-center">
+                          <span className="text-xs font-bold text-gray-600">{method}</span>
+                          <span className={`text-sm font-black ${amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {amount >= 0 ? '+' : ''} R$ {amount.toFixed(2)}
+                          </span>
+                       </div>
+                    ))}
+                    {Object.keys(closureStats.byMethod).length === 0 && (
+                      <p className="col-span-2 text-center py-4 text-xs text-gray-400 italic">Sem movimentações nesta data.</p>
+                    )}
+                 </div>
+              </div>
+
+              <div className="space-y-4">
+                 <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                   <PieChart size={14} className="text-purple-500" /> Volume por Categoria
+                 </h4>
+                 <div className="space-y-2">
+                    {Object.entries(closureStats.byCategory).map(([cat, amount]) => (
+                       <div key={cat} className="space-y-1">
+                          <div className="flex justify-between text-xs font-bold">
+                             <span className="text-gray-700">{cat}</span>
+                             <span className="text-gray-400">R$ {amount.toFixed(2)}</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                             <div className="h-full bg-purple-400 rounded-full" style={{ width: `${(amount / (closureStats.income + closureStats.expense)) * 100}%` }}></div>
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+              </div>
+            </div>
+
+            <div className="p-8 border-t border-gray-100 bg-gray-50 flex gap-4">
+               <button onClick={() => window.print()} className="flex-1 py-4 bg-white border border-gray-200 text-gray-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-100 transition-all flex items-center justify-center gap-2">
+                 <Printer size={16} /> Imprimir
+               </button>
+               <button onClick={() => setShowClosure(false)} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2">
+                 <CheckCircle2 size={16} /> Confirmar Fechamento
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn overflow-y-auto">
