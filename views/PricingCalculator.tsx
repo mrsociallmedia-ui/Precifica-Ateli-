@@ -33,7 +33,13 @@ import {
   Printer,
   Table as TableIcon,
   Layers,
-  Receipt
+  Receipt,
+  Circle,
+  Square,
+  CalendarDays,
+  StickyNote,
+  User,
+  PartyPopper
 } from 'lucide-react';
 import { 
   Material, 
@@ -146,7 +152,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       status: 'pending',
       createdAt: new Date().toISOString(),
       dueDate: currentProject.deliveryDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      orderDate: currentProject.orderDate || '',
+      orderDate: currentProject.orderDate || new Date().toISOString().split('T')[0],
       deliveryDate: currentProject.deliveryDate || '',
       theme: currentProject.theme || '',
       celebrantName: currentProject.celebrantName || '',
@@ -182,7 +188,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
     const itemsHtml = (currentProject.items || []).map(item => {
       const totalUnits = (currentProject.items || []).reduce((acc, i) => acc + i.quantity, 0);
-      const unitPrice = breakdown.finalPrice / totalUnits;
+      const unitPrice = breakdown.finalPrice / (totalUnits || 1);
       
       return `
         <tr style="border-bottom: 1px solid #f3f4f6;">
@@ -190,8 +196,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             <p style="font-weight: 800; margin: 0; font-size: 14px; color: #1f2937;">${item.name}</p>
           </td>
           <td style="padding: 15px 0; text-align: center; font-weight: 600; color: #4b5563;">${item.quantity}</td>
-          <td style="padding: 15px 0; text-align: right; font-weight: 800; color: #1f2937;">R$ ${(breakdown.finalPrice * (item.quantity / totalUnits) / item.quantity).toFixed(2)}</td>
-          <td style="padding: 15px 0; text-align: right; font-weight: 800; color: #2563eb;">R$ ${(breakdown.finalPrice * (item.quantity / totalUnits)).toFixed(2)}</td>
+          <td style="padding: 15px 0; text-align: right; font-weight: 800; color: #1f2937;">R$ ${(breakdown.finalPrice * (item.quantity / (totalUnits || 1)) / item.quantity).toFixed(2)}</td>
+          <td style="padding: 15px 0; text-align: right; font-weight: 800; color: #2563eb;">R$ ${(breakdown.finalPrice * (item.quantity / (totalUnits || 1))).toFixed(2)}</td>
         </tr>
       `;
     }).join('');
@@ -221,8 +227,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         <div style="background: #eff6ff; padding: 25px; border-radius: 30px; border: 1px solid #bfdbfe;">
           <h2 style="font-size: 10px; font-weight: 900; text-transform: uppercase; color: #2563eb; margin-bottom: 10px; letter-spacing: 0.1em;">Detalhes do Pedido</h2>
           <p style="font-weight: 800; font-size: 16px; margin: 5px 0; color: #1f2937;">${currentProject.theme}</p>
-          <p style="font-size: 12px; color: #4b5563; margin: 2px 0;">Data: ${new Date().toLocaleDateString('pt-BR')}</p>
-          <p style="font-size: 12px; font-weight: 800; color: #2563eb; margin: 2px 0;">Entrega: ${currentProject.deliveryDate ? new Date(currentProject.deliveryDate).toLocaleDateString('pt-BR') : 'A combinar'}</p>
+          ${currentProject.celebrantName ? `<p style="font-size: 11px; color: #4b5563; margin: 2px 0;"><b>Aniversariante:</b> ${currentProject.celebrantName} ${currentProject.celebrantAge ? `(${currentProject.celebrantAge})` : ''}</p>` : ''}
+          <p style="font-size: 11px; color: #4b5563; margin: 2px 0;"><b>Data do Pedido:</b> ${currentProject.orderDate ? new Date(currentProject.orderDate).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}</p>
+          <p style="font-size: 11px; font-weight: 800; color: #2563eb; margin: 2px 0;"><b>Data de Entrega:</b> ${currentProject.deliveryDate ? new Date(currentProject.deliveryDate).toLocaleDateString('pt-BR') : 'A combinar'}</p>
         </div>
       </div>
 
@@ -323,6 +330,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     message += `\n📅 *Entrega:* ${dateFormatted}\n`;
     
     message += `\n💰 *VALOR TOTAL:* R$ ${breakdown.finalPrice.toFixed(2)}`;
+    if (currentProject.notes) message += `\n\n📌 *Obs:* ${currentProject.notes}`;
     message += `\n\n_Acabei de te enviar o orçamento detalhado em PDF também!_`;
     
     const phone = customer?.phone?.replace(/\D/g, '') || '';
@@ -447,14 +455,28 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                   </button>
                 </div>
 
-                <div className="space-y-2 mb-8">
+                <div className="space-y-2 mb-4">
                    <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase">
                       <Users size={12} className="text-pink-400" /> {customer ? customer.name : 'Cliente Avulso'}
                    </div>
+                   {proj.celebrantName && (
+                     <div className="flex items-center gap-2 text-[10px] text-pink-500 font-black uppercase">
+                        <PartyPopper size={12} /> {proj.celebrantName} {proj.celebrantAge ? `(${proj.celebrantAge})` : ''}
+                     </div>
+                   )}
                    <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase">
-                      <Calendar size={12} className="text-blue-400" /> {proj.deliveryDate ? new Date(proj.deliveryDate).toLocaleDateString('pt-BR') : 'A combinar'}
+                      <CalendarDays size={12} className="text-blue-400" /> Pedido: {proj.orderDate ? new Date(proj.orderDate).toLocaleDateString('pt-BR') : 'Não inf.'}
+                   </div>
+                   <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase">
+                      <Calendar size={12} className="text-pink-400" /> Entrega: {proj.deliveryDate ? new Date(proj.deliveryDate).toLocaleDateString('pt-BR') : 'A combinar'}
                    </div>
                 </div>
+
+                {proj.notes && (
+                  <div className="mb-6 p-3 bg-gray-50/80 rounded-xl border border-gray-100 italic text-[10px] text-gray-400 line-clamp-2">
+                     "{proj.notes}"
+                  </div>
+                )}
 
                 <div className="mt-auto flex items-center justify-between pt-6 border-t border-gray-50">
                    <div>
@@ -513,24 +535,111 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-blue-50/30 p-6 rounded-[2rem] border border-blue-100/50">
                <div className="space-y-2">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Data de Entrega</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                    <User size={12} className="text-blue-500" /> Nome do Aniversariante
+                  </label>
+                  <input type="text" className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: Lucas Gabriel" value={currentProject.celebrantName} onChange={e => setCurrentProject({...currentProject, celebrantName: e.target.value})} />
+               </div>
+               <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                    <Cake size={12} className="text-pink-500" /> Idade / Anos
+                  </label>
+                  <input type="text" className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: 5 anos" value={currentProject.celebrantAge} onChange={e => setCurrentProject({...currentProject, celebrantAge: e.target.value})} />
+               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+               <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                    <CalendarDays size={12} className="text-blue-500" /> Data do Pedido
+                  </label>
+                  <input type="date" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600" value={currentProject.orderDate} onChange={e => setCurrentProject({...currentProject, orderDate: e.target.value})} />
+                </div>
+               <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                    <Calendar size={12} className="text-pink-500" /> Data de Entrega
+                  </label>
                   <input type="date" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600" value={currentProject.deliveryDate} onChange={e => setCurrentProject({...currentProject, deliveryDate: e.target.value})} />
                 </div>
                 <div className="space-y-2 flex flex-col justify-end">
                    <div className="flex items-center gap-2 p-4 bg-yellow-50 rounded-2xl border border-yellow-100">
-                      <Clock size={16} className="text-yellow-500" />
-                      <p className="text-[10px] font-bold text-yellow-700 leading-tight">Lembre-se: O cálculo do valor por hora utiliza os dados de custos fixos e salários das configurações.</p>
+                      <Clock size={16} className="text-yellow-500 shrink-0" />
+                      <p className="text-[9px] font-bold text-yellow-700 leading-tight">O cálculo do valor por hora utiliza os custos fixos das configurações.</p>
                    </div>
                 </div>
             </div>
           </div>
 
+          {/* NOVO: SEÇÃO DE TOPO DE BOLO */}
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-6">
+            <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+               <div className="flex items-center gap-2">
+                  <Cake size={20} className="text-pink-500" />
+                  <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">2. Detalhes de Topo de Bolo</h3>
+               </div>
+               <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer" 
+                    checked={currentProject.isCakeTopper} 
+                    onChange={e => setCurrentProject({...currentProject, isCakeTopper: e.target.checked})} 
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-500"></div>
+                  <span className="ml-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ativar Detalhes</span>
+               </label>
+            </div>
+
+            {currentProject.isCakeTopper && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fadeIn">
+                 <div className="space-y-4">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Formato do Bolo</label>
+                    <div className="grid grid-cols-2 gap-4">
+                       <button 
+                         type="button" 
+                         onClick={() => setCurrentProject({...currentProject, cakeShape: 'round'})}
+                         className={`flex flex-col items-center gap-3 p-6 rounded-3xl border-2 transition-all ${currentProject.cakeShape === 'round' ? 'border-pink-500 bg-pink-50 text-pink-600' : 'border-gray-100 text-gray-300 hover:border-pink-100 hover:text-pink-300'}`}
+                       >
+                          <Circle size={32} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Redondo</span>
+                       </button>
+                       <button 
+                         type="button" 
+                         onClick={() => setCurrentProject({...currentProject, cakeShape: 'square'})}
+                         className={`flex flex-col items-center gap-3 p-6 rounded-3xl border-2 transition-all ${currentProject.cakeShape === 'square' ? 'border-pink-500 bg-pink-50 text-pink-600' : 'border-gray-100 text-gray-300 hover:border-pink-100 hover:text-pink-300'}`}
+                       >
+                          <Square size={32} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Quadrado</span>
+                       </button>
+                    </div>
+                 </div>
+                 <div className="space-y-4">
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tamanho do Bolo (cm ou kg)</label>
+                       <input 
+                         type="text" 
+                         className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-700" 
+                         placeholder="Ex: 15cm ou 2kg" 
+                         value={currentProject.cakeSize} 
+                         onChange={e => setCurrentProject({...currentProject, cakeSize: e.target.value})} 
+                       />
+                    </div>
+                    <div className="p-4 bg-pink-50 rounded-2xl border border-pink-100 flex gap-3 items-start">
+                       <Sparkles size={16} className="text-pink-500 shrink-0" />
+                       <p className="text-[10px] text-pink-700 leading-tight font-bold">
+                          Essas informações ajudam a dimensionar os elementos do topo para que fiquem harmoniosos no bolo.
+                       </p>
+                    </div>
+                 </div>
+              </div>
+            )}
+          </div>
+
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-yellow-100 space-y-6">
             <div className="flex items-center justify-between border-b border-gray-50 pb-4">
                <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest flex items-center gap-2">
-                 <Package size={18} className="text-yellow-500" /> 2. Itens do Pedido
+                 <Package size={18} className="text-yellow-500" /> 3. Itens do Pedido
                </h3>
                <button onClick={() => setShowCatalog(!showCatalog)} className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2">
                  <PlusCircle size={14} /> Catálogo
@@ -571,11 +680,26 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             </div>
           </div>
 
-          {/* TABELA DE DETALHAMENTO DA PRECIFICAÇÃO REFINADA */}
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-blue-50 space-y-6">
+            <div className="flex items-center gap-2 border-b border-gray-50 pb-4">
+               <StickyNote size={20} className="text-blue-500" />
+               <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">4. Observações do Pedido</h3>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Notas adicionais (aparecem no PDF)</label>
+              <textarea 
+                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-gray-700 h-32 resize-none focus:ring-2 focus:ring-blue-400 transition-all"
+                placeholder="Ex: Cliente solicitou alteração de cor no laço, prefere retirar no ateliê, etc..."
+                value={currentProject.notes}
+                onChange={e => setCurrentProject({...currentProject, notes: e.target.value})}
+              />
+            </div>
+          </div>
+
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-6">
              <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
                 <TableIcon size={20} className="text-blue-500" />
-                <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">3. Composição Detalhada do Preço</h3>
+                <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">5. Composição Detalhada do Preço</h3>
              </div>
 
              <div className="overflow-hidden rounded-[2rem] border border-gray-100 shadow-sm">
@@ -620,23 +744,6 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                    </tfoot>
                 </table>
              </div>
-             
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-5 bg-blue-50 rounded-2xl border border-blue-100 flex gap-4 items-start">
-                   <div className="p-2 bg-blue-500 text-white rounded-lg shrink-0"><Info size={16} /></div>
-                   <p className="text-[10px] text-blue-800 leading-relaxed font-bold">
-                      <span className="uppercase block mb-1">Cálculo por Markup</span>
-                      O sistema garante que as taxas do canal de venda incidam sobre o preço final de venda, protegendo seu lucro.
-                   </p>
-                </div>
-                <div className="p-5 bg-green-50 rounded-2xl border border-green-100 flex gap-4 items-start">
-                   <div className="p-2 bg-green-500 text-white rounded-lg shrink-0"><TrendingUp size={16} /></div>
-                   <p className="text-[10px] text-green-800 leading-relaxed font-bold">
-                      <span className="uppercase block mb-1">Lucro Garantido</span>
-                      O valor de "Lucro Líquido" é o que sobra livre no seu bolso após pagar materiais, seu salário (mão de obra) e taxas.
-                   </p>
-                </div>
-             </div>
           </div>
         </div>
 
@@ -658,17 +765,6 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                   >
                     {platforms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
-                </div>
-                
-                <div className="space-y-3 pt-4 border-t border-gray-50">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500 font-medium">Custos Totais</span>
-                    <span className="font-bold text-gray-700">R$ {(breakdown.variableCosts + breakdown.laborCosts + breakdown.fixedCosts + breakdown.excedente).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400 font-black text-[10px] uppercase tracking-widest">Lucro do Projeto</span>
-                    <span className="font-black text-green-500">R$ {breakdown.profit.toFixed(2)}</span>
-                  </div>
                 </div>
               </div>
 
