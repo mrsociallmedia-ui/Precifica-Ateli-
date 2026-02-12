@@ -17,9 +17,9 @@ import {
   Cloud,
   CloudOff,
   CloudDownload,
+  CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
 import { Dashboard } from './views/Dashboard';
 import { Inventory } from './views/Inventory';
 import { Customers } from './views/Customers';
@@ -31,10 +31,7 @@ import { FinancialControl } from './views/FinancialControl';
 import { LoginView } from './views/LoginView';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
-
-const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || (window as any).process?.env?.SUPABASE_URL || '';
-const SUPABASE_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (window as any).process?.env?.SUPABASE_ANON_KEY || '';
-const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+import { supabase } from './supabaseClient';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -47,7 +44,7 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
-  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'local'>('synced');
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   
   const initializedRef = useRef(false);
@@ -67,7 +64,6 @@ const App: React.FC = () => {
 
   const loadLocalCache = useCallback((email: string) => {
     const userKey = email.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-    
     const setters: Record<string, Function> = {
       craft_company: setCompanyData,
       craft_materials: setMaterials,
@@ -92,7 +88,6 @@ const App: React.FC = () => {
   const saveLocalCache = useCallback(() => {
     if (!currentUser) return;
     const userKey = currentUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-    
     const data: Record<string, any> = {
       craft_company: companyData,
       craft_materials: materials,
@@ -113,9 +108,8 @@ const App: React.FC = () => {
 
   const fetchCloudData = useCallback(async (email: string) => {
     loadLocalCache(email);
-
     if (!supabase) {
-      setSyncStatus('synced');
+      setSyncStatus('local');
       return;
     }
 
@@ -144,15 +138,18 @@ const App: React.FC = () => {
       }
       setSyncStatus('synced');
     } catch (err) {
-      console.error("Erro ao sincronizar nuvem", err);
+      console.error("Supabase Sync Error:", err);
       setSyncStatus('error');
     }
   }, [loadLocalCache]);
 
   const pushCloudData = useCallback(async () => {
     saveLocalCache();
-
-    if (!currentUser || !initializedRef.current || !supabase) return;
+    if (!currentUser || !initializedRef.current) return;
+    if (!supabase) {
+      setSyncStatus('local');
+      return;
+    }
     
     const appState = {
       craft_company: companyData,
@@ -180,6 +177,7 @@ const App: React.FC = () => {
       if (error) throw error;
       setSyncStatus('synced');
     } catch (err) {
+      console.error("Supabase Push Error:", err);
       setSyncStatus('error');
     }
   }, [saveLocalCache, companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser]);
@@ -189,9 +187,7 @@ const App: React.FC = () => {
       fetchCloudData(currentUser).then(() => {
         initializedRef.current = true;
         setIsInitialLoadDone(true);
-      }).catch(() => {
-        setIsInitialLoadDone(true);
-      });
+      }).catch(() => setIsInitialLoadDone(true));
     } else {
       setIsInitialLoadDone(true);
     }
@@ -277,9 +273,28 @@ const App: React.FC = () => {
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-16 bg-white/70 backdrop-blur-xl border-b border-pink-50 flex items-center justify-between px-6 z-10 shrink-0">
-          <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-gray-50 hover:bg-pink-50 rounded-xl text-gray-400 transition-colors">
-            {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
-          </button>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-gray-50 hover:bg-pink-50 rounded-xl text-gray-400 transition-colors">
+              {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+            
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
+              syncStatus === 'synced' ? 'bg-green-50 border-green-100 text-green-500' :
+              syncStatus === 'syncing' ? 'bg-blue-50 border-blue-100 text-blue-500 animate-pulse' :
+              syncStatus === 'local' ? 'bg-yellow-50 border-yellow-100 text-yellow-600' :
+              'bg-red-50 border-red-100 text-red-500'
+            }`}>
+              {syncStatus === 'synced' ? <CheckCircle2 size={12} /> : 
+               syncStatus === 'syncing' ? <RefreshCw size={12} className="animate-spin" /> : 
+               syncStatus === 'local' ? <CloudDownload size={12} /> :
+               <CloudOff size={12} />}
+              <span className="hidden sm:inline">
+                {syncStatus === 'synced' ? 'Nuvem OK' : 
+                 syncStatus === 'syncing' ? 'Salvando...' : 
+                 syncStatus === 'local' ? 'Modo Local' : 'Erro Sinc'}
+              </span>
+            </div>
+          </div>
           
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex flex-col items-end border-l border-gray-100 pl-4">
