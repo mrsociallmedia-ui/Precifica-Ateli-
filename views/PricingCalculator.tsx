@@ -361,6 +361,15 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     completed: 'bg-green-50 text-green-700 border-green-100'
   };
 
+  const tableRows = [
+    { label: 'Materiais', value: breakdown.variableCosts, icon: Package, color: 'text-yellow-500', barColor: 'bg-yellow-400' },
+    { label: 'Mão de Obra', value: breakdown.laborCosts, icon: Clock, color: 'text-blue-500', barColor: 'bg-blue-400' },
+    { label: 'Despesas Fixas', value: breakdown.fixedCosts, icon: Receipt, color: 'text-red-400', barColor: 'bg-red-400' },
+    { label: 'Despesas Variáveis', value: breakdown.excedente, icon: Layers, color: 'text-gray-400', barColor: 'bg-gray-400' },
+    { label: 'Canais de Venda', value: breakdown.platformFees, icon: Store, color: 'text-purple-500', barColor: 'bg-purple-400' },
+    { label: 'Lucro Líquido', value: breakdown.profit, icon: TrendingUp, color: 'text-green-500', barColor: 'bg-green-500' },
+  ];
+
   return (
     <div className="space-y-12 pb-24">
       {/* 1. Lista de Pedidos */}
@@ -562,92 +571,71 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             </div>
           </div>
 
-          {/* TABELA DE DETALHAMENTO DA PRECIFICAÇÃO */}
+          {/* TABELA DE DETALHAMENTO DA PRECIFICAÇÃO REFINADA */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-6">
              <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
                 <TableIcon size={20} className="text-blue-500" />
-                <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">3. Detalhamento da Precificação (Composição de Preço)</h3>
+                <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">3. Composição Detalhada do Preço</h3>
              </div>
 
              <div className="overflow-hidden rounded-[2rem] border border-gray-100 shadow-sm">
                 <table className="w-full text-left text-sm">
                    <thead>
                       <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                         <th className="px-6 py-4">Categoria de Custo</th>
-                         <th className="px-6 py-4 text-right">Valor Bruto</th>
-                         <th className="px-6 py-4 text-right">Participação (%)</th>
+                         <th className="px-6 py-5">Componente de Custo</th>
+                         <th className="px-6 py-5">Participação Visual</th>
+                         <th className="px-6 py-5 text-right">Valor Bruto</th>
+                         <th className="px-6 py-5 text-right">Percentual</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-gray-50">
-                      <tr>
-                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700">
-                            <Package size={14} className="text-yellow-500" /> Materiais (Papéis, Aviamentos, etc)
-                         </td>
-                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.variableCosts.toFixed(2)}</td>
-                         <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">
-                            {breakdown.finalPrice > 0 ? ((breakdown.variableCosts / breakdown.finalPrice) * 100).toFixed(1) : 0}%
-                         </td>
-                      </tr>
-                      <tr>
-                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700">
-                            <Clock size={14} className="text-blue-500" /> Mão de Obra (Seu Tempo)
-                         </td>
-                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.laborCosts.toFixed(2)}</td>
-                         <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">
-                            {breakdown.finalPrice > 0 ? ((breakdown.laborCosts / breakdown.finalPrice) * 100).toFixed(1) : 0}%
-                         </td>
-                      </tr>
-                      <tr>
-                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700">
-                            <Receipt size={14} className="text-red-400" /> Custos Fixos & Impostos (MEI/Luz/Internet)
-                         </td>
-                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.fixedCosts.toFixed(2)}</td>
-                         <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">
-                            {breakdown.finalPrice > 0 ? ((breakdown.fixedCosts / breakdown.finalPrice) * 100).toFixed(1) : 0}%
-                         </td>
-                      </tr>
-                      <tr>
-                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700">
-                            <Layers size={14} className="text-gray-400" /> Despesas Variáveis (Excedentes/Embalagens)
-                         </td>
-                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.excedente.toFixed(2)}</td>
-                         <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">
-                            {breakdown.finalPrice > 0 ? ((breakdown.excedente / breakdown.finalPrice) * 100).toFixed(1) : 0}%
-                         </td>
-                      </tr>
-                      <tr>
-                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700">
-                            <Store size={14} className="text-purple-500" /> Taxas do Canal de Venda
-                         </td>
-                         <td className="px-6 py-4 text-right font-black text-red-500">R$ {breakdown.platformFees.toFixed(2)}</td>
-                         <td className="px-6 py-4 text-right text-[10px] font-black text-red-400">
-                            {breakdown.finalPrice > 0 ? ((breakdown.platformFees / breakdown.finalPrice) * 100).toFixed(1) : 0}%
-                         </td>
-                      </tr>
-                      <tr className="bg-green-50">
-                         <td className="px-6 py-4 flex items-center gap-3 font-black text-green-700">
-                            <TrendingUp size={14} /> Lucro Líquido Real
-                         </td>
-                         <td className="px-6 py-4 text-right font-black text-green-700">R$ {breakdown.profit.toFixed(2)}</td>
-                         <td className="px-6 py-4 text-right text-[10px] font-black text-green-600">
-                            {breakdown.finalPrice > 0 ? ((breakdown.profit / breakdown.finalPrice) * 100).toFixed(1) : 0}%
-                         </td>
-                      </tr>
+                      {tableRows.map((row, idx) => {
+                         const percentage = breakdown.finalPrice > 0 ? (row.value / breakdown.finalPrice) * 100 : 0;
+                         return (
+                           <tr key={idx} className="hover:bg-gray-50/30 transition-colors">
+                              <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700">
+                                 <row.icon size={14} className={row.color} /> {row.label}
+                              </td>
+                              <td className="px-6 py-4">
+                                 <div className="w-full max-w-[120px] h-2 bg-gray-100 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full rounded-full transition-all duration-1000 ${row.barColor}`} 
+                                      style={{ width: `${percentage}%` }}
+                                    ></div>
+                                 </div>
+                              </td>
+                              <td className="px-6 py-4 text-right font-black text-gray-700">R$ {row.value.toFixed(2)}</td>
+                              <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">
+                                 {percentage.toFixed(1)}%
+                              </td>
+                           </tr>
+                         );
+                      })}
                    </tbody>
                    <tfoot>
                       <tr className="bg-blue-600 text-white font-black">
-                         <td className="px-6 py-6">PREÇO FINAL SUGERIDO</td>
-                         <td className="px-6 py-6 text-right text-2xl" colSpan={2}>R$ {breakdown.finalPrice.toFixed(2)}</td>
+                         <td className="px-6 py-6" colSpan={2}>PREÇO FINAL SUGERIDO</td>
+                         <td className="px-6 py-6 text-right text-3xl" colSpan={2}>R$ {breakdown.finalPrice.toFixed(2)}</td>
                       </tr>
                    </tfoot>
                 </table>
              </div>
              
-             <div className="p-5 bg-blue-50 rounded-2xl border border-blue-100 flex gap-4 items-start">
-                <div className="p-2 bg-blue-500 text-white rounded-lg shrink-0"><AlertCircle size={16} /></div>
-                <p className="text-[11px] text-blue-800 leading-relaxed font-bold italic">
-                   Nota: O valor final é calculado por "Markup", garantindo que as taxas do canal de venda incidam sobre o preço final e não apenas sobre o custo, protegendo sua margem de lucro.
-                </p>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-5 bg-blue-50 rounded-2xl border border-blue-100 flex gap-4 items-start">
+                   <div className="p-2 bg-blue-500 text-white rounded-lg shrink-0"><Info size={16} /></div>
+                   <p className="text-[10px] text-blue-800 leading-relaxed font-bold">
+                      <span className="uppercase block mb-1">Cálculo por Markup</span>
+                      O sistema garante que as taxas do canal de venda incidam sobre o preço final de venda, protegendo seu lucro.
+                   </p>
+                </div>
+                <div className="p-5 bg-green-50 rounded-2xl border border-green-100 flex gap-4 items-start">
+                   <div className="p-2 bg-green-500 text-white rounded-lg shrink-0"><TrendingUp size={16} /></div>
+                   <p className="text-[10px] text-green-800 leading-relaxed font-bold">
+                      <span className="uppercase block mb-1">Lucro Garantido</span>
+                      O valor de "Lucro Líquido" é o que sobra livre no seu bolso após pagar materiais, seu salário (mão de obra) e taxas.
+                   </p>
+                </div>
              </div>
           </div>
         </div>

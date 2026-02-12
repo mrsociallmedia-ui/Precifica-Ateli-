@@ -15,7 +15,10 @@ import {
   LogOut,
   Loader2,
   RefreshCw,
-  CheckCircle2
+  CheckCircle2,
+  Cloud,
+  CloudOff,
+  CloudDownload
 } from 'lucide-react';
 import { Dashboard } from './views/Dashboard';
 import { Inventory } from './views/Inventory';
@@ -29,6 +32,11 @@ import { LoginView } from './views/LoginView';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 
+// Configuração do Supabase (Usando variáveis de ambiente ou placeholders)
+const SUPABASE_URL = (window as any).process?.env?.SUPABASE_URL || 'https://seu-projeto.supabase.co';
+const SUPABASE_KEY = (window as any).process?.env?.SUPABASE_ANON_KEY || 'sua-chave-anon-aqui';
+const supabase = (window as any).supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return localStorage.getItem('precifica_session') === 'true';
@@ -40,12 +48,13 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
-  const [isSaving, setIsSaving] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'offline'>('synced');
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   
   const initializedRef = useRef(false);
+  const syncTimeoutRef = useRef<any>(null);
 
-  const loadUserData = <T,>(key: string, defaultValue: T): T => {
+  const loadLocalData = <T,>(key: string, defaultValue: T): T => {
     const userEmail = currentUser || localStorage.getItem('precifica_current_user');
     if (!userEmail) return defaultValue;
     const fullKey = `${userEmail.trim().toLowerCase()}_${key}`;
@@ -55,29 +64,62 @@ const App: React.FC = () => {
         return JSON.parse(saved);
       }
     } catch (e) {
-      console.error(`Falha ao ler banco de dados (${fullKey}):`, e);
+      console.error(`Falha ao ler cache local (${fullKey}):`, e);
     }
     return defaultValue;
   };
 
-  const [companyData, setCompanyData] = useState<CompanyData>(() => loadUserData('craft_company', { ...INITIAL_COMPANY_DATA }));
-  const [materials, setMaterials] = useState<Material[]>(() => loadUserData('craft_materials', []));
-  const [customers, setCustomers] = useState<Customer[]>(() => loadUserData('craft_customers', []));
-  const [platforms, setPlatforms] = useState<Platform[]>(() => loadUserData('craft_platforms', PLATFORMS_DEFAULT));
-  const [projects, setProjects] = useState<Project[]>(() => loadUserData('craft_projects', []));
-  const [products, setProducts] = useState<Product[]>(() => loadUserData('craft_products', []));
-  const [transactions, setTransactions] = useState<Transaction[]>(() => loadUserData('craft_transactions', []));
-  const [productCategories, setProductCategories] = useState<string[]>(() => loadUserData('craft_prod_categories', ['Festas', 'Papelaria', 'Presentes', 'Geral']));
-  const [transactionCategories, setTransactionCategories] = useState<string[]>(() => loadUserData('craft_trans_categories', ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']));
-  const [paymentMethods, setPaymentMethods] = useState<string[]>(() => loadUserData('craft_pay_methods', ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']));
+  const [companyData, setCompanyData] = useState<CompanyData>(() => loadLocalData('craft_company', { ...INITIAL_COMPANY_DATA }));
+  const [materials, setMaterials] = useState<Material[]>(() => loadLocalData('craft_materials', []));
+  const [customers, setCustomers] = useState<Customer[]>(() => loadLocalData('craft_customers', []));
+  const [platforms, setPlatforms] = useState<Platform[]>(() => loadLocalData('craft_platforms', PLATFORMS_DEFAULT));
+  const [projects, setProjects] = useState<Project[]>(() => loadLocalData('craft_projects', []));
+  const [products, setProducts] = useState<Product[]>(() => loadLocalData('craft_products', []));
+  const [transactions, setTransactions] = useState<Transaction[]>(() => loadLocalData('craft_transactions', []));
+  const [productCategories, setProductCategories] = useState<string[]>(() => loadLocalData('craft_prod_categories', ['Festas', 'Papelaria', 'Presentes', 'Geral']));
+  const [transactionCategories, setTransactionCategories] = useState<string[]>(() => loadLocalData('craft_trans_categories', ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']));
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(() => loadLocalData('craft_pay_methods', ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']));
 
-  const saveToDatabase = useCallback(() => {
-    if (!currentUser || !initializedRef.current) return;
-    const userKey = currentUser.trim().toLowerCase();
-    setIsSaving(true);
-    
+  // Sincronização com Supabase (Puxar Dados)
+  const fetchCloudData = useCallback(async (email: string) => {
+    if (!supabase) return;
     try {
-      const data = {
+      setSyncStatus('syncing');
+      const { data, error } = await supabase
+        .from('user_data')
+        .select('app_state')
+        .eq('user_email', email.toLowerCase())
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+
+      if (data?.app_state) {
+        const state = data.app_state;
+        if (state.craft_company) setCompanyData(state.craft_company);
+        if (state.craft_materials) setMaterials(state.craft_materials);
+        if (state.craft_customers) setCustomers(state.craft_customers);
+        if (state.craft_platforms) setPlatforms(state.craft_platforms);
+        if (state.craft_projects) setProjects(state.craft_projects);
+        if (state.craft_products) setProducts(state.craft_products);
+        if (state.craft_transactions) setTransactions(state.craft_transactions);
+        if (state.craft_prod_categories) setProductCategories(state.craft_prod_categories);
+        if (state.craft_trans_categories) setTransactionCategories(state.craft_trans_categories);
+        if (state.craft_pay_methods) setPaymentMethods(state.craft_pay_methods);
+      }
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error("Erro ao sincronizar com nuvem:", err);
+      setSyncStatus('error');
+    }
+  }, []);
+
+  // Sincronização com Supabase (Enviar Dados)
+  const pushCloudData = useCallback(async () => {
+    if (!supabase || !currentUser) return;
+    
+    setSyncStatus('syncing');
+    try {
+      const appState = {
         craft_company: companyData,
         craft_materials: materials,
         craft_customers: customers,
@@ -90,27 +132,68 @@ const App: React.FC = () => {
         craft_pay_methods: paymentMethods,
       };
 
-      Object.entries(data).forEach(([key, value]) => {
-        localStorage.setItem(`${userKey}_${key}`, JSON.stringify(value));
-      });
-      
-      setTimeout(() => setIsSaving(false), 500);
-    } catch (error) {
-      console.error("Erro crítico de salvamento:", error);
-      setIsSaving(false);
+      const { error } = await supabase
+        .from('user_data')
+        .upsert({ 
+          user_email: currentUser.toLowerCase(), 
+          app_state: appState,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_email' });
+
+      if (error) throw error;
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error("Falha no upload para nuvem:", err);
+      setSyncStatus('error');
     }
+    // REMOVIDO: pushCloudData da própria lista de dependências para evitar ReferenceError
   }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser]);
 
-  useEffect(() => {
-    initializedRef.current = true;
-    setIsInitialLoadDone(true);
-  }, []);
+  const saveToLocalAndCloud = useCallback(() => {
+    if (!currentUser || !initializedRef.current) return;
+    const userKey = currentUser.trim().toLowerCase();
+    
+    // 1. Salvar no LocalStorage (Cache Imediato)
+    const data = {
+      craft_company: companyData,
+      craft_materials: materials,
+      craft_customers: customers,
+      craft_platforms: platforms,
+      craft_projects: projects,
+      craft_products: products,
+      craft_transactions: transactions,
+      craft_prod_categories: productCategories,
+      craft_trans_categories: transactionCategories,
+      craft_pay_methods: paymentMethods,
+    };
+
+    Object.entries(data).forEach(([key, value]) => {
+      localStorage.setItem(`${userKey}_${key}`, JSON.stringify(value));
+    });
+
+    // 2. Debounce para o Cloud Sync (Evitar muitas requisições)
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      pushCloudData();
+    }, 2000);
+  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser, pushCloudData]);
 
   useEffect(() => {
-    if (isAuthenticated && currentUser && isInitialLoadDone) {
-      saveToDatabase();
+    if (isAuthenticated && currentUser) {
+      fetchCloudData(currentUser).then(() => {
+        initializedRef.current = true;
+        setIsInitialLoadDone(true);
+      });
+    } else {
+      setIsInitialLoadDone(true);
     }
-  }, [saveToDatabase, isAuthenticated, currentUser, isInitialLoadDone]);
+  }, [isAuthenticated, currentUser, fetchCloudData]);
+
+  useEffect(() => {
+    if (isAuthenticated && currentUser && initializedRef.current) {
+      saveToLocalAndCloud();
+    }
+  }, [saveToLocalAndCloud, isAuthenticated, currentUser]);
 
   const handleLogin = (userEmail: string) => {
     const cleanEmail = userEmail.trim().toLowerCase();
@@ -120,7 +203,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    if (confirm('Sair do sistema?')) {
+    if (confirm('Sair do sistema? Todos os dados em nuvem estão seguros.')) {
       localStorage.removeItem('precifica_session');
       localStorage.removeItem('precifica_current_user');
       window.location.reload(); 
@@ -190,7 +273,20 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="hidden sm:flex flex-col items-end">
+            <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
+               {syncStatus === 'syncing' ? (
+                  <RefreshCw className="text-blue-500 animate-spin" size={14} />
+               ) : syncStatus === 'error' ? (
+                  <CloudOff className="text-red-400" size={14} />
+               ) : (
+                  <Cloud className="text-green-500" size={14} />
+               )}
+               <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+                  {syncStatus === 'syncing' ? 'Sincronizando' : syncStatus === 'error' ? 'Erro de Conexão' : 'Na Nuvem'}
+               </span>
+            </div>
+
+            <div className="hidden sm:flex flex-col items-end border-l border-gray-100 pl-4 ml-2">
               <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Ateliê</p>
               <p className="text-xs font-black text-blue-600 truncate max-w-[120px]">{companyData.name}</p>
             </div>
@@ -240,9 +336,15 @@ const App: React.FC = () => {
       </main>
 
       {!isInitialLoadDone && (
-        <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center gap-4">
-           <RefreshCw className="text-pink-500 animate-spin" size={48} />
-           <p className="text-gray-400 font-black uppercase text-[10px] tracking-[0.3em] animate-pulse">Iniciando Precifica Ateliê...</p>
+        <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center gap-6">
+           <div className="relative">
+              <RefreshCw className="text-pink-500 animate-spin" size={56} />
+              <CloudDownload className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-pink-400" size={24} />
+           </div>
+           <div className="text-center">
+             <p className="text-gray-800 font-black uppercase text-xs tracking-[0.3em] mb-2">Sincronizando com a Nuvem</p>
+             <p className="text-gray-400 font-bold text-[10px] animate-pulse">Buscando seus dados salvos em outros dispositivos...</p>
+           </div>
         </div>
       )}
     </div>
