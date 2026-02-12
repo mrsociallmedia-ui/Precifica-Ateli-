@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -32,10 +32,10 @@ import { LoginView } from './views/LoginView';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 
-// Configuração do Supabase via Variáveis de Ambiente
-// O app tentará usar as chaves; se falhar, funcionará em modo local.
-const SUPABASE_URL = (window as any).process?.env?.SUPABASE_URL || '';
-const SUPABASE_KEY = (window as any).process?.env?.SUPABASE_ANON_KEY || '';
+// Configuração do Supabase
+// Prioriza variáveis de ambiente do Vite (import.meta.env) ou fallback para process.env
+const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || (window as any).process?.env?.SUPABASE_URL || '';
+const SUPABASE_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (window as any).process?.env?.SUPABASE_ANON_KEY || '';
 
 const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
@@ -137,7 +137,6 @@ const App: React.FC = () => {
   const pushCloudData = useCallback(async () => {
     if (!currentUser || !initializedRef.current) return;
     
-    // Backup Local Imediato sempre ocorre, independente da nuvem
     const appState = {
       craft_company: companyData,
       craft_materials: materials,
@@ -151,6 +150,7 @@ const App: React.FC = () => {
       craft_pay_methods: paymentMethods,
     };
 
+    // Salva localmente primeiro
     const userKey = currentUser.trim().toLowerCase();
     Object.entries(appState).forEach(([key, value]) => {
       localStorage.setItem(`${userKey}_${key}`, JSON.stringify(value));
@@ -179,7 +179,6 @@ const App: React.FC = () => {
     }
   }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser]);
 
-  // Ciclo de Vida: Carregamento Inicial
   useEffect(() => {
     if (isAuthenticated && currentUser) {
       fetchCloudData(currentUser).then(() => {
@@ -191,7 +190,6 @@ const App: React.FC = () => {
     }
   }, [isAuthenticated, currentUser, fetchCloudData]);
 
-  // Ciclo de Vida: Auto-Sincronização (Debounce 2s)
   useEffect(() => {
     if (!isAuthenticated || !currentUser || !initializedRef.current) return;
 
@@ -212,7 +210,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    if (confirm('Deseja sair? Seus dados estão salvos de forma segura.')) {
+    if (confirm('Deseja sair? Seus dados estão salvos na nuvem.')) {
       localStorage.removeItem('precifica_session');
       localStorage.removeItem('precifica_current_user');
       window.location.reload(); 
@@ -233,7 +231,7 @@ const App: React.FC = () => {
   if (!isAuthenticated) return <LoginView onLogin={handleLogin} />;
 
   return (
-    <div className="flex min-h-screen bg-[#fffcf5] animate-fadeIn font-['Quicksand'] overflow-x-hidden">
+    <div className="flex min-h-screen bg-[#fffcf5] animate-fadeIn font-['Quicksand'] overflow-x-hidden text-[#4b5563]">
       <div className={`fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-30 transition-opacity lg:hidden ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)}></div>
       
       <aside className={`fixed lg:static inset-y-0 left-0 z-40 bg-white border-r border-pink-100 flex flex-col shadow-xl lg:shadow-none transition-transform duration-300 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${isSidebarOpen ? 'w-64' : 'lg:w-20'}`}>
@@ -288,16 +286,13 @@ const App: React.FC = () => {
                   <Cloud className="text-green-500" size={14} />
                )}
                <span className={`text-[9px] font-black uppercase tracking-widest hidden sm:block ${syncStatus === 'error' ? 'text-red-500' : syncStatus === 'offline' ? 'text-gray-400' : 'text-green-600'}`}>
-                  {syncStatus === 'syncing' ? 'Salvando...' : syncStatus === 'error' ? 'Erro de Conexão' : syncStatus === 'offline' ? 'Apenas Local' : 'Nuvem OK'}
+                  {syncStatus === 'syncing' ? 'Salvando...' : syncStatus === 'error' ? 'Erro Nuvem' : syncStatus === 'offline' ? 'Offline' : 'Online'}
                </span>
             </div>
 
             <div className="hidden sm:flex flex-col items-end border-l border-gray-100 pl-4">
-              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Ateliê de</p>
-              <p className="text-xs font-black text-pink-600 truncate max-w-[150px]">{currentUser}</p>
-            </div>
-            <div className="w-10 h-10 bg-pink-100 text-pink-500 rounded-xl flex items-center justify-center">
-               <Heart size={18} fill="currentColor" />
+              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Ateliê de</p>
+              <p className="text-xs font-black text-pink-600 truncate max-w-[150px] leading-none">{currentUser}</p>
             </div>
           </div>
         </header>
@@ -320,19 +315,6 @@ const App: React.FC = () => {
              })()}
           </div>
         </div>
-
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-pink-100 flex items-center justify-around p-3 lg:hidden z-30 mobile-nav-animation shadow-lg">
-          {navItems.filter(item => item.mobile).map(item => (
-            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center gap-1 transition-all ${activeTab === item.id ? 'text-pink-600 scale-110' : 'text-gray-300'}`}>
-              <item.icon size={22} className={activeTab === item.id ? 'text-pink-500' : ''} />
-              <span className="text-[9px] font-black uppercase tracking-tighter">{item.label}</span>
-            </button>
-          ))}
-          <button onClick={() => setSidebarOpen(true)} className="flex flex-col items-center gap-1 text-gray-300">
-            <Menu size={22} />
-            <span className="text-[9px] font-black uppercase tracking-tighter">Menu</span>
-          </button>
-        </nav>
       </main>
 
       {!isInitialLoadDone && (
