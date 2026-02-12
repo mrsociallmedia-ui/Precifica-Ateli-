@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -13,13 +13,13 @@ import {
   Sparkles,
   Wallet2,
   LogOut,
-  Loader2,
   RefreshCw,
-  CheckCircle2,
   Cloud,
   CloudOff,
-  CloudDownload
+  CloudDownload,
+  AlertCircle
 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 import { Dashboard } from './views/Dashboard';
 import { Inventory } from './views/Inventory';
 import { Customers } from './views/Customers';
@@ -32,10 +32,12 @@ import { LoginView } from './views/LoginView';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 
-// Configuração do Supabase (Usando variáveis de ambiente ou placeholders)
-const SUPABASE_URL = (window as any).process?.env?.SUPABASE_URL || 'https://seu-projeto.supabase.co';
-const SUPABASE_KEY = (window as any).process?.env?.SUPABASE_ANON_KEY || 'sua-chave-anon-aqui';
-const supabase = (window as any).supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Configuração do Supabase via Variáveis de Ambiente
+// O app tentará usar as chaves; se falhar, funcionará em modo local.
+const SUPABASE_URL = (window as any).process?.env?.SUPABASE_URL || '';
+const SUPABASE_KEY = (window as any).process?.env?.SUPABASE_ANON_KEY || '';
+
+const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -54,107 +56,89 @@ const App: React.FC = () => {
   const initializedRef = useRef(false);
   const syncTimeoutRef = useRef<any>(null);
 
-  const loadLocalData = <T,>(key: string, defaultValue: T): T => {
-    const userEmail = currentUser || localStorage.getItem('precifica_current_user');
-    if (!userEmail) return defaultValue;
-    const fullKey = `${userEmail.trim().toLowerCase()}_${key}`;
-    try {
-      const saved = localStorage.getItem(fullKey);
-      if (saved && saved !== "undefined" && saved !== "null") {
-        return JSON.parse(saved);
+  // Estados principais da aplicação
+  const [companyData, setCompanyData] = useState<CompanyData>(INITIAL_COMPANY_DATA);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [platforms, setPlatforms] = useState<Platform[]>(PLATFORMS_DEFAULT);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [productCategories, setProductCategories] = useState<string[]>(['Festas', 'Papelaria', 'Presentes', 'Geral']);
+  const [transactionCategories, setTransactionCategories] = useState<string[]>(['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']);
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']);
+
+  // Carregar do cache local (emergência/offline)
+  const loadLocalCache = useCallback((email: string) => {
+    const userKey = email.trim().toLowerCase();
+    const dataKeys = {
+      craft_company: setCompanyData,
+      craft_materials: setMaterials,
+      craft_customers: setCustomers,
+      craft_platforms: setPlatforms,
+      craft_projects: setProjects,
+      craft_products: setProducts,
+      craft_transactions: setTransactions,
+      craft_prod_categories: setProductCategories,
+      craft_trans_categories: setTransactionCategories,
+      craft_pay_methods: setPaymentMethods
+    };
+
+    Object.entries(dataKeys).forEach(([key, setter]) => {
+      const saved = localStorage.getItem(`${userKey}_${key}`);
+      if (saved) {
+        try { setter(JSON.parse(saved)); } catch (e) { console.error(`Erro ao ler cache ${key}:`, e); }
       }
-    } catch (e) {
-      console.error(`Falha ao ler cache local (${fullKey}):`, e);
-    }
-    return defaultValue;
-  };
+    });
+  }, []);
 
-  const [companyData, setCompanyData] = useState<CompanyData>(() => loadLocalData('craft_company', { ...INITIAL_COMPANY_DATA }));
-  const [materials, setMaterials] = useState<Material[]>(() => loadLocalData('craft_materials', []));
-  const [customers, setCustomers] = useState<Customer[]>(() => loadLocalData('craft_customers', []));
-  const [platforms, setPlatforms] = useState<Platform[]>(() => loadLocalData('craft_platforms', PLATFORMS_DEFAULT));
-  const [projects, setProjects] = useState<Project[]>(() => loadLocalData('craft_projects', []));
-  const [products, setProducts] = useState<Product[]>(() => loadLocalData('craft_products', []));
-  const [transactions, setTransactions] = useState<Transaction[]>(() => loadLocalData('craft_transactions', []));
-  const [productCategories, setProductCategories] = useState<string[]>(() => loadLocalData('craft_prod_categories', ['Festas', 'Papelaria', 'Presentes', 'Geral']));
-  const [transactionCategories, setTransactionCategories] = useState<string[]>(() => loadLocalData('craft_trans_categories', ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']));
-  const [paymentMethods, setPaymentMethods] = useState<string[]>(() => loadLocalData('craft_pay_methods', ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']));
-
-  // Sincronização com Supabase (Puxar Dados)
+  // Buscar dados na Nuvem (Supabase)
   const fetchCloudData = useCallback(async (email: string) => {
-    if (!supabase) return;
+    if (!supabase) {
+      setSyncStatus('offline');
+      loadLocalCache(email);
+      return;
+    }
+
     try {
       setSyncStatus('syncing');
       const { data, error } = await supabase
         .from('user_data')
         .select('app_state')
         .eq('user_email', email.toLowerCase())
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) throw error;
 
       if (data?.app_state) {
-        const state = data.app_state;
-        if (state.craft_company) setCompanyData(state.craft_company);
-        if (state.craft_materials) setMaterials(state.craft_materials);
-        if (state.craft_customers) setCustomers(state.craft_customers);
-        if (state.craft_platforms) setPlatforms(state.craft_platforms);
-        if (state.craft_projects) setProjects(state.craft_projects);
-        if (state.craft_products) setProducts(state.craft_products);
-        if (state.craft_transactions) setTransactions(state.craft_transactions);
-        if (state.craft_prod_categories) setProductCategories(state.craft_prod_categories);
-        if (state.craft_trans_categories) setTransactionCategories(state.craft_trans_categories);
-        if (state.craft_pay_methods) setPaymentMethods(state.craft_pay_methods);
+        const s = data.app_state;
+        if (s.craft_company) setCompanyData(s.craft_company);
+        if (s.craft_materials) setMaterials(s.craft_materials);
+        if (s.craft_customers) setCustomers(s.craft_customers);
+        if (s.craft_platforms) setPlatforms(s.craft_platforms);
+        if (s.craft_projects) setProjects(s.craft_projects);
+        if (s.craft_products) setProducts(s.craft_products);
+        if (s.craft_transactions) setTransactions(s.craft_transactions);
+        if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
+        if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
+        if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
+      } else {
+        loadLocalCache(email);
       }
       setSyncStatus('synced');
     } catch (err) {
-      console.error("Erro ao sincronizar com nuvem:", err);
+      console.error("Erro no fetch cloud:", err);
       setSyncStatus('error');
+      loadLocalCache(email);
     }
-  }, []);
+  }, [loadLocalCache]);
 
-  // Sincronização com Supabase (Enviar Dados)
+  // Enviar dados para Nuvem (Supabase)
   const pushCloudData = useCallback(async () => {
-    if (!supabase || !currentUser) return;
-    
-    setSyncStatus('syncing');
-    try {
-      const appState = {
-        craft_company: companyData,
-        craft_materials: materials,
-        craft_customers: customers,
-        craft_platforms: platforms,
-        craft_projects: projects,
-        craft_products: products,
-        craft_transactions: transactions,
-        craft_prod_categories: productCategories,
-        craft_trans_categories: transactionCategories,
-        craft_pay_methods: paymentMethods,
-      };
-
-      const { error } = await supabase
-        .from('user_data')
-        .upsert({ 
-          user_email: currentUser.toLowerCase(), 
-          app_state: appState,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_email' });
-
-      if (error) throw error;
-      setSyncStatus('synced');
-    } catch (err) {
-      console.error("Falha no upload para nuvem:", err);
-      setSyncStatus('error');
-    }
-    // REMOVIDO: pushCloudData da própria lista de dependências para evitar ReferenceError
-  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser]);
-
-  const saveToLocalAndCloud = useCallback(() => {
     if (!currentUser || !initializedRef.current) return;
-    const userKey = currentUser.trim().toLowerCase();
     
-    // 1. Salvar no LocalStorage (Cache Imediato)
-    const data = {
+    // Backup Local Imediato sempre ocorre, independente da nuvem
+    const appState = {
       craft_company: companyData,
       craft_materials: materials,
       craft_customers: customers,
@@ -167,17 +151,35 @@ const App: React.FC = () => {
       craft_pay_methods: paymentMethods,
     };
 
-    Object.entries(data).forEach(([key, value]) => {
+    const userKey = currentUser.trim().toLowerCase();
+    Object.entries(appState).forEach(([key, value]) => {
       localStorage.setItem(`${userKey}_${key}`, JSON.stringify(value));
     });
 
-    // 2. Debounce para o Cloud Sync (Evitar muitas requisições)
-    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    syncTimeoutRef.current = setTimeout(() => {
-      pushCloudData();
-    }, 2000);
-  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser, pushCloudData]);
+    if (!supabase) {
+      setSyncStatus('offline');
+      return;
+    }
 
+    setSyncStatus('syncing');
+    try {
+      const { error } = await supabase
+        .from('user_data')
+        .upsert({ 
+          user_email: currentUser.toLowerCase(), 
+          app_state: appState,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_email' });
+
+      if (error) throw error;
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error("Erro no push cloud:", err);
+      setSyncStatus('error');
+    }
+  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser]);
+
+  // Ciclo de Vida: Carregamento Inicial
   useEffect(() => {
     if (isAuthenticated && currentUser) {
       fetchCloudData(currentUser).then(() => {
@@ -189,21 +191,28 @@ const App: React.FC = () => {
     }
   }, [isAuthenticated, currentUser, fetchCloudData]);
 
+  // Ciclo de Vida: Auto-Sincronização (Debounce 2s)
   useEffect(() => {
-    if (isAuthenticated && currentUser && initializedRef.current) {
-      saveToLocalAndCloud();
-    }
-  }, [saveToLocalAndCloud, isAuthenticated, currentUser]);
+    if (!isAuthenticated || !currentUser || !initializedRef.current) return;
+
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      pushCloudData();
+    }, 2000);
+
+    return () => clearTimeout(syncTimeoutRef.current);
+  }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, isAuthenticated, currentUser, pushCloudData]);
 
   const handleLogin = (userEmail: string) => {
     const cleanEmail = userEmail.trim().toLowerCase();
     localStorage.setItem('precifica_current_user', cleanEmail);
     localStorage.setItem('precifica_session', 'true');
-    window.location.reload(); 
+    setCurrentUser(cleanEmail);
+    setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
-    if (confirm('Sair do sistema? Todos os dados em nuvem estão seguros.')) {
+    if (confirm('Deseja sair? Seus dados estão salvos de forma segura.')) {
       localStorage.removeItem('precifica_session');
       localStorage.removeItem('precifica_current_user');
       window.location.reload(); 
@@ -218,7 +227,7 @@ const App: React.FC = () => {
     { id: 'products', label: 'Peças', icon: Sparkles, color: 'text-yellow-600', mobile: false },
     { id: 'inventory', label: 'Estoque', icon: Package, color: 'text-yellow-600', mobile: false },
     { id: 'customers', label: 'Clientes', icon: Users, color: 'text-pink-500', mobile: false },
-    { id: 'settings', label: 'Configuração', icon: Settings, color: 'text-gray-600', mobile: false },
+    { id: 'settings', label: 'Ajustes', icon: Settings, color: 'text-gray-600', mobile: false },
   ];
 
   if (!isAuthenticated) return <LoginView onLogin={handleLogin} />;
@@ -230,7 +239,7 @@ const App: React.FC = () => {
       <aside className={`fixed lg:static inset-y-0 left-0 z-40 bg-white border-r border-pink-100 flex flex-col shadow-xl lg:shadow-none transition-transform duration-300 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${isSidebarOpen ? 'w-64' : 'lg:w-20'}`}>
         <div className="p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-pink-500 rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-pink-100 shrink-0">P</div>
+            <div className="w-9 h-9 bg-pink-500 rounded-xl flex items-center justify-center text-white font-black shadow-lg shrink-0">P</div>
             {isSidebarOpen && <h1 className="text-pink-600 font-black text-lg tracking-tight truncate">Precifica Ateliê</h1>}
           </div>
           <button className="lg:hidden text-gray-400 p-1" onClick={() => setSidebarOpen(false)}><X size={20}/></button>
@@ -254,10 +263,7 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-pink-50 space-y-3">
-          <button 
-            onClick={handleLogout}
-            className={`w-full flex items-center gap-4 p-4 rounded-2xl text-red-400 hover:bg-red-50 transition-all ${!isSidebarOpen && 'justify-center'}`}
-          >
+          <button onClick={handleLogout} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-red-400 hover:bg-red-50 transition-all ${!isSidebarOpen && 'justify-center'}`}>
             <LogOut size={20} />
             {isSidebarOpen && <span className="font-black text-sm">Sair</span>}
           </button>
@@ -266,31 +272,31 @@ const App: React.FC = () => {
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-16 bg-white/70 backdrop-blur-xl border-b border-pink-50 flex items-center justify-between px-6 z-10 shrink-0">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-gray-50 hover:bg-pink-50 rounded-xl text-gray-400 transition-colors">
-              {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
-            </button>
-          </div>
+          <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-gray-50 hover:bg-pink-50 rounded-xl text-gray-400 transition-colors">
+            {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
           
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
+            <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full border transition-all ${syncStatus === 'error' ? 'bg-red-50 border-red-100' : syncStatus === 'offline' ? 'bg-gray-50 border-gray-100' : 'bg-green-50 border-green-100'}`}>
                {syncStatus === 'syncing' ? (
                   <RefreshCw className="text-blue-500 animate-spin" size={14} />
                ) : syncStatus === 'error' ? (
-                  <CloudOff className="text-red-400" size={14} />
+                  <AlertCircle className="text-red-500" size={14} />
+               ) : syncStatus === 'offline' ? (
+                  <CloudOff className="text-gray-400" size={14} />
                ) : (
                   <Cloud className="text-green-500" size={14} />
                )}
-               <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
-                  {syncStatus === 'syncing' ? 'Sincronizando' : syncStatus === 'error' ? 'Erro de Conexão' : 'Na Nuvem'}
+               <span className={`text-[9px] font-black uppercase tracking-widest hidden sm:block ${syncStatus === 'error' ? 'text-red-500' : syncStatus === 'offline' ? 'text-gray-400' : 'text-green-600'}`}>
+                  {syncStatus === 'syncing' ? 'Salvando...' : syncStatus === 'error' ? 'Erro de Conexão' : syncStatus === 'offline' ? 'Apenas Local' : 'Nuvem OK'}
                </span>
             </div>
 
-            <div className="hidden sm:flex flex-col items-end border-l border-gray-100 pl-4 ml-2">
-              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Ateliê</p>
-              <p className="text-xs font-black text-blue-600 truncate max-w-[120px]">{companyData.name}</p>
+            <div className="hidden sm:flex flex-col items-end border-l border-gray-100 pl-4">
+              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Ateliê de</p>
+              <p className="text-xs font-black text-pink-600 truncate max-w-[150px]">{currentUser}</p>
             </div>
-            <div className="w-10 h-10 bg-pink-100 text-pink-500 rounded-xl flex items-center justify-center shadow-inner">
+            <div className="w-10 h-10 bg-pink-100 text-pink-500 rounded-xl flex items-center justify-center">
                <Heart size={18} fill="currentColor" />
             </div>
           </div>
@@ -299,38 +305,32 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 lg:p-10 pb-24 lg:pb-10">
           <div className="max-w-[1600px] mx-auto">
              {(() => {
+                const props = { projects, customers, materials, companyData, platforms, transactions };
                 switch (activeTab) {
-                  case 'dashboard': return <Dashboard projects={projects} customers={customers} materials={materials} companyData={companyData} platforms={platforms} transactions={transactions} />;
+                  case 'dashboard': return <Dashboard {...props} />;
                   case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} />;
                   case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} />;
-                  case 'customers': return <Customers customers={customers} setCustomers={setCustomers} projects={projects} materials={materials} platforms={platforms} companyData={companyData} />;
-                  case 'pricing': return <PricingCalculator materials={materials} customers={customers} platforms={platforms} companyData={companyData} projects={projects} products={products} setProjects={setProjects} />;
-                  case 'schedule': return <Schedule projects={projects} setProjects={setProjects} customers={customers} materials={materials} platforms={platforms} companyData={companyData} />;
-                  case 'finance': return <FinancialControl transactions={transactions} setTransactions={setTransactions} projects={projects} materials={materials} platforms={platforms} companyData={companyData} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
+                  case 'customers': return <Customers {...props} setCustomers={setCustomers} />;
+                  case 'pricing': return <PricingCalculator {...props} products={products} setProjects={setProjects} />;
+                  case 'schedule': return <Schedule {...props} setProjects={setProjects} />;
+                  case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
-                  default: return <Dashboard projects={projects} customers={customers} materials={materials} companyData={companyData} platforms={platforms} transactions={transactions} />;
+                  default: return <Dashboard {...props} />;
                 }
              })()}
           </div>
         </div>
 
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-pink-100 flex items-center justify-around p-3 lg:hidden z-30 mobile-nav-animation shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-pink-100 flex items-center justify-around p-3 lg:hidden z-30 mobile-nav-animation shadow-lg">
           {navItems.filter(item => item.mobile).map(item => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center gap-1 transition-all ${activeTab === item.id ? 'text-pink-600 scale-110' : 'text-gray-300'}`}
-            >
+            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center gap-1 transition-all ${activeTab === item.id ? 'text-pink-600 scale-110' : 'text-gray-300'}`}>
               <item.icon size={22} className={activeTab === item.id ? 'text-pink-500' : ''} />
               <span className="text-[9px] font-black uppercase tracking-tighter">{item.label}</span>
             </button>
           ))}
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="flex flex-col items-center gap-1 text-gray-300"
-          >
+          <button onClick={() => setSidebarOpen(true)} className="flex flex-col items-center gap-1 text-gray-300">
             <Menu size={22} />
-            <span className="text-[9px] font-black uppercase tracking-tighter">Mais</span>
+            <span className="text-[9px] font-black uppercase tracking-tighter">Menu</span>
           </button>
         </nav>
       </main>
@@ -342,8 +342,8 @@ const App: React.FC = () => {
               <CloudDownload className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-pink-400" size={24} />
            </div>
            <div className="text-center">
-             <p className="text-gray-800 font-black uppercase text-xs tracking-[0.3em] mb-2">Sincronizando com a Nuvem</p>
-             <p className="text-gray-400 font-bold text-[10px] animate-pulse">Buscando seus dados salvos em outros dispositivos...</p>
+             <p className="text-gray-800 font-black uppercase text-xs tracking-[0.3em] mb-2">Sincronizando Ateliê</p>
+             <p className="text-gray-400 font-bold text-[10px] animate-pulse">Buscando os dados do seu ateliê para este dispositivo...</p>
            </div>
         </div>
       )}
