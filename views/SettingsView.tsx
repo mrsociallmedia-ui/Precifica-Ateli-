@@ -16,9 +16,17 @@ import {
   Headphones,
   MessageCircle,
   Mail,
-  CalendarDays
+  CalendarDays,
+  Lock,
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
+import { supabase } from '../supabaseClient';
 
 interface SettingsViewProps {
   companyData: CompanyData;
@@ -35,6 +43,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [editingPlatform, setEditingPlatform] = useState<Platform | null>(null);
   const [platformName, setPlatformName] = useState('');
   const [platformFee, setPlatformFee] = useState('');
+
+  // Estados para Redefinição de Senha
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [isUpdatingPass, setIsUpdatingPass] = useState(false);
+  const [passMessage, setPassMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   useEffect(() => {
     const totalMonthlyCosts = (Number(companyData.desiredSalary) || 0) + 
@@ -60,6 +75,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setCompanyData({ ...companyData, logo: reader.result as string });
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassMessage(null);
+
+    if (newPassword.length < 6) {
+      setPassMessage({ type: 'error', text: 'A senha deve ter no mínimo 6 caracteres.' });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPassMessage({ type: 'error', text: 'As senhas não coincidem.' });
+      return;
+    }
+
+    setIsUpdatingPass(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      
+      setPassMessage({ type: 'success', text: 'Senha atualizada com sucesso!' });
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      setPassMessage({ type: 'error', text: err.message || 'Erro ao atualizar senha.' });
+    } finally {
+      setIsUpdatingPass(false);
     }
   };
 
@@ -180,6 +224,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
 
         <div className="md:col-span-2 space-y-8">
+          {/* Perfil da Empresa */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-blue-50 space-y-8">
             <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">
               <Building2 size={16} className="text-blue-500" /> Perfil da Empresa
@@ -202,6 +247,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
+          {/* Mão de Obra */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-8">
             <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">
               <Briefcase size={16} className="text-pink-500" /> Mão de Obra & Horários
@@ -240,6 +286,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
+          {/* Canais de Venda */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-yellow-50 space-y-8">
             <div className="flex items-center justify-between border-b border-gray-50 pb-4">
                <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest">
@@ -271,6 +318,66 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                  </div>
                ))}
             </div>
+          </div>
+
+          {/* Segurança da Conta - REDEFINIR SENHA */}
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-8">
+            <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">
+              <Lock size={16} className="text-gray-500" /> Segurança da Conta
+            </h4>
+            
+            <form onSubmit={handleUpdatePassword} className="space-y-6">
+              {passMessage && (
+                <div className={`p-4 rounded-2xl flex items-center gap-3 animate-fadeIn ${passMessage.type === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+                  {passMessage.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                  <p className="text-xs font-bold">{passMessage.text}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nova Senha</label>
+                  <div className="relative">
+                    <input 
+                      type={showNewPass ? "text" : "password"} 
+                      required 
+                      className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-blue-50 transition-all" 
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      placeholder="Mínimo 6 dígitos"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowNewPass(!showNewPass)} 
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-500"
+                    >
+                      {showNewPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Confirmar Senha</label>
+                  <input 
+                    type={showNewPass ? "text" : "password"} 
+                    required 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-blue-50 transition-all" 
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Repita a nova senha"
+                  />
+                </div>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={isUpdatingPass || !newPassword}
+                className="w-full py-5 bg-gray-900 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center justify-center gap-3 transition-all hover:bg-black disabled:opacity-50"
+              >
+                {isUpdatingPass ? <RefreshCw size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                {isUpdatingPass ? 'Processando...' : 'Redefinir Senha de Acesso'}
+              </button>
+            </form>
           </div>
         </div>
       </div>

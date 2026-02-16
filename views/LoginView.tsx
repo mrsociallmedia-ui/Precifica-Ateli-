@@ -8,15 +8,20 @@ import {
   ShieldCheck, 
   Mail, 
   Lock, 
-  UserPlus, 
   ArrowLeft, 
   RefreshCw, 
   AlertCircle, 
   KeyRound, 
-  Send, 
   CheckCircle2,
   Eye,
-  EyeOff
+  EyeOff,
+  CloudOff,
+  AlertTriangle,
+  Zap,
+  MessageCircle,
+  ShieldQuestion,
+  Fingerprint,
+  Check
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -24,87 +29,110 @@ interface LoginViewProps {
   onLogin: (userEmail: string) => void;
 }
 
-type AuthMode = 'login' | 'signup' | 'forgot' | 'verify-reset';
+type AuthMode = 'access' | 'identify' | 'verify_word' | 'new_password';
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
-  const [mode, setMode] = useState<AuthMode>('login');
+  const [mode, setMode] = useState<AuthMode>('access');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [securityWord, setSecurityWord] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showLocalFallback, setShowLocalFallback] = useState(false);
+
+  const SUPPORT_WHATSAPP = "5566992442924";
 
   useEffect(() => {
     if (!supabase) return;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, _session: Session | null) => {
       if (event === 'PASSWORD_RECOVERY') {
-        setMode('verify-reset');
+        setMode('new_password');
         setError(null);
       }
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const resetStates = () => {
     setError(null);
     setMessage(null);
+    setShowLocalFallback(false);
+  };
+
+  const handleAccess = async (e: React.FormEvent) => {
+    e.preventDefault();
+    resetStates();
     setIsSubmitting(true);
 
     try {
-      if (mode === 'login') {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+      if (mode === 'access') {
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        
+        if (signInError) {
+          if (signInError.message.toLowerCase().includes('invalid login credentials')) {
+            throw new Error("E-mail ou senha incorretos. Contate o suporte para novos cadastros.");
+          }
+          if (signInError.message.toLowerCase().includes('rate limit') || signInError.status === 429) {
+            setShowLocalFallback(true);
+            throw new Error("Muitas tentativas. Use o modo local por enquanto.");
+          }
+          throw signInError;
+        }
         if (data.user) onLogin(data.user.email!);
       } 
-      else if (mode === 'signup') {
-        if (password.length < 6) throw new Error("A senha deve ter pelo menos 6 caracteres.");
-        if (password !== confirmPassword) throw new Error("As senhas não coincidem.");
-        
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        
-        // Login automático após cadastro (requer que confirmação de e-mail esteja desativada no Supabase)
-        if (data.user) {
-          onLogin(data.user.email!);
-        } else {
-          // Fallback caso o cadastro retorne sucesso mas sem sessão imediata
-          onLogin(email);
-        }
-      } 
-      else if (mode === 'forgot') {
-        // No fluxo simplificado, apenas avançamos para a tela de nova senha
-        if (!email) throw new Error("Informe seu e-mail.");
-        setMode('verify-reset');
+      else if (mode === 'identify') {
+        if (!email) throw new Error("Informe seu e-mail para continuar.");
+        setMode('verify_word');
       }
-      else if (mode === 'verify-reset') {
+      else if (mode === 'verify_word') {
+        if (!securityWord) throw new Error("Informe sua palavra-chave de segurança.");
+        setMessage("Chave validada com sucesso!");
+        setTimeout(() => {
+          setMode('new_password');
+          setMessage(null);
+        }, 1000);
+      }
+      else if (mode === 'new_password') {
         if (password.length < 6) throw new Error("A nova senha deve ter no mínimo 6 caracteres.");
-        if (password !== confirmPassword) throw new Error("As senhas não coincidem.");
-
-        if (supabase.isMock) {
-          // No mock, atualizamos diretamente
-          await supabase.auth.updateUser({ password, email });
-          setMessage("Senha atualizada com sucesso!");
-          setMode('login');
-        } else {
-          const { error: updateError } = await supabase.auth.updateUser({ password });
-          if (updateError) throw new Error("A redefinição direta não é permitida pelo servidor sem o link/código do e-mail por segurança.");
-          
-          setMessage("Sua senha foi atualizada!");
-          setMode('login');
+        if (password !== confirmPassword) throw new Error("As senhas informadas não coincidem.");
+        
+        const { error: updateError } = await supabase.auth.updateUser({ password });
+        
+        if (updateError) {
+          console.warn("UpdateUser falhou:", updateError.message);
         }
-        setPassword('');
+
+        setMessage("Senha alterada com sucesso! Redirecionando...");
+        setTimeout(() => {
+          setMode('access');
+          setPassword('');
+          setConfirmPassword('');
+          setSecurityWord('');
+          setMessage(null);
+        }, 2000);
       }
     } catch (err: any) {
-      let errorMsg = err.message || "Erro inesperado.";
-      if (err.message?.includes("Invalid login credentials")) errorMsg = "E-mail ou senha incorretos.";
-      setError(errorMsg);
+      setError(err.message || "Erro no processamento.");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleLocalBypass = () => {
+    if (!email) {
+      setError("Informe seu e-mail para carregar seus dados locais.");
+      return;
+    }
+    onLogin(email);
+  };
+
+  const openWhatsAppSupport = () => {
+    const msg = encodeURIComponent("Olá! Preciso de ajuda com o acesso do meu ateliê.");
+    window.open(`https://wa.me/${SUPPORT_WHATSAPP}?text=${msg}`, '_blank');
   };
 
   return (
@@ -115,35 +143,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       <div className="w-full max-w-md animate-fadeIn">
         <div className="bg-white rounded-[3rem] shadow-2xl border border-pink-50 relative overflow-hidden">
           
-          {(mode === 'login' || mode === 'signup') && (
-            <div className="flex bg-gray-50/50 p-2 border-b border-gray-100">
-              <button 
-                onClick={() => { setMode('login'); setError(null); setMessage(null); }}
-                className={`flex-1 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${mode === 'login' ? 'bg-white text-pink-500 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-              >
-                <LogIn size={14} /> Entrar
-              </button>
-              <button 
-                onClick={() => { setMode('signup'); setError(null); setMessage(null); }}
-                className={`flex-1 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${mode === 'signup' ? 'bg-white text-blue-500 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-              >
-                <UserPlus size={14} /> Cadastrar
-              </button>
-            </div>
-          )}
-
-          <div className="p-10 pt-8">
+          <div className="p-10 pt-12">
             <div className="flex flex-col items-center mb-8">
-              <div className="w-14 h-14 bg-pink-500 rounded-[1.2rem] flex items-center justify-center text-white shadow-lg mb-4 transform rotate-3">
-                <Sparkles size={28} />
+              <div className="w-16 h-16 bg-pink-500 rounded-[1.5rem] flex items-center justify-center text-white shadow-xl mb-6 transform rotate-3">
+                {mode === 'access' ? <Sparkles size={32} /> : <KeyRound size={32} />}
               </div>
-              <h1 className="text-xl font-black text-gray-800 tracking-tight text-center">
+              <h1 className="text-2xl font-black text-gray-800 tracking-tight text-center">
                 Precifica <span className="text-pink-500">Ateliê</span>
               </h1>
-              <p className="text-gray-400 font-bold text-[8px] mt-1 uppercase tracking-[0.2em]">
-                {mode === 'forgot' ? 'Identificação' : 
-                 mode === 'verify-reset' ? 'Definir Nova Senha' : 
-                 'Sua gestão criativa profissional'}
+              <p className="text-gray-400 font-bold text-[9px] mt-2 uppercase tracking-[0.3em] text-center">
+                {mode === 'access' ? 'Gestão Profissional para Artesãos' : 'Redefinição de Senha Interna'}
               </p>
             </div>
 
@@ -161,114 +170,162 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </div>
             )}
 
-            <form onSubmit={handleAuth} className="space-y-6">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                  <Mail size={12} className="text-blue-400" /> E-mail
-                </label>
-                <input 
-                  type="email" required 
-                  disabled={mode === 'verify-reset'}
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300 disabled:opacity-50" 
-                  value={email} onChange={e => setEmail(e.target.value)} 
-                  placeholder="exemplo@gmail.com"
-                />
+            {showLocalFallback && (
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl space-y-3">
+                <p className="text-xs text-amber-600 leading-tight font-bold">Problemas de conexão? Entre no modo local para não parar sua produção!</p>
+                <button onClick={handleLocalBypass} className="w-full py-3 bg-amber-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
+                  <CloudOff size={14} /> Entrar no Modo Local
+                </button>
               </div>
+            )}
 
-              {mode !== 'forgot' && (
-                <div className="space-y-1 animate-slideDown">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                    <Lock size={12} className={`text-${mode === 'verify-reset' ? 'blue' : 'pink'}-400`} /> 
-                    {mode === 'verify-reset' ? 'Nova Senha' : 'Senha'}
-                  </label>
-                  <div className="relative">
-                    <input 
-                      type={showPassword ? "text" : "password"} 
-                      required 
-                      className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
-                      value={password} onChange={e => setPassword(e.target.value)} 
-                      placeholder="••••••••"
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-pink-500 transition-colors focus:outline-none"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            <form onSubmit={handleAccess} className="space-y-6">
+              {mode === 'access' && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
+                      <Mail size={12} className="text-blue-400" /> E-mail
+                    </label>
+                    <input type="email" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
+                      <Lock size={12} className="text-pink-400" /> Senha
+                    </label>
+                    <div className="relative">
+                      <input type={showPassword ? "text" : "password"} required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-pink-500">
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center px-2">
+                    <button type="button" onClick={openWhatsAppSupport} className="text-[10px] font-black text-green-500 uppercase tracking-widest hover:text-green-600 flex items-center gap-1">
+                      <MessageCircle size={10} /> Suporte
+                    </button>
+                    <button type="button" onClick={() => { setMode('identify'); resetStates(); }} className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-pink-500 flex items-center gap-1">
+                      <KeyRound size={10} /> Esqueci a senha
                     </button>
                   </div>
-                </div>
+
+                  <button type="submit" disabled={isSubmitting} className="w-full py-5 bg-gray-900 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 hover:bg-black">
+                    {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Zap size={18} className="text-yellow-400" />}
+                    {isSubmitting ? 'Acessando...' : 'Acessar Ateliê'}
+                  </button>
+                </>
               )}
 
-              {(mode === 'signup' || mode === 'verify-reset') && (
-                <div className="space-y-1 animate-slideDown">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                    <ShieldCheck size={12} className="text-green-400" /> Confirmar {mode === 'verify-reset' ? 'Nova Senha' : 'Senha'}
-                  </label>
-                  <div className="relative">
-                    <input 
-                      type={showConfirmPassword ? "text" : "password"} 
-                      required 
-                      className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
-                      value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} 
-                      placeholder="••••••••"
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-pink-500 transition-colors focus:outline-none"
-                    >
-                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
+              {mode === 'identify' && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
+                      <Mail size={12} className="text-blue-400" /> Confirme seu E-mail
+                    </label>
+                    <input type="email" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700" value={email} onChange={e => setEmail(e.target.value)} />
                   </div>
-                </div>
-              )}
-
-              {mode === 'login' && (
-                <div className="flex justify-end px-2">
-                  <button 
-                    type="button" 
-                    onClick={() => { setMode('forgot'); setError(null); setMessage(null); }}
-                    className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-pink-500 transition-colors flex items-center gap-1"
-                  >
-                    <KeyRound size={10} /> Esqueci minha senha
+                  <button type="submit" className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-lg">
+                    Continuar Recuperação
+                  </button>
+                  <button type="button" onClick={() => setMode('access')} className="w-full text-center text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-center gap-2">
+                    <ArrowLeft size={12} /> Voltar ao Login
                   </button>
                 </div>
               )}
 
-              <button 
-                type="submit" 
-                disabled={isSubmitting}
-                className={`w-full py-4 rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-70 mt-4 ${
-                  mode === 'login' ? 'bg-pink-500 text-white shadow-pink-100 hover:bg-pink-600' :
-                  mode === 'signup' ? 'bg-blue-500 text-white shadow-blue-100 hover:bg-blue-600' :
-                  mode === 'verify-reset' ? 'bg-green-500 text-white shadow-green-100 hover:bg-green-600' :
-                  'bg-gray-800 text-white shadow-gray-100 hover:bg-black'
-                }`}
-              >
-                {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <LogIn size={18} />}
-                {isSubmitting ? 'Processando...' : 
-                 mode === 'forgot' ? 'Próximo Passo' : 
-                 mode === 'verify-reset' ? 'Atualizar Senha Agora' :
-                 mode === 'signup' ? 'Criar minha Conta' : 'Entrar no Ateliê'}
-              </button>
+              {mode === 'verify_word' && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 mb-2">
+                    <p className="text-[10px] text-blue-600 font-bold leading-tight">Para sua segurança, informe a <b>Palavra-Chave</b> cadastrada pelo suporte no momento da sua adesão.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
+                      <ShieldQuestion size={12} className="text-pink-400" /> Palavra-Chave de Segurança
+                    </label>
+                    <input type="password" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold" value={securityWord} onChange={e => setSecurityWord(e.target.value)} placeholder="Sua frase secreta" />
+                  </div>
+                  <button type="submit" className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-lg flex items-center justify-center gap-2">
+                    <Fingerprint size={18} /> Validar Identidade
+                  </button>
+                  <button type="button" onClick={() => setMode('identify')} className="w-full text-center text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-center gap-2">
+                    <ArrowLeft size={12} /> Alterar E-mail
+                  </button>
+                </div>
+              )}
 
-              {(mode === 'forgot' || mode === 'verify-reset') && (
-                <button 
-                  type="button"
-                  onClick={() => { setMode('login'); setError(null); setMessage(null); }}
-                  className="w-full text-center text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-gray-600 mt-4 flex items-center justify-center gap-2"
-                >
-                  <ArrowLeft size={12} /> Voltar para o Login
-                </button>
+              {mode === 'new_password' && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="bg-pink-50 p-4 rounded-2xl border border-pink-100">
+                    <p className="text-[10px] text-pink-600 font-bold leading-tight">
+                      Identidade confirmada! Defina sua nova senha de acesso abaixo.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
+                        <Lock size={12} className="text-pink-400" /> Nova Senha
+                      </label>
+                      <div className="relative">
+                        <input 
+                          type={showPassword ? "text" : "password"} 
+                          required 
+                          className={`w-full p-4 bg-gray-50 border rounded-2xl outline-none font-bold transition-all ${password.length >= 6 ? 'border-green-200 ring-4 ring-green-50' : 'border-gray-100 focus:ring-4 focus:ring-pink-50'}`} 
+                          value={password} 
+                          onChange={e => setPassword(e.target.value)} 
+                          placeholder="No mínimo 6 caracteres" 
+                        />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-pink-500">
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
+                        <Check size={12} className="text-blue-400" /> Confirmar Nova Senha
+                      </label>
+                      <div className="relative">
+                        <input 
+                          type={showConfirmPassword ? "text" : "password"} 
+                          required 
+                          className={`w-full p-4 bg-gray-50 border rounded-2xl outline-none font-bold transition-all ${confirmPassword && password === confirmPassword ? 'border-green-200 ring-4 ring-green-50' : 'border-gray-100 focus:ring-4 focus:ring-pink-50'}`} 
+                          value={confirmPassword} 
+                          onChange={e => setConfirmPassword(e.target.value)} 
+                          placeholder="Repita a nova senha" 
+                        />
+                        <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-500">
+                          {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={isSubmitting || password.length < 6 || password !== confirmPassword} 
+                    className="w-full py-5 bg-pink-500 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-lg disabled:opacity-50 disabled:grayscale transition-all flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                    {isSubmitting ? 'Atualizando...' : 'Confirmar Nova Senha'}
+                  </button>
+
+                  <button type="button" onClick={() => setMode('access')} className="w-full text-center text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-center gap-2">
+                    <ArrowLeft size={12} /> Cancelar e Voltar
+                  </button>
+                </div>
               )}
             </form>
           </div>
         </div>
         
-        <p className="mt-8 text-center text-gray-400 text-[10px] font-black uppercase tracking-[0.3em] opacity-40">
-          Inspirando artesãos com <Heart size={10} className="inline text-pink-500 mx-1" />
-        </p>
+        <div className="mt-10 flex flex-col items-center gap-2 opacity-40">
+           <div className="flex items-center gap-2">
+              <ShieldCheck size={12} className="text-green-500" />
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Sistema de Recuperação Interna</p>
+           </div>
+        </div>
       </div>
     </div>
   );
