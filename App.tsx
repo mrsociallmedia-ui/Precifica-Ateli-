@@ -34,13 +34,9 @@ import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 import { supabase } from './supabaseClient';
 
 const App: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem('precifica_session') === 'true';
-  });
-
-  const [currentUser, setCurrentUser] = useState<string | null>(() => {
-    return localStorage.getItem('precifica_current_user');
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
@@ -62,32 +58,36 @@ const App: React.FC = () => {
   const [transactionCategories, setTransactionCategories] = useState<string[]>(['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']);
   const [paymentMethods, setPaymentMethods] = useState<string[]>(['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']);
 
-  // Monitorar Sessão Supabase
+  // Monitorar Sessão Supabase (Única fonte de verdade para Auth)
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase) {
+      setIsAuthChecking(false);
+      return;
+    }
 
-    // Verificar sessão atual
+    // Verificar sessão atual ao carregar
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        setCurrentUser(session.user.email!);
+        const email = session.user.email!.toLowerCase();
+        setCurrentUser(email);
         setIsAuthenticated(true);
-        localStorage.setItem('precifica_session', 'true');
-        localStorage.setItem('precifica_current_user', session.user.email!);
+      } else {
+        setIsAuthenticated(false);
       }
+      setIsAuthChecking(false);
     });
 
-    // Ouvir mudanças (Login, Logout, Reset de Senha)
+    // Ouvir mudanças de estado (Login/Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        setCurrentUser(session.user.email!);
+        const email = session.user.email!.toLowerCase();
+        setCurrentUser(email);
         setIsAuthenticated(true);
-        localStorage.setItem('precifica_session', 'true');
-        localStorage.setItem('precifica_current_user', session.user.email!);
       } else {
         setCurrentUser(null);
         setIsAuthenticated(false);
-        localStorage.removeItem('precifica_session');
-        localStorage.removeItem('precifica_current_user');
+        setIsInitialLoadDone(false); // Resetar para novo login
+        initializedRef.current = false;
       }
     });
 
@@ -140,7 +140,7 @@ const App: React.FC = () => {
 
   const fetchCloudData = useCallback(async (email: string) => {
     loadLocalCache(email);
-    if (!supabase) {
+    if (!supabase || supabase.isMock) {
       setSyncStatus('local');
       return;
     }
@@ -178,7 +178,7 @@ const App: React.FC = () => {
   const pushCloudData = useCallback(async () => {
     saveLocalCache();
     if (!currentUser || !initializedRef.current) return;
-    if (!supabase) {
+    if (!supabase || supabase.isMock) {
       setSyncStatus('local');
       return;
     }
@@ -220,8 +220,6 @@ const App: React.FC = () => {
         initializedRef.current = true;
         setIsInitialLoadDone(true);
       }).catch(() => setIsInitialLoadDone(true));
-    } else {
-      setIsInitialLoadDone(true);
     }
   }, [isAuthenticated, currentUser, fetchCloudData]);
 
@@ -240,16 +238,13 @@ const App: React.FC = () => {
     const cleanEmail = userEmail.trim().toLowerCase();
     setCurrentUser(cleanEmail);
     setIsAuthenticated(true);
-    localStorage.setItem('precifica_session', 'true');
-    localStorage.setItem('precifica_current_user', cleanEmail);
-    window.location.reload();
   };
 
   const handleLogout = async () => {
     if (confirm('Deseja sair do ateliê?')) {
       if (supabase) await supabase.auth.signOut();
-      localStorage.removeItem('precifica_session');
-      localStorage.removeItem('precifica_current_user');
+      setCurrentUser(null);
+      setIsAuthenticated(false);
       window.location.reload(); 
     }
   };
@@ -264,6 +259,15 @@ const App: React.FC = () => {
     { id: 'customers', label: 'Clientes', icon: Users, color: 'text-pink-500' },
     { id: 'settings', label: 'Configurações', icon: Settings, color: 'text-gray-600' },
   ];
+
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-[#fffcf5] flex flex-col items-center justify-center gap-4">
+        <RefreshCw className="text-pink-500 animate-spin" size={40} />
+        <p className="text-gray-400 font-black text-[10px] uppercase tracking-widest">Validando Sessão...</p>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) return <LoginView onLogin={handleLogin} />;
 
@@ -357,7 +361,7 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {!isInitialLoadDone && (
+      {isAuthenticated && !isInitialLoadDone && (
         <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center gap-6">
            <RefreshCw className="text-pink-500 animate-spin" size={56} />
            <div className="text-center">
