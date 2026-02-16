@@ -19,6 +19,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  // Fallback para quando o usuário clicar em um link de recuperação (embora queiramos o código)
+  useEffect(() => {
+    if (!supabase) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, _session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setMode('verify-reset');
+        setError(null);
+        setMessage("Link de recuperação validado. Defina sua nova senha abaixo.");
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -38,39 +51,45 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         
-        setMessage("Cadastro realizado com sucesso! Você já pode entrar.");
+        setMessage("Cadastro realizado! Verifique seu e-mail para confirmar sua conta.");
         setMode('login');
-        setPassword('');
       } 
       else if (mode === 'forgot') {
-        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin
+        });
         if (error) throw error;
         
-        setMessage("Código de 6 dígitos enviado! Verifique seu e-mail e insira o código abaixo.");
+        setMessage("Um código foi enviado ao seu e-mail. Insira-o abaixo para redefinir sua senha.");
         setMode('verify-reset');
       }
       else if (mode === 'verify-reset') {
-        if (otpToken.length < 6) throw new Error("Insira o código de 6 dígitos enviado por e-mail.");
+        if (otpToken.length < 6) throw new Error("Insira o código de 6 dígitos.");
         if (password.length < 6) throw new Error("A nova senha deve ter no mínimo 6 caracteres.");
         if (password !== confirmPassword) throw new Error("As senhas não coincidem.");
 
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          email,
-          token: otpToken,
-          type: 'recovery'
-        });
-        if (verifyError) throw verifyError;
+        // Verifica o código e atualiza a senha no mesmo fluxo
+        if (!supabase.isMock) {
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            email,
+            token: otpToken,
+            type: 'recovery'
+          });
+          if (verifyError) throw verifyError;
 
-        const { error: updateError } = await supabase.auth.updateUser({ password });
-        if (updateError) throw updateError;
+          const { error: updateError } = await supabase.auth.updateUser({ password });
+          if (updateError) throw updateError;
+        }
 
-        setMessage("Senha redefinida com sucesso! Entre com sua nova senha.");
+        setMessage("Sua senha foi atualizada com sucesso! Agora você já pode entrar.");
         setMode('login');
         setPassword('');
         setOtpToken('');
       }
     } catch (err: any) {
-      setError(err.message || "Erro inesperado na autenticação.");
+      let errorMsg = err.message || "Erro inesperado.";
+      if (err.message?.includes("Invalid login credentials")) errorMsg = "E-mail ou senha incorretos.";
+      setError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -78,14 +97,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen bg-[#fffcf5] flex items-center justify-center p-6 relative overflow-hidden font-['Quicksand']">
-      {/* Background Decorativo */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-pink-200/20 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-200/20 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="w-full max-w-md animate-fadeIn">
         <div className="bg-white rounded-[3rem] shadow-2xl border border-pink-50 relative overflow-hidden">
           
-          {/* Abas de Navegação (Apenas login/cadastro) */}
           {(mode === 'login' || mode === 'signup') && (
             <div className="flex bg-gray-50/50 p-2 border-b border-gray-100">
               <button 
@@ -114,7 +131,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               <p className="text-gray-400 font-bold text-[8px] mt-1 uppercase tracking-[0.2em]">
                 {mode === 'forgot' ? 'Recuperação de Acesso' : 
                  mode === 'verify-reset' ? 'Definir Nova Senha' : 
-                 'Gestão Profissional para Artesãos'}
+                 'Sua gestão criativa profissional'}
               </p>
             </div>
 
@@ -133,7 +150,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             )}
 
             <form onSubmit={handleAuth} className="space-y-6">
-              {/* E-mail (Sempre visível exceto no reset se desejado) */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
                   <Mail size={12} className="text-blue-400" /> E-mail
@@ -142,11 +158,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   type="email" required 
                   className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
                   value={email} onChange={e => setEmail(e.target.value)} 
-                  placeholder="exemplo@email.com"
+                  placeholder="exemplo@gmail.com"
                 />
               </div>
 
-              {/* Token OTP (Apenas no modo de verificação) */}
               {mode === 'verify-reset' && (
                 <div className="space-y-1 animate-slideDown">
                   <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-2 flex items-center gap-2">
@@ -161,7 +176,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 </div>
               )}
 
-              {/* Senha (Não visível no modo 'forgot') */}
               {mode !== 'forgot' && (
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
@@ -177,7 +191,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 </div>
               )}
 
-              {/* Confirmação de Senha */}
               {(mode === 'signup' || mode === 'verify-reset') && (
                 <div className="space-y-1 animate-slideDown">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
@@ -192,7 +205,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 </div>
               )}
 
-              {/* Link para Esqueci Senha */}
               {mode === 'login' && (
                 <div className="flex justify-end px-2">
                   <button 
@@ -205,7 +217,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 </div>
               )}
 
-              {/* Botão de Ação Principal */}
               <button 
                 type="submit" 
                 disabled={isSubmitting}
@@ -216,20 +227,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   'bg-gray-800 text-white shadow-gray-100 hover:bg-black'
                 }`}
               >
-                {isSubmitting ? (
-                  <RefreshCw size={18} className="animate-spin" />
-                ) : mode === 'forgot' ? (
-                  <Send size={18} />
-                ) : (
-                  <LogIn size={18} />
-                )}
+                {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : mode === 'forgot' ? <Send size={18} /> : <LogIn size={18} />}
                 {isSubmitting ? 'Processando...' : 
-                 mode === 'forgot' ? 'Receber Código de Acesso' : 
+                 mode === 'forgot' ? 'Receber Código por E-mail' : 
                  mode === 'verify-reset' ? 'Atualizar Senha Agora' :
                  mode === 'signup' ? 'Criar minha Conta' : 'Entrar no Ateliê'}
               </button>
 
-              {/* Botão de Voltar */}
               {(mode === 'forgot' || mode === 'verify-reset') && (
                 <button 
                   type="button"

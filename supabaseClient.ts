@@ -1,20 +1,11 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const getEnv = (name: string): string => {
-  const v = (import.meta as any).env?.[`VITE_${name}`] || 
-            (import.meta as any).env?.[name] || 
-            (window as any).process?.env?.[name] || 
-            (window as any).process?.env?.[`VITE_${name}`] ||
-            (window as any).process?.env?.[`NEXT_PUBLIC_${name}`] ||
-            '';
-  return typeof v === 'string' ? v.trim() : '';
-};
+// Credenciais fornecidas pelo usuário
+const SUPABASE_URL = 'https://scnjxuzapasdfgevegds.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_AlGWoYoW7lJtePDIiWwb2w_fXwMFqkj';
 
-const SUPABASE_URL = getEnv('SUPABASE_URL') || getEnv('SUPABASE_PUBLISHABLE_KEY');
-const SUPABASE_KEY = getEnv('SUPABASE_ANON_KEY');
-
-// Mock do Supabase para quando as chaves não estão presentes
+// Mock do Supabase para fallback (mantido para evitar erros se as chaves falharem em ambiente local)
 const createMockSupabase = () => {
   const mockAuth = {
     signInWithPassword: async ({ email, password }: any) => {
@@ -30,21 +21,14 @@ const createMockSupabase = () => {
       localStorage.setItem('mock_users', JSON.stringify(users));
       return { data: { user: { email } }, error: null };
     },
-    resetPasswordForEmail: async (email: string) => {
-      return { data: {}, error: null }; // Simula envio de e-mail
-    },
+    resetPasswordForEmail: async (_email: string) => ({ data: {}, error: null }),
     verifyOtp: async ({ token }: any) => {
-      // No mock, qualquer código de 6 dígitos funciona
       if (token.length === 6) return { data: {}, error: null };
       return { error: { message: 'Código inválido.' } };
     },
-    updateUser: async ({ password }: any) => {
-      return { data: {}, error: null };
-    },
+    updateUser: async ({ _password }: any) => ({ data: {}, error: null }),
     signOut: async () => ({ error: null }),
-    onAuthStateChange: (cb: any) => {
-      return { data: { subscription: { unsubscribe: () => {} } } };
-    },
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
     getSession: async () => ({ data: { session: null } })
   };
 
@@ -63,13 +47,10 @@ const createMockSupabase = () => {
     }
   });
 
-  return {
-    auth: mockAuth,
-    from: mockFrom,
-    isMock: true
-  };
+  return { auth: mockAuth, from: mockFrom, isMock: true };
 };
 
-export const supabase: any = (SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.startsWith('http')) 
-  ? createClient(SUPABASE_URL, SUPABASE_KEY) 
+// Inicialização prioritária com as chaves reais
+export const supabase: any = (SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.includes('.supabase.co'))
+  ? createClient(SUPABASE_URL, SUPABASE_KEY)
   : createMockSupabase();
