@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
+import { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { Dashboard } from './views/Dashboard';
 import { Inventory } from './views/Inventory';
 import { Customers } from './views/Customers';
@@ -66,7 +67,7 @@ const App: React.FC = () => {
     }
 
     // Verificar sessão atual ao carregar
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
       if (session?.user) {
         const email = session.user.email!.toLowerCase();
         setCurrentUser(email);
@@ -78,7 +79,7 @@ const App: React.FC = () => {
     });
 
     // Ouvir mudanças de estado (Login/Logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       if (session?.user) {
         const email = session.user.email!.toLowerCase();
         setCurrentUser(email);

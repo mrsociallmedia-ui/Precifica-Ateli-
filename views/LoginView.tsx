@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { Sparkles, Heart, LogIn, ShieldCheck, Mail, Lock, UserPlus, ArrowLeft, RefreshCw, AlertCircle, KeyRound, Send, CheckCircle2, Hash } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -22,7 +23,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   // Fallback para quando o usuário clicar em um link de recuperação (embora queiramos o código)
   useEffect(() => {
     if (!supabase) return;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, _session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, _session: Session | null) => {
       if (event === 'PASSWORD_RECOVERY') {
         setMode('verify-reset');
         setError(null);
