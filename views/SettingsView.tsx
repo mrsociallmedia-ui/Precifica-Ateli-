@@ -12,7 +12,11 @@ import {
   Clock,
   Briefcase,
   Calendar,
-  Receipt
+  Receipt,
+  Headphones,
+  MessageCircle,
+  Mail,
+  CalendarDays
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 
@@ -101,27 +105,77 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-1 flex flex-col items-center gap-6">
-          <div className="relative group">
-            <div className="w-48 h-48 bg-white rounded-[3rem] border-4 border-white shadow-2xl overflow-hidden flex items-center justify-center relative">
-              {companyData.logo ? (
-                <img src={companyData.logo} alt="Logo" className="w-full h-full object-cover" />
-              ) : (
-                <div className="text-gray-300 text-center p-4">
-                  <Camera size={48} className="mx-auto mb-2 opacity-30" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">Logo Ateliê</p>
-                </div>
-              )}
+        <div className="md:col-span-1 space-y-6">
+          <div className="flex flex-col items-center gap-6">
+            <div className="relative group">
+              <div className="w-48 h-48 bg-white rounded-[3rem] border-4 border-white shadow-2xl overflow-hidden flex items-center justify-center relative">
+                {companyData.logo ? (
+                  <img src={companyData.logo} alt="Logo" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="text-gray-300 text-center p-4">
+                    <Camera size={48} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">Logo Ateliê</p>
+                  </div>
+                )}
+              </div>
+              <label className="absolute -bottom-2 -right-2 bg-pink-500 p-4 rounded-3xl text-white shadow-xl cursor-pointer hover:scale-110 transition-transform active:scale-95">
+                <Camera size={20} />
+                <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
+              </label>
             </div>
-            <label className="absolute -bottom-2 -right-2 bg-pink-500 p-4 rounded-3xl text-white shadow-xl cursor-pointer hover:scale-110 transition-transform active:scale-95">
-              <Camera size={20} />
-              <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
-            </label>
+            
+            <div className="p-6 bg-blue-50/50 rounded-[2rem] border border-blue-100/50 text-center w-full">
+               <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Status da Conta</p>
+               <p className="text-xs font-bold text-blue-700 truncate">{currentUser}</p>
+            </div>
           </div>
-          
-          <div className="p-6 bg-blue-50/50 rounded-[2rem] border border-blue-100/50 text-center w-full">
-             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Status da Conta</p>
-             <p className="text-xs font-bold text-blue-700 truncate">{currentUser}</p>
+
+          {/* Seção de Suporte */}
+          <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-green-50 space-y-6">
+            <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-[10px] tracking-widest border-b border-gray-50 pb-4">
+              <Headphones size={16} className="text-green-500" /> Suporte & Atendimento
+            </h4>
+            <div className="space-y-4">
+              <a 
+                href="https://wa.me/5566992442924" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 p-4 bg-green-50 rounded-2xl border border-green-100 hover:bg-green-100 transition-colors group"
+              >
+                <div className="p-2 bg-green-500 text-white rounded-xl shadow-sm group-hover:scale-110 transition-transform">
+                  <MessageCircle size={18} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-green-600 uppercase tracking-widest leading-none mb-1">WhatsApp</p>
+                  <p className="text-sm font-black text-gray-700 leading-none">(66) 99244-2924</p>
+                </div>
+              </a>
+
+              <a 
+                href="mailto:mrsociallmedia@gmail.com"
+                className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100 hover:bg-blue-100 transition-colors group"
+              >
+                <div className="p-2 bg-blue-500 text-white rounded-xl shadow-sm group-hover:scale-110 transition-transform">
+                  <Mail size={18} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none mb-1">E-mail</p>
+                  <p className="text-sm font-black text-gray-700 leading-none truncate w-32 md:w-full">mrsociallmedia@gmail.com</p>
+                </div>
+              </a>
+
+              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <div className="flex items-center gap-2 mb-2 text-gray-400">
+                   <CalendarDays size={14} />
+                   <span className="text-[10px] font-black uppercase tracking-widest">Horário de Atendimento</span>
+                </div>
+                <p className="text-xs font-bold text-gray-600">Segunda à Sexta</p>
+                <div className="flex items-center gap-1 mt-1">
+                   <Clock size={12} className="text-gray-300" />
+                   <p className="text-xs font-black text-gray-800">08:00 às 18:00</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

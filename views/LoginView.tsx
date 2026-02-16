@@ -1,7 +1,23 @@
 
 import React, { useState, useEffect } from 'react';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
-import { Sparkles, Heart, LogIn, ShieldCheck, Mail, Lock, UserPlus, ArrowLeft, RefreshCw, AlertCircle, KeyRound, Send, CheckCircle2 } from 'lucide-react';
+import { 
+  Sparkles, 
+  Heart, 
+  LogIn, 
+  ShieldCheck, 
+  Mail, 
+  Lock, 
+  UserPlus, 
+  ArrowLeft, 
+  RefreshCw, 
+  AlertCircle, 
+  KeyRound, 
+  Send, 
+  CheckCircle2,
+  Eye,
+  EyeOff
+} from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 interface LoginViewProps {
@@ -18,6 +34,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -59,8 +77,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       } 
       else if (mode === 'forgot') {
         // No fluxo simplificado, apenas avançamos para a tela de nova senha
-        // Em um sistema real, o resetPasswordForEmail enviaria o link, 
-        // mas aqui estamos indo direto para a definição da nova senha.
         if (!email) throw new Error("Informe seu e-mail.");
         setMode('verify-reset');
       }
@@ -74,9 +90,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           setMessage("Senha atualizada com sucesso!");
           setMode('login');
         } else {
-          // No Supabase Real, a atualização de senha exige um token ou sessão ativa de recuperação.
-          // Sem o e-mail com código, este passo só funcionaria se o usuário já estivesse logado.
-          // Para satisfazer o pedido de "não precisar código", tentamos atualizar diretamente.
           const { error: updateError } = await supabase.auth.updateUser({ password });
           if (updateError) throw new Error("A redefinição direta não é permitida pelo servidor sem o link/código do e-mail por segurança.");
           
@@ -168,12 +181,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     <Lock size={12} className={`text-${mode === 'verify-reset' ? 'blue' : 'pink'}-400`} /> 
                     {mode === 'verify-reset' ? 'Nova Senha' : 'Senha'}
                   </label>
-                  <input 
-                    type="password" required 
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
-                    value={password} onChange={e => setPassword(e.target.value)} 
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? "text" : "password"} 
+                      required 
+                      className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
+                      value={password} onChange={e => setPassword(e.target.value)} 
+                      placeholder="••••••••"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-pink-500 transition-colors focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -182,12 +205,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
                     <ShieldCheck size={12} className="text-green-400" /> Confirmar {mode === 'verify-reset' ? 'Nova Senha' : 'Senha'}
                   </label>
-                  <input 
-                    type="password" required 
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
-                    value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} 
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input 
+                      type={showConfirmPassword ? "text" : "password"} 
+                      required 
+                      className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
+                      value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} 
+                      placeholder="••••••••"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-pink-500 transition-colors focus:outline-none"
+                    >
+                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
               )}
 
