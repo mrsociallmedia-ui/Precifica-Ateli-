@@ -151,7 +151,6 @@ WITH CHECK (auth.jwt() ->> 'email' = user_email);`;
              <p className="text-xs font-bold text-blue-700 truncate">{currentUser}</p>
           </div>
 
-          {/* AJUDA DO BANCO DE DADOS */}
           <div className="w-full bg-white p-6 rounded-[2rem] border border-gray-100 space-y-4 shadow-sm">
              <h4 className="font-black text-gray-700 uppercase text-[10px] tracking-widest flex items-center gap-2">
                 <Database size={14} className="text-blue-500" /> Banco de Dados
@@ -176,7 +175,7 @@ WITH CHECK (auth.jwt() ->> 'email' = user_email);`;
              <div className="flex gap-2 p-3 bg-yellow-50 rounded-xl border border-yellow-100 items-start">
                 <Info size={12} className="text-yellow-600 mt-0.5 shrink-0" />
                 <p className="text-[9px] text-yellow-700 font-bold leading-tight">
-                  No Supabase, procure pelo ícone <b>( >_ )</b> à esquerda para colar o código.
+                  No Supabase, procure pelo ícone <b>( {' >_ '} )</b> à esquerda para colar o código.
                 </p>
              </div>
           </div>
