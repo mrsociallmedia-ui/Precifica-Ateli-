@@ -1,50 +1,28 @@
 
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Heart, LogIn, ShieldCheck, Mail, Lock, UserPlus, ArrowLeft, RefreshCw, AlertCircle, KeyRound, Send, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Heart, LogIn, ShieldCheck, Mail, Lock, UserPlus, ArrowLeft, RefreshCw, AlertCircle, KeyRound, Send, CheckCircle2, Hash } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 interface LoginViewProps {
   onLogin: (userEmail: string) => void;
 }
 
-type AuthMode = 'login' | 'signup' | 'forgot' | 'reset';
+type AuthMode = 'login' | 'signup' | 'forgot' | 'verify-reset';
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [otpToken, setOtpToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-
-  // Detectar se o usuário veio de um link de recuperação de senha
-  useEffect(() => {
-    if (!supabase) return;
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setMode('reset');
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setMessage(null);
-
-    if (!supabase) {
-      if (mode === 'login' && email) {
-        onLogin(email);
-      } else {
-        setError("O sistema de autenticação não está configurado corretamente.");
-      }
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -60,35 +38,39 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         
-        setMessage("Cadastro realizado! Verifique seu e-mail para confirmar a conta.");
+        setMessage("Cadastro realizado com sucesso! Você já pode entrar.");
         setMode('login');
         setPassword('');
-        setConfirmPassword('');
       } 
       else if (mode === 'forgot') {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin,
-        });
+        const { error } = await supabase.auth.resetPasswordForEmail(email);
         if (error) throw error;
-        setMessage("E-mail de recuperação enviado! Clique no link recebido para definir sua nova senha aqui.");
+        
+        setMessage("Código de 6 dígitos enviado! Verifique seu e-mail e insira o código abaixo.");
+        setMode('verify-reset');
       }
-      else if (mode === 'reset') {
-        if (password.length < 6) throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
+      else if (mode === 'verify-reset') {
+        if (otpToken.length < 6) throw new Error("Insira o código de 6 dígitos enviado por e-mail.");
+        if (password.length < 6) throw new Error("A nova senha deve ter no mínimo 6 caracteres.");
         if (password !== confirmPassword) throw new Error("As senhas não coincidem.");
 
-        const { error } = await supabase.auth.updateUser({ password });
-        if (error) throw error;
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          email,
+          token: otpToken,
+          type: 'recovery'
+        });
+        if (verifyError) throw verifyError;
 
-        setMessage("Senha atualizada com sucesso! Você já pode entrar.");
+        const { error: updateError } = await supabase.auth.updateUser({ password });
+        if (updateError) throw updateError;
+
+        setMessage("Senha redefinida com sucesso! Entre com sua nova senha.");
         setMode('login');
         setPassword('');
-        setConfirmPassword('');
+        setOtpToken('');
       }
     } catch (err: any) {
-      let errorMsg = err.message || "Ocorreu um erro inesperado.";
-      if (err.message?.includes("Invalid login credentials")) errorMsg = "E-mail ou senha incorretos.";
-      else if (err.message?.includes("User already registered")) errorMsg = "Este e-mail já está cadastrado.";
-      setError(errorMsg);
+      setError(err.message || "Erro inesperado na autenticação.");
     } finally {
       setIsSubmitting(false);
     }
@@ -96,13 +78,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen bg-[#fffcf5] flex items-center justify-center p-6 relative overflow-hidden font-['Quicksand']">
+      {/* Background Decorativo */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-pink-200/20 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-200/20 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="w-full max-w-md animate-fadeIn">
         <div className="bg-white rounded-[3rem] shadow-2xl border border-pink-50 relative overflow-hidden">
           
-          {mode !== 'reset' && mode !== 'forgot' && (
+          {/* Abas de Navegação (Apenas login/cadastro) */}
+          {(mode === 'login' || mode === 'signup') && (
             <div className="flex bg-gray-50/50 p-2 border-b border-gray-100">
               <button 
                 onClick={() => { setMode('login'); setError(null); setMessage(null); }}
@@ -129,8 +113,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </h1>
               <p className="text-gray-400 font-bold text-[8px] mt-1 uppercase tracking-[0.2em]">
                 {mode === 'forgot' ? 'Recuperação de Acesso' : 
-                 mode === 'reset' ? 'Definir Nova Senha' : 
-                 'Sua gestão criativa profissional'}
+                 mode === 'verify-reset' ? 'Definir Nova Senha' : 
+                 'Gestão Profissional para Artesãos'}
               </p>
             </div>
 
@@ -149,55 +133,66 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             )}
 
             <form onSubmit={handleAuth} className="space-y-6">
-              {mode !== 'reset' && (
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                    <Mail size={12} className="text-blue-400" /> E-mail
+              {/* E-mail (Sempre visível exceto no reset se desejado) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
+                  <Mail size={12} className="text-blue-400" /> E-mail
+                </label>
+                <input 
+                  type="email" required 
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
+                  value={email} onChange={e => setEmail(e.target.value)} 
+                  placeholder="exemplo@email.com"
+                />
+              </div>
+
+              {/* Token OTP (Apenas no modo de verificação) */}
+              {mode === 'verify-reset' && (
+                <div className="space-y-1 animate-slideDown">
+                  <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-2 flex items-center gap-2">
+                    <Hash size={12} /> Código de 6 Dígitos
                   </label>
                   <input 
-                    type="email" 
-                    required 
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
-                    value={email} 
-                    onChange={e => setEmail(e.target.value)} 
-                    placeholder="exemplo@gmail.com"
+                    type="text" required maxLength={6}
+                    className="w-full p-4 bg-blue-50 border border-blue-100 rounded-2xl outline-none font-black text-blue-600 text-center text-xl tracking-[0.5em] focus:ring-4 focus:ring-blue-100 transition-all placeholder:text-gray-300" 
+                    value={otpToken} onChange={e => setOtpToken(e.target.value.replace(/\D/g, ''))} 
+                    placeholder="000000"
                   />
                 </div>
               )}
 
+              {/* Senha (Não visível no modo 'forgot') */}
               {mode !== 'forgot' && (
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                    <Lock size={12} className={`text-${mode === 'reset' ? 'blue' : 'pink'}-400`} /> 
-                    {mode === 'reset' ? 'Nova Senha' : 'Senha'}
+                    <Lock size={12} className={`text-${mode === 'verify-reset' ? 'blue' : 'pink'}-400`} /> 
+                    {mode === 'verify-reset' ? 'Nova Senha' : 'Senha'}
                   </label>
                   <input 
-                    type="password" 
-                    required 
+                    type="password" required 
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
-                    value={password} 
-                    onChange={e => setPassword(e.target.value)} 
+                    value={password} onChange={e => setPassword(e.target.value)} 
                     placeholder="••••••••"
                   />
                 </div>
               )}
 
-              {(mode === 'signup' || mode === 'reset') && (
+              {/* Confirmação de Senha */}
+              {(mode === 'signup' || mode === 'verify-reset') && (
                 <div className="space-y-1 animate-slideDown">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                    <ShieldCheck size={12} className="text-green-400" /> Confirmar {mode === 'reset' ? 'Nova Senha' : 'Senha'}
+                    <ShieldCheck size={12} className="text-green-400" /> Confirmar {mode === 'verify-reset' ? 'Nova Senha' : 'Senha'}
                   </label>
                   <input 
-                    type="password" 
-                    required 
+                    type="password" required 
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
-                    value={confirmPassword} 
-                    onChange={e => setConfirmPassword(e.target.value)} 
+                    value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} 
                     placeholder="••••••••"
                   />
                 </div>
               )}
 
+              {/* Link para Esqueci Senha */}
               {mode === 'login' && (
                 <div className="flex justify-end px-2">
                   <button 
@@ -210,13 +205,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 </div>
               )}
 
+              {/* Botão de Ação Principal */}
               <button 
                 type="submit" 
                 disabled={isSubmitting}
                 className={`w-full py-4 rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-70 mt-4 ${
                   mode === 'login' ? 'bg-pink-500 text-white shadow-pink-100 hover:bg-pink-600' :
                   mode === 'signup' ? 'bg-blue-500 text-white shadow-blue-100 hover:bg-blue-600' :
-                  mode === 'reset' ? 'bg-green-500 text-white shadow-green-100 hover:bg-green-600' :
+                  mode === 'verify-reset' ? 'bg-green-500 text-white shadow-green-100 hover:bg-green-600' :
                   'bg-gray-800 text-white shadow-gray-100 hover:bg-black'
                 }`}
               >
@@ -228,12 +224,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   <LogIn size={18} />
                 )}
                 {isSubmitting ? 'Processando...' : 
-                 mode === 'forgot' ? 'Enviar Link de Recuperação' : 
-                 mode === 'reset' ? 'Salvar Nova Senha' :
+                 mode === 'forgot' ? 'Receber Código de Acesso' : 
+                 mode === 'verify-reset' ? 'Atualizar Senha Agora' :
                  mode === 'signup' ? 'Criar minha Conta' : 'Entrar no Ateliê'}
               </button>
 
-              {(mode === 'forgot' || mode === 'reset') && (
+              {/* Botão de Voltar */}
+              {(mode === 'forgot' || mode === 'verify-reset') && (
                 <button 
                   type="button"
                   onClick={() => { setMode('login'); setError(null); setMessage(null); }}
@@ -243,15 +240,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 </button>
               )}
             </form>
-
-            <div className="mt-8 text-center pt-6 border-t border-gray-50">
-               <button 
-                 onClick={() => onLogin('ateliemodelo@local.com')}
-                 className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-pink-500 transition-all border border-gray-100 px-6 py-2 rounded-full hover:bg-pink-50"
-               >
-                 Testar como Visitante (Modo Offline)
-               </button>
-            </div>
           </div>
         </div>
         
