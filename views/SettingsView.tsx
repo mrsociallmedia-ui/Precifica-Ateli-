@@ -5,7 +5,6 @@ import {
   Plus, 
   Trash2, 
   Building2, 
-  DollarSign, 
   Zap, 
   Edit3, 
   X,
@@ -13,13 +12,7 @@ import {
   Clock,
   Briefcase,
   Calendar,
-  CheckCircle2,
-  Receipt,
-  Database,
-  Copy,
-  Check,
-  ExternalLink,
-  Info
+  Receipt
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 
@@ -38,20 +31,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [editingPlatform, setEditingPlatform] = useState<Platform | null>(null);
   const [platformName, setPlatformName] = useState('');
   const [platformFee, setPlatformFee] = useState('');
-  const [copied, setCopied] = useState(false);
-
-  const sqlCode = `-- SCRIPT DE CONFIGURAÇÃO
-CREATE TABLE IF NOT EXISTS public.user_data (
-    user_email TEXT PRIMARY KEY,
-    app_state JSONB NOT NULL DEFAULT '{}'::jsonb,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
-ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "user_data_all_policy" ON public.user_data FOR ALL 
-USING (auth.jwt() ->> 'email' = user_email)
-WITH CHECK (auth.jwt() ->> 'email' = user_email);`;
 
   useEffect(() => {
     const totalMonthlyCosts = (Number(companyData.desiredSalary) || 0) + 
@@ -78,12 +57,6 @@ WITH CHECK (auth.jwt() ->> 'email' = user_email);`;
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  const copySql = () => {
-    navigator.clipboard.writeText(sqlCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const openAddPlatform = () => {
@@ -149,35 +122,6 @@ WITH CHECK (auth.jwt() ->> 'email' = user_email);`;
           <div className="p-6 bg-blue-50/50 rounded-[2rem] border border-blue-100/50 text-center w-full">
              <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Status da Conta</p>
              <p className="text-xs font-bold text-blue-700 truncate">{currentUser}</p>
-          </div>
-
-          <div className="w-full bg-white p-6 rounded-[2rem] border border-gray-100 space-y-4 shadow-sm">
-             <h4 className="font-black text-gray-700 uppercase text-[10px] tracking-widest flex items-center gap-2">
-                <Database size={14} className="text-blue-500" /> Banco de Dados
-             </h4>
-             <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
-               Seus dados são salvos na nuvem do Supabase. Certifique-se de que a tabela <b>user_data</b> foi criada.
-             </p>
-             <button 
-               onClick={copySql}
-               className="w-full py-3 bg-gray-50 hover:bg-blue-50 text-blue-600 rounded-xl transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest border border-blue-100"
-             >
-               {copied ? <Check size={14} /> : <Copy size={14} />}
-               {copied ? 'Copiado!' : 'Copiar Script SQL'}
-             </button>
-             <a 
-               href="https://app.supabase.com" 
-               target="_blank" 
-               className="w-full py-3 bg-blue-600 text-white rounded-xl transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100"
-             >
-               Abrir Supabase <ExternalLink size={14} />
-             </a>
-             <div className="flex gap-2 p-3 bg-yellow-50 rounded-xl border border-yellow-100 items-start">
-                <Info size={12} className="text-yellow-600 mt-0.5 shrink-0" />
-                <p className="text-[9px] text-yellow-700 font-bold leading-tight">
-                  No Supabase, procure pelo ícone <b>( &gt;_ )</b> à esquerda para colar o código.
-                </p>
-             </div>
           </div>
         </div>
 
