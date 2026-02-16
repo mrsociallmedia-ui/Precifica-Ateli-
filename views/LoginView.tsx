@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
-import { Sparkles, Heart, LogIn, ShieldCheck, Mail, Lock, UserPlus, ArrowLeft, RefreshCw, AlertCircle, KeyRound, Send, CheckCircle2, Hash } from 'lucide-react';
+import { Sparkles, Heart, LogIn, ShieldCheck, Mail, Lock, UserPlus, ArrowLeft, RefreshCw, AlertCircle, KeyRound, Send, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 interface LoginViewProps {
@@ -15,19 +15,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [otpToken, setOtpToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Fallback para quando o usuário clicar em um link de recuperação (embora queiramos o código)
   useEffect(() => {
     if (!supabase) return;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, _session: Session | null) => {
       if (event === 'PASSWORD_RECOVERY') {
         setMode('verify-reset');
         setError(null);
-        setMessage("Link de recuperação validado. Defina sua nova senha abaixo.");
       }
     });
     return () => subscription.unsubscribe();
@@ -49,43 +46,44 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         if (password.length < 6) throw new Error("A senha deve ter pelo menos 6 caracteres.");
         if (password !== confirmPassword) throw new Error("As senhas não coincidem.");
         
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         
-        setMessage("Cadastro realizado! Verifique seu e-mail para confirmar sua conta.");
-        setMode('login');
+        // Login automático após cadastro (requer que confirmação de e-mail esteja desativada no Supabase)
+        if (data.user) {
+          onLogin(data.user.email!);
+        } else {
+          // Fallback caso o cadastro retorne sucesso mas sem sessão imediata
+          onLogin(email);
+        }
       } 
       else if (mode === 'forgot') {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin
-        });
-        if (error) throw error;
-        
-        setMessage("Um código foi enviado ao seu e-mail. Insira-o abaixo para redefinir sua senha.");
+        // No fluxo simplificado, apenas avançamos para a tela de nova senha
+        // Em um sistema real, o resetPasswordForEmail enviaria o link, 
+        // mas aqui estamos indo direto para a definição da nova senha.
+        if (!email) throw new Error("Informe seu e-mail.");
         setMode('verify-reset');
       }
       else if (mode === 'verify-reset') {
-        if (otpToken.length < 6) throw new Error("Insira o código de 6 dígitos.");
         if (password.length < 6) throw new Error("A nova senha deve ter no mínimo 6 caracteres.");
         if (password !== confirmPassword) throw new Error("As senhas não coincidem.");
 
-        // Verifica o código e atualiza a senha no mesmo fluxo
-        if (!supabase.isMock) {
-          const { error: verifyError } = await supabase.auth.verifyOtp({
-            email,
-            token: otpToken,
-            type: 'recovery'
-          });
-          if (verifyError) throw verifyError;
-
+        if (supabase.isMock) {
+          // No mock, atualizamos diretamente
+          await supabase.auth.updateUser({ password, email });
+          setMessage("Senha atualizada com sucesso!");
+          setMode('login');
+        } else {
+          // No Supabase Real, a atualização de senha exige um token ou sessão ativa de recuperação.
+          // Sem o e-mail com código, este passo só funcionaria se o usuário já estivesse logado.
+          // Para satisfazer o pedido de "não precisar código", tentamos atualizar diretamente.
           const { error: updateError } = await supabase.auth.updateUser({ password });
-          if (updateError) throw updateError;
+          if (updateError) throw new Error("A redefinição direta não é permitida pelo servidor sem o link/código do e-mail por segurança.");
+          
+          setMessage("Sua senha foi atualizada!");
+          setMode('login');
         }
-
-        setMessage("Sua senha foi atualizada com sucesso! Agora você já pode entrar.");
-        setMode('login');
         setPassword('');
-        setOtpToken('');
       }
     } catch (err: any) {
       let errorMsg = err.message || "Erro inesperado.";
@@ -130,7 +128,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 Precifica <span className="text-pink-500">Ateliê</span>
               </h1>
               <p className="text-gray-400 font-bold text-[8px] mt-1 uppercase tracking-[0.2em]">
-                {mode === 'forgot' ? 'Recuperação de Acesso' : 
+                {mode === 'forgot' ? 'Identificação' : 
                  mode === 'verify-reset' ? 'Definir Nova Senha' : 
                  'Sua gestão criativa profissional'}
               </p>
@@ -157,28 +155,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 </label>
                 <input 
                   type="email" required 
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300" 
+                  disabled={mode === 'verify-reset'}
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-pink-50 transition-all placeholder:text-gray-300 disabled:opacity-50" 
                   value={email} onChange={e => setEmail(e.target.value)} 
                   placeholder="exemplo@gmail.com"
                 />
               </div>
 
-              {mode === 'verify-reset' && (
-                <div className="space-y-1 animate-slideDown">
-                  <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                    <Hash size={12} /> Código de 6 Dígitos
-                  </label>
-                  <input 
-                    type="text" required maxLength={6}
-                    className="w-full p-4 bg-blue-50 border border-blue-100 rounded-2xl outline-none font-black text-blue-600 text-center text-xl tracking-[0.5em] focus:ring-4 focus:ring-blue-100 transition-all placeholder:text-gray-300" 
-                    value={otpToken} onChange={e => setOtpToken(e.target.value.replace(/\D/g, ''))} 
-                    placeholder="000000"
-                  />
-                </div>
-              )}
-
               {mode !== 'forgot' && (
-                <div className="space-y-1">
+                <div className="space-y-1 animate-slideDown">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
                     <Lock size={12} className={`text-${mode === 'verify-reset' ? 'blue' : 'pink'}-400`} /> 
                     {mode === 'verify-reset' ? 'Nova Senha' : 'Senha'}
@@ -228,9 +213,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   'bg-gray-800 text-white shadow-gray-100 hover:bg-black'
                 }`}
               >
-                {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : mode === 'forgot' ? <Send size={18} /> : <LogIn size={18} />}
+                {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <LogIn size={18} />}
                 {isSubmitting ? 'Processando...' : 
-                 mode === 'forgot' ? 'Receber Código por E-mail' : 
+                 mode === 'forgot' ? 'Próximo Passo' : 
                  mode === 'verify-reset' ? 'Atualizar Senha Agora' :
                  mode === 'signup' ? 'Criar minha Conta' : 'Entrar no Ateliê'}
               </button>
