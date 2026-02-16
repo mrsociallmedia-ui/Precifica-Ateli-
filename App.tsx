@@ -279,7 +279,9 @@ const App: React.FC = () => {
       <aside className={`fixed lg:static inset-y-0 left-0 z-40 bg-white border-r border-pink-100 flex flex-col shadow-xl lg:shadow-none transition-transform duration-300 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${isSidebarOpen ? 'w-64' : 'lg:w-20'}`}>
         <div className="p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-pink-500 rounded-xl flex items-center justify-center text-white font-black shadow-lg shrink-0">P</div>
+            <div className="w-10 h-10 bg-pink-500 rounded-xl flex items-center justify-center shadow-lg shrink-0 overflow-hidden">
+              <img src="https://cdn-icons-png.flaticon.com/512/4230/4230588.png" alt="Logo" className="w-7 h-7 filter brightness-0 invert" />
+            </div>
             {isSidebarOpen && <h1 className="text-pink-600 font-black text-lg tracking-tight truncate">Precifica Ateliê</h1>}
           </div>
           <button className="lg:hidden text-gray-400 p-1" onClick={() => setSidebarOpen(false)}><X size={20}/></button>
