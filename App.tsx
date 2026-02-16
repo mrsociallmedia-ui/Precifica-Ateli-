@@ -50,7 +50,7 @@ const App: React.FC = () => {
   const initializedRef = useRef(false);
   const syncTimeoutRef = useRef<any>(null);
 
-  // Estados principais
+  // Estados principais da aplicação
   const [companyData, setCompanyData] = useState<CompanyData>(INITIAL_COMPANY_DATA);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -61,6 +61,38 @@ const App: React.FC = () => {
   const [productCategories, setProductCategories] = useState<string[]>(['Festas', 'Papelaria', 'Presentes', 'Geral']);
   const [transactionCategories, setTransactionCategories] = useState<string[]>(['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']);
   const [paymentMethods, setPaymentMethods] = useState<string[]>(['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']);
+
+  // Monitorar Sessão Supabase
+  useEffect(() => {
+    if (!supabase) return;
+
+    // Verificar sessão atual
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setCurrentUser(session.user.email!);
+        setIsAuthenticated(true);
+        localStorage.setItem('precifica_session', 'true');
+        localStorage.setItem('precifica_current_user', session.user.email!);
+      }
+    });
+
+    // Ouvir mudanças (Login, Logout, Reset de Senha)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setCurrentUser(session.user.email!);
+        setIsAuthenticated(true);
+        localStorage.setItem('precifica_session', 'true');
+        localStorage.setItem('precifica_current_user', session.user.email!);
+      } else {
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+        localStorage.removeItem('precifica_session');
+        localStorage.removeItem('precifica_current_user');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const loadLocalCache = useCallback((email: string) => {
     const userKey = email.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -196,18 +228,20 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated || !currentUser || !initializedRef.current) return;
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    
     syncTimeoutRef.current = setTimeout(() => {
       pushCloudData();
     }, 2000);
+
     return () => clearTimeout(syncTimeoutRef.current);
   }, [companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, isAuthenticated, currentUser, pushCloudData]);
 
   const handleLogin = (userEmail: string) => {
     const cleanEmail = userEmail.trim().toLowerCase();
-    localStorage.setItem('precifica_current_user', cleanEmail);
-    localStorage.setItem('precifica_session', 'true');
     setCurrentUser(cleanEmail);
     setIsAuthenticated(true);
+    localStorage.setItem('precifica_session', 'true');
+    localStorage.setItem('precifica_current_user', cleanEmail);
     window.location.reload();
   };
 
@@ -277,7 +311,6 @@ const App: React.FC = () => {
             <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-gray-50 hover:bg-pink-50 rounded-xl text-gray-400 transition-colors">
               {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
-            
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
               syncStatus === 'synced' ? 'bg-green-50 border-green-100 text-green-500' :
               syncStatus === 'syncing' ? 'bg-blue-50 border-blue-100 text-blue-500 animate-pulse' :
@@ -289,16 +322,16 @@ const App: React.FC = () => {
                syncStatus === 'local' ? <CloudDownload size={12} /> :
                <CloudOff size={12} />}
               <span className="hidden sm:inline">
-                {syncStatus === 'synced' ? 'Nuvem OK' : 
+                {syncStatus === 'synced' ? 'Sincronizado' : 
                  syncStatus === 'syncing' ? 'Salvando...' : 
-                 syncStatus === 'local' ? 'Modo Local' : 'Erro Sinc'}
+                 syncStatus === 'local' ? 'Modo Local' : 'Erro Nuvem'}
               </span>
             </div>
           </div>
           
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex flex-col items-end border-l border-gray-100 pl-4">
-              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Conta Ativa</p>
+              <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Logado como</p>
               <p className="text-xs font-black text-pink-600 truncate max-w-[150px] leading-none">{currentUser}</p>
             </div>
           </div>
@@ -328,8 +361,8 @@ const App: React.FC = () => {
         <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center gap-6">
            <RefreshCw className="text-pink-500 animate-spin" size={56} />
            <div className="text-center">
-             <p className="text-gray-800 font-black uppercase text-xs tracking-[0.3em] mb-2">Sincronizando Ateliê</p>
-             <p className="text-gray-400 font-bold text-[10px] animate-pulse">Iniciando ambiente de trabalho...</p>
+             <p className="text-gray-800 font-black uppercase text-xs tracking-[0.3em] mb-2">Preparando seu Ateliê</p>
+             <p className="text-gray-400 font-bold text-[10px] animate-pulse">Organizando gavetas e materiais...</p>
            </div>
         </div>
       )}

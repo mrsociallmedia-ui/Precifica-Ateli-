@@ -310,7 +310,8 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                    <CreditCard size={14} className="text-blue-500" /> Saldo por Método de Pagamento
                  </h4>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {Object.entries(closureStats.byMethod).map(([method, amount]) => (
+                    {/* Fixed typing error: amount inferred as unknown by adding explicit cast to [string, number][] */}
+                    {(Object.entries(closureStats.byMethod) as [string, number][]).map(([method, amount]) => (
                        <div key={method} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between items-center">
                           <span className="text-xs font-bold text-gray-600">{method}</span>
                           <span className={`text-sm font-black ${amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -329,7 +330,8 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                    <PieChart size={14} className="text-purple-500" /> Volume por Categoria
                  </h4>
                  <div className="space-y-2">
-                    {Object.entries(closureStats.byCategory).map(([cat, amount]) => (
+                    {/* Fixed typing error: amount inferred as unknown by adding explicit cast to [string, number][] */}
+                    {(Object.entries(closureStats.byCategory) as [string, number][]).map(([cat, amount]) => (
                        <div key={cat} className="space-y-1">
                           <div className="flex justify-between text-xs font-bold">
                              <span className="text-gray-700">{cat}</span>
