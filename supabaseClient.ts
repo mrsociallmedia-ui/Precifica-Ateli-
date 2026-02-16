@@ -1,11 +1,11 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Credenciais fornecidas pelo usuário
+// Credenciais configuradas para o projeto scnjxuzapasdfgevegds
 const SUPABASE_URL = 'https://scnjxuzapasdfgevegds.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_AlGWoYoW7lJtePDIiWwb2w_fXwMFqkj';
 
-// Mock do Supabase para fallback (mantido para evitar erros se as chaves falharem em ambiente local)
+// Mock do Supabase para fallback caso as chaves falhem
 const createMockSupabase = () => {
   const mockAuth = {
     signInWithPassword: async ({ email, password }: any) => {
@@ -50,7 +50,7 @@ const createMockSupabase = () => {
   return { auth: mockAuth, from: mockFrom, isMock: true };
 };
 
-// Inicialização prioritária com as chaves reais
+// Inicialização prioritária com as chaves reais fornecidas
 export const supabase: any = (SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.includes('.supabase.co'))
   ? createClient(SUPABASE_URL, SUPABASE_KEY)
   : createMockSupabase();

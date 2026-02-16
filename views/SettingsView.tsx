@@ -17,7 +17,9 @@ import {
   Receipt,
   Database,
   Copy,
-  Check
+  Check,
+  ExternalLink,
+  Info
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 
@@ -36,8 +38,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [editingPlatform, setEditingPlatform] = useState<Platform | null>(null);
   const [platformName, setPlatformName] = useState('');
   const [platformFee, setPlatformFee] = useState('');
+  const [copied, setCopied] = useState(false);
 
-  // Cálculo Automático do Valor por Hora
+  const sqlCode = `-- SCRIPT DE CONFIGURAÇÃO
+CREATE TABLE IF NOT EXISTS public.user_data (
+    user_email TEXT PRIMARY KEY,
+    app_state JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "user_data_all_policy" ON public.user_data FOR ALL 
+USING (auth.jwt() ->> 'email' = user_email)
+WITH CHECK (auth.jwt() ->> 'email' = user_email);`;
+
   useEffect(() => {
     const totalMonthlyCosts = (Number(companyData.desiredSalary) || 0) + 
                              (Number(companyData.fixedCostsMonthly) || 0) + 
@@ -63,6 +78,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const copySql = () => {
+    navigator.clipboard.writeText(sqlCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const openAddPlatform = () => {
@@ -107,7 +128,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* LADO ESQUERDO: PERFIL */}
         <div className="md:col-span-1 flex flex-col items-center gap-6">
           <div className="relative group">
             <div className="w-48 h-48 bg-white rounded-[3rem] border-4 border-white shadow-2xl overflow-hidden flex items-center justify-center relative">
@@ -130,12 +150,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
              <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Status da Conta</p>
              <p className="text-xs font-bold text-blue-700 truncate">{currentUser}</p>
           </div>
+
+          {/* AJUDA DO BANCO DE DADOS */}
+          <div className="w-full bg-white p-6 rounded-[2rem] border border-gray-100 space-y-4 shadow-sm">
+             <h4 className="font-black text-gray-700 uppercase text-[10px] tracking-widest flex items-center gap-2">
+                <Database size={14} className="text-blue-500" /> Banco de Dados
+             </h4>
+             <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
+               Seus dados são salvos na nuvem do Supabase. Certifique-se de que a tabela <b>user_data</b> foi criada.
+             </p>
+             <button 
+               onClick={copySql}
+               className="w-full py-3 bg-gray-50 hover:bg-blue-50 text-blue-600 rounded-xl transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest border border-blue-100"
+             >
+               {copied ? <Check size={14} /> : <Copy size={14} />}
+               {copied ? 'Copiado!' : 'Copiar Script SQL'}
+             </button>
+             <a 
+               href="https://app.supabase.com" 
+               target="_blank" 
+               className="w-full py-3 bg-blue-600 text-white rounded-xl transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100"
+             >
+               Abrir Supabase <ExternalLink size={14} />
+             </a>
+             <div className="flex gap-2 p-3 bg-yellow-50 rounded-xl border border-yellow-100 items-start">
+                <Info size={12} className="text-yellow-600 mt-0.5 shrink-0" />
+                <p className="text-[9px] text-yellow-700 font-bold leading-tight">
+                  No Supabase, procure pelo ícone <b>( >_ )</b> à esquerda para colar o código.
+                </p>
+             </div>
+          </div>
         </div>
 
-        {/* LADO DIREITO: FORMULÁRIOS */}
         <div className="md:col-span-2 space-y-8">
-          
-          {/* Dados da Empresa */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-blue-50 space-y-8">
             <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">
               <Building2 size={16} className="text-blue-500" /> Perfil da Empresa
@@ -158,7 +205,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          {/* Mão de Obra e Carga Horária */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-8">
             <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">
               <Briefcase size={16} className="text-pink-500" /> Mão de Obra & Horários
@@ -197,7 +243,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          {/* Canais de Venda e Taxas */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-yellow-50 space-y-8">
             <div className="flex items-center justify-between border-b border-gray-50 pb-4">
                <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest">
@@ -230,11 +275,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                ))}
             </div>
           </div>
-
         </div>
       </div>
 
-      {/* MODAL PARA ADICIONAR/EDITAR PLATAFORMA */}
       {showPlatformForm && (
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
