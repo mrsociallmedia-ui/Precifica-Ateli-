@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { 
   Wallet2, 
@@ -19,9 +18,14 @@ import {
   PieChart,
   Printer,
   Download,
-  CheckCircle2
+  CheckCircle2,
+  Clock,
+  Sparkles,
+  Zap,
+  ShoppingBag
 } from 'lucide-react';
 import { Transaction, Project, Material, Platform, CompanyData } from '../types';
+import { calculateProjectBreakdown } from '../utils';
 
 interface FinancialControlProps {
   transactions: Transaction[];
@@ -59,7 +63,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     return { income, expense, balance: income - expense };
   }, [transactions]);
 
-  // Cálculos para o Fechamento de Caixa
+  // Cálculos aprimorados para o Fechamento de Caixa (Detalhamento de Lucro e Mão de Obra)
   const closureStats = useMemo(() => {
     const filtered = transactions.filter(t => t.date === closureDate);
     const income = filtered.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
@@ -76,8 +80,30 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       byCategory[t.category] = (byCategory[t.category] || 0) + t.amount;
     });
 
-    return { income, expense, balance: income - expense, count: filtered.length, byMethod, byCategory };
-  }, [transactions, closureDate]);
+    // Detalhamento de Mão de Obra e Lucro dos projetos finalizados nesta data
+    let laborAccumulated = 0;
+    let profitAccumulated = 0;
+    const completedProjectsOnDate = projects.filter(p => p.deliveryDate === closureDate && p.status === 'completed');
+    
+    completedProjectsOnDate.forEach(p => {
+      const breakdown = calculateProjectBreakdown(p, materials, platforms, companyData);
+      laborAccumulated += breakdown.laborCosts;
+      profitAccumulated += breakdown.profit;
+    });
+
+    return { 
+      income, 
+      expense, 
+      balance: income - expense, 
+      count: filtered.length, 
+      byMethod, 
+      byCategory,
+      laborAccumulated,
+      profitAccumulated,
+      completedCount: completedProjectsOnDate.length,
+      completedProjects: completedProjectsOnDate
+    };
+  }, [transactions, closureDate, projects, materials, platforms, companyData]);
 
   const addCategory = () => {
     const name = prompt('Nome da nova categoria (Tipo de entrada/saída):');
@@ -260,7 +286,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       {/* MODAL DE FECHAMENTO DE CAIXA */}
       {showClosure && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white w-full max-w-3xl rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[95vh]">
             <div className="bg-blue-600 p-8 text-white relative">
               <button onClick={() => setShowClosure(false)} className="absolute top-6 right-6 p-2 bg-white/20 hover:bg-white/40 rounded-full transition-all">
                 <X size={24} />
@@ -269,7 +295,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                 <div className="p-4 bg-white/20 rounded-[1.5rem] backdrop-blur-sm"><ClipboardCheck size={32} /></div>
                 <div>
                   <h3 className="text-2xl font-black">Fechamento de Caixa</h3>
-                  <p className="text-blue-100 font-bold text-xs uppercase tracking-widest">Resumo detalhado por período</p>
+                  <p className="text-blue-100 font-bold text-xs uppercase tracking-widest">Resumo de Valor e Lucratividade</p>
                 </div>
               </div>
             </div>
@@ -288,16 +314,17 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                 </div>
               </div>
 
+              {/* Seção Principal de Saldo */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="p-4 bg-green-50 rounded-2xl border border-green-100 text-center">
+                <div className="p-5 bg-green-50 rounded-2xl border border-green-100 text-center">
                   <p className="text-[9px] font-black text-green-600 uppercase mb-1">Entradas</p>
                   <p className="text-lg font-black text-gray-800">R$ {closureStats.income.toFixed(2)}</p>
                 </div>
-                <div className="p-4 bg-red-50 rounded-2xl border border-red-100 text-center">
+                <div className="p-5 bg-red-50 rounded-2xl border border-red-100 text-center">
                   <p className="text-[9px] font-black text-red-600 uppercase mb-1">Saídas</p>
                   <p className="text-lg font-black text-gray-800">R$ {closureStats.expense.toFixed(2)}</p>
                 </div>
-                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-center">
+                <div className="p-5 bg-blue-50 rounded-2xl border border-blue-100 text-center">
                   <p className="text-[9px] font-black text-blue-600 uppercase mb-1">Saldo Líquido</p>
                   <p className={`text-lg font-black ${closureStats.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     R$ {closureStats.balance.toFixed(2)}
@@ -305,12 +332,41 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                 </div>
               </div>
 
+              {/* NOVO: Detalhamento de Mão de Obra e Lucro */}
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                   <Sparkles size={14} className="text-pink-500" /> Rendimento Agregado (Projetos Finalizados)
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="bg-pink-50/50 p-6 rounded-[2rem] border border-pink-100 flex items-center gap-4">
+                      <div className="p-3 bg-white rounded-2xl text-pink-500 shadow-sm"><Clock size={24} /></div>
+                      <div>
+                         <p className="text-[9px] font-black text-pink-400 uppercase tracking-widest leading-none mb-1">Mão de Obra (Salário)</p>
+                         <p className="text-2xl font-black text-gray-800 leading-none">R$ {closureStats.laborAccumulated.toFixed(2)}</p>
+                      </div>
+                   </div>
+                   <div className="bg-green-50/50 p-6 rounded-[2rem] border border-green-100 flex items-center gap-4">
+                      <div className="p-3 bg-white rounded-2xl text-green-600 shadow-sm"><Zap size={24} /></div>
+                      <div>
+                         <p className="text-[9px] font-black text-green-400 uppercase tracking-widest leading-none mb-1">Lucro Líquido Real</p>
+                         <p className="text-2xl font-black text-gray-800 leading-none">R$ {closureStats.profitAccumulated.toFixed(2)}</p>
+                      </div>
+                   </div>
+                </div>
+                {closureStats.completedCount > 0 ? (
+                  <p className="text-[10px] font-bold text-gray-400 italic text-center">
+                    Cálculo baseado em {closureStats.completedCount} projeto(s) finalizado(s) nesta data.
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-center text-gray-300 italic">Nenhum projeto foi marcado como "Finalizado" com entrega nesta data.</p>
+                )}
+              </div>
+
               <div className="space-y-4">
                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
                    <CreditCard size={14} className="text-blue-500" /> Saldo por Método de Pagamento
                  </h4>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Fixed typing error: amount inferred as unknown by adding explicit cast to [string, number][] */}
                     {(Object.entries(closureStats.byMethod) as [string, number][]).map(([method, amount]) => (
                        <div key={method} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between items-center">
                           <span className="text-xs font-bold text-gray-600">{method}</span>
@@ -325,12 +381,27 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                  </div>
               </div>
 
+              {closureStats.completedProjects.length > 0 && (
+                <div className="space-y-4">
+                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                     <ShoppingBag size={14} className="text-blue-500" /> Projetos Entregues no Dia
+                   </h4>
+                   <div className="space-y-2">
+                      {closureStats.completedProjects.map(p => (
+                        <div key={p.id} className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex justify-between items-center">
+                           <span className="text-xs font-bold text-gray-700">{p.theme}</span>
+                           <span className="text-[10px] font-black text-blue-500 bg-white px-2 py-0.5 rounded-lg border border-blue-50 shadow-sm">FINALIZADO</span>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+              )}
+
               <div className="space-y-4">
                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
                    <PieChart size={14} className="text-purple-500" /> Volume por Categoria
                  </h4>
                  <div className="space-y-2">
-                    {/* Fixed typing error: amount inferred as unknown by adding explicit cast to [string, number][] */}
                     {(Object.entries(closureStats.byCategory) as [string, number][]).map(([cat, amount]) => (
                        <div key={cat} className="space-y-1">
                           <div className="flex justify-between text-xs font-bold">
@@ -338,7 +409,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                              <span className="text-gray-400">R$ {amount.toFixed(2)}</span>
                           </div>
                           <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                             <div className="h-full bg-purple-400 rounded-full" style={{ width: `${(amount / (closureStats.income + closureStats.expense)) * 100}%` }}></div>
+                             <div className="h-full bg-purple-400 rounded-full" style={{ width: `${(amount / (closureStats.income + closureStats.expense || 1)) * 100}%` }}></div>
                           </div>
                        </div>
                     ))}

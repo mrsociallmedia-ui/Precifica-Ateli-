@@ -47,7 +47,10 @@ import {
   Percent,
   Wallet,
   Ruler,
-  File
+  File,
+  Mail,
+  Phone,
+  Signature
 } from 'lucide-react';
 import { 
   Material, 
@@ -81,9 +84,14 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   products,
   setProjects 
 }) => {
+  // Lógica para gerar número sequencial real (baseado no maior número existente)
   const generateAutoQuoteNumber = () => {
-    // Gera um número sequencial simples baseado no total de projetos
-    return (projects.length + 1).toString();
+    if (projects.length === 0) return '1';
+    const nums = projects
+      .map(p => parseInt(p.quoteNumber || '0'))
+      .filter(n => !isNaN(n));
+    const max = nums.length > 0 ? Math.max(...nums) : 0;
+    return (max + 1).toString();
   };
 
   const initialProjectState: Partial<Project> = {
@@ -115,7 +123,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'completed'>('ongoing');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  // Gera número automático apenas se for um novo orçamento e o campo estiver vazio
+  // Gera número automático ao iniciar novo orçamento
   useEffect(() => {
     if (!currentProject.id && !currentProject.quoteNumber) {
       setCurrentProject(prev => ({ ...prev, quoteNumber: generateAutoQuoteNumber() }));
@@ -249,7 +257,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   };
 
   const formatDisplayDate = (dateStr?: string) => {
-    if (!dateStr) return 'Não inf.';
+    if (!dateStr) return 'A combinar';
     const parts = dateStr.split('-');
     if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
     return dateStr;
@@ -265,7 +273,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     const dateFormatted = formatDisplayDate(currentProject.deliveryDate);
 
     let message = `*Olá! Segue o Orçamento: ${companyData.name}*\n\n`;
-    if (currentProject.quoteNumber) message += `🔖 *Nº Orçamento:* ${currentProject.quoteNumber}\n`;
+    if (currentProject.quoteNumber) message += `🔖 *Nº Orçamento:* #${currentProject.quoteNumber}\n`;
     message += `📝 *Pedido:* ${currentProject.theme}\n`;
     
     message += `\n*Itens:*\n`;
@@ -279,7 +287,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
     if (currentProject.celebrantName) message += `\n👤 *Nome:* ${currentProject.celebrantName}`;
     if (currentProject.celebrantAge) message += `\n🎂 *Idade:* ${currentProject.celebrantAge}`;
-    message += `\n📅 *Entrega:* ${dateFormatted === 'Não inf.' ? 'A combinar' : dateFormatted}\n`;
+    message += `\n📅 *Entrega:* ${dateFormatted}\n`;
     
     if (breakdown.totalDiscount > 0) message += `\n📉 *Desconto:* R$ ${breakdown.totalDiscount.toFixed(2)}`;
     if (breakdown.shipping > 0) message += `\n🚚 *Frete:* R$ ${breakdown.shipping.toFixed(2)}`;
@@ -310,119 +318,178 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     setIsGeneratingPdf(true);
 
     try {
+      // Garantir que fontes estejam prontas
+      if ((document as any).fonts) {
+        await (document as any).fonts.ready;
+      }
+
       const container = document.createElement('div');
-      container.style.padding = '40px';
-      container.style.width = '794px'; 
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.width = '794px'; // A4 @ 96dpi
       container.style.background = 'white';
-      container.style.color = '#333';
-      container.style.fontFamily = 'Quicksand, sans-serif';
+      container.style.color = '#111827';
+      container.style.fontFamily = "'Quicksand', sans-serif";
+
+      const primaryColor = '#ec4899'; // Rosa Precifica
 
       container.innerHTML = `
-        <div style="border: 2px solid #ec4899; border-radius: 20px; padding: 30px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fce7f3; padding-bottom: 20px; margin-bottom: 20px;">
-            <div>
-              <h1 style="color: #ec4899; margin: 0; font-size: 28px; font-weight: 900;">${companyData.name}</h1>
-              <p style="margin: 5px 0 0 0; color: #9ca3af; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Orçamento de Artesanato</p>
+        <div style="padding: 50px; border-top: 15px solid ${primaryColor}; position: relative;">
+          <!-- Marca D'água ou Detalhe Lateral -->
+          <div style="position: absolute; top: 100px; right: -50px; width: 300px; height: 300px; background: ${primaryColor}; opacity: 0.03; border-radius: 50%; pointer-events: none;"></div>
+
+          <!-- Header -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 50px; position: relative; z-index: 1;">
+            <div style="flex: 1.5;">
+              ${companyData.logo ? 
+                `<img src="${companyData.logo}" style="max-height: 90px; max-width: 280px; object-fit: contain; margin-bottom: 15px;" />` : 
+                `<div style="height: 50px; width: 50px; background: ${primaryColor}; border-radius: 12px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-weight: 900; font-size: 24px;">${companyData.name.charAt(0)}</span></div>`
+              }
+              <h1 style="margin: 0; font-size: 28px; font-weight: 900; color: ${primaryColor}; letter-spacing: -1px; line-height: 1.1;">${companyData.name}</h1>
+              <div style="margin-top: 10px; color: #4b5563; font-size: 12px; font-weight: 600; line-height: 1.6;">
+                ${companyData.phone ? `<div style="display: flex; align-items: center; gap: 5px;"><strong style="color: ${primaryColor};">WhatsApp:</strong> ${companyData.phone}</div>` : ''}
+                ${companyData.email ? `<div style="display: flex; align-items: center; gap: 5px;"><strong style="color: ${primaryColor};">E-mail:</strong> ${companyData.email}</div>` : ''}
+                ${companyData.cnpj ? `<div style="display: flex; align-items: center; gap: 5px;"><strong style="color: ${primaryColor};">CNPJ:</strong> ${companyData.cnpj}</div>` : ''}
+              </div>
             </div>
-            <div style="text-align: right;">
-              ${proj.quoteNumber ? `<p style="margin: 0; font-weight: 900; color: #4b5563;">Nº #${proj.quoteNumber}</p>` : ''}
-              <p style="margin: 5px 0 0 0; font-size: 12px; color: #9ca3af;">Data: ${new Date().toLocaleDateString('pt-BR')}</p>
+            <div style="text-align: right; flex: 1;">
+              <h2 style="margin: 0; font-size: 12px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 10px;">Proposta Comercial</h2>
+              <div style="background: #fdf2f8; padding: 20px; border-radius: 25px; border: 1px solid #fce7f3; display: inline-block; min-width: 180px;">
+                <p style="margin: 0; font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Orçamento Nº</p>
+                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #1f2937; line-height: 1;">#${proj.quoteNumber || '001'}</p>
+                <div style="margin-top: 10px; height: 2px; width: 30px; background: ${primaryColor}; margin-left: auto;"></div>
+                <p style="margin: 8px 0 0 0; font-size: 11px; color: #6b7280; font-weight: 700; text-transform: uppercase;">Emissão: ${new Date().toLocaleDateString('pt-BR')}</p>
+              </div>
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
-            <div style="background: #fdf2f8; padding: 15px; border-radius: 15px;">
-              <p style="margin: 0 0 5px 0; font-size: 10px; color: #ec4899; font-weight: 900; text-transform: uppercase;">Cliente</p>
-              <p style="margin: 0; font-weight: 700; color: #374151;">${customer?.name || 'Cliente Avulso'}</p>
-              <p style="margin: 3px 0 0 0; font-size: 11px; color: #6b7280;">${customer?.phone || ''}</p>
+          <!-- Seção de Dados -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 50px;">
+            <div style="background: #fafafa; padding: 25px; border-radius: 25px; border: 1px solid #f3f4f6;">
+              <p style="margin: 0 0 10px 0; font-size: 10px; color: #9ca3af; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Dados do Cliente</p>
+              <p style="margin: 0; font-weight: 800; color: #111827; font-size: 18px;">${customer?.name || 'Cliente Avulso'}</p>
+              <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">${customer?.phone || 'Telefone não informado'}</p>
+              ${customer?.address ? `<p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280; line-height: 1.5;">${customer.address}</p>` : ''}
             </div>
-            <div style="background: #f0f9ff; padding: 15px; border-radius: 15px;">
-              <p style="margin: 0 0 5px 0; font-size: 10px; color: #0ea5e9; font-weight: 900; text-transform: uppercase;">Pedido / Tema</p>
-              <p style="margin: 0; font-weight: 700; color: #374151;">${proj.theme}</p>
-              <p style="margin: 3px 0 0 0; font-size: 11px; color: #6b7280;">Entrega: ${formatDisplayDate(proj.deliveryDate)}</p>
+            <div style="background: #f0f9ff; padding: 25px; border-radius: 25px; border: 1px solid #e0f2fe;">
+              <p style="margin: 0 0 10px 0; font-size: 10px; color: #0ea5e9; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Resumo do Pedido</p>
+              <p style="margin: 0; font-weight: 800; color: #111827; font-size: 18px;">${proj.theme}</p>
+              <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">Data de Entrega: <span style="color: #0ea5e9;">${formatDisplayDate(proj.deliveryDate)}</span></p>
+              ${proj.celebrantName ? `<p style="margin: 8px 0 0 0; font-size: 12px; color: #4b5563;">Celebrante: <strong>${proj.celebrantName}</strong> ${proj.celebrantAge ? `(${proj.celebrantAge})` : ''}</p>` : ''}
             </div>
           </div>
 
-          ${proj.celebrantName ? `
-          <div style="margin-bottom: 20px; padding: 10px 15px; background: #fafafa; border-radius: 10px; display: flex; gap: 20px;">
-             <div><span style="font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase;">Aniversariante:</span> <span style="font-weight: 700;">${proj.celebrantName}</span></div>
-             ${proj.celebrantAge ? `<div><span style="font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase;">Idade:</span> <span style="font-weight: 700;">${proj.celebrantAge}</span></div>` : ''}
-          </div>` : ''}
-
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
-            <thead>
-              <tr style="background: #f9fafb; border-bottom: 2px solid #f3f4f6;">
-                <th style="padding: 12px; text-align: left; font-size: 11px; font-weight: 900; color: #9ca3af; text-transform: uppercase;">Item</th>
-                <th style="padding: 12px; text-align: center; font-size: 11px; font-weight: 900; color: #9ca3af; text-transform: uppercase;">Qtd</th>
-                <th style="padding: 12px; text-align: right; font-size: 11px; font-weight: 900; color: #9ca3af; text-transform: uppercase;">Unitário</th>
-                <th style="padding: 12px; text-align: right; font-size: 11px; font-weight: 900; color: #9ca3af; text-transform: uppercase;">Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${proj.items!.map(item => `
-                <tr style="border-bottom: 1px solid #f3f4f6;">
-                  <td style="padding: 12px; font-weight: 700; color: #4b5563;">${item.name}</td>
-                  <td style="padding: 12px; text-align: center; color: #6b7280;">${item.quantity}</td>
-                  <td style="padding: 12px; text-align: right; color: #6b7280;">R$ ${item.unitPrice?.toFixed(2) || '0.00'}</td>
-                  <td style="padding: 12px; text-align: right; font-weight: 700; color: #111827;">R$ ${((item.unitPrice || 0) * item.quantity).toFixed(2)}</td>
+          <!-- Tabela -->
+          <div style="margin-bottom: 50px; border-radius: 25px; overflow: hidden; border: 1px solid #f3f4f6; box-shadow: 0 4px 15px rgba(0,0,0,0.02);">
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+              <thead>
+                <tr style="background: #111827; color: white;">
+                  <th style="padding: 20px 25px; text-align: left; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Descrição do Produto</th>
+                  <th style="padding: 20px 25px; text-align: center; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Qtd</th>
+                  <th style="padding: 20px 25px; text-align: right; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Vlr. Unitário</th>
+                  <th style="padding: 20px 25px; text-align: right; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Subtotal</th>
                 </tr>
-              `).join('')}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                ${proj.items!.map((item, idx) => `
+                  <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+                    <td style="padding: 18px 25px; border-bottom: 1px solid #f3f4f6;">
+                      <div style="font-weight: 700; color: #374151; font-size: 14px;">${item.name}</div>
+                    </td>
+                    <td style="padding: 18px 25px; text-align: center; font-weight: 700; color: #4b5563; font-size: 14px; border-bottom: 1px solid #f3f4f6;">${item.quantity}</td>
+                    <td style="padding: 18px 25px; text-align: right; color: #4b5563; font-size: 14px; border-bottom: 1px solid #f3f4f6;">R$ ${item.unitPrice?.toFixed(2) || '0.00'}</td>
+                    <td style="padding: 18px 25px; text-align: right; font-weight: 900; color: #111827; font-size: 14px; border-bottom: 1px solid #f3f4f6;">R$ ${((item.unitPrice || 0) * item.quantity).toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
 
-          <div style="display: flex; justify-content: flex-end;">
-            <div style="width: 300px;">
-              <div style="display: flex; justify-content: space-between; padding: 5px 0; color: #6b7280; font-size: 14px;">
-                <span>Subtotal Itens:</span>
-                <span>R$ ${calcBreakdown.basePieceValue.toFixed(2)}</span>
+          <!-- Rodapé de Valores -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; page-break-inside: avoid;">
+            <div style="flex: 1; padding-right: 40px;">
+              ${proj.notes ? `
+                <div style="background: #fdf2f8; border-radius: 20px; padding: 25px; border-left: 5px solid ${primaryColor};">
+                  <h4 style="margin: 0 0 10px 0; font-size: 10px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 2px;">Observações Importantes</h4>
+                  <p style="margin: 0; font-size: 12px; color: #4b5563; line-height: 1.7; font-weight: 600; white-space: pre-wrap;">${proj.notes}</p>
+                </div>
+              ` : `
+                <div style="padding: 25px; border: 1px dashed #d1d5db; border-radius: 20px;">
+                  <p style="margin: 0; font-size: 11px; color: #9ca3af; font-weight: 600; line-height: 1.5;">Garantimos a qualidade artesanal em cada detalhe. O prazo de produção inicia após a confirmação do pagamento do sinal.</p>
+                </div>
+              `}
+            </div>
+            <div style="width: 330px;">
+              <div style="padding: 10px 20px;">
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 700;">
+                  <span>Subtotal Itens:</span>
+                  <span>R$ ${calcBreakdown.basePieceValue.toFixed(2)}</span>
+                </div>
+                ${calcBreakdown.shipping > 0 ? `
+                  <div style="display: flex; justify-content: space-between; padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 700;">
+                    <span>Frete / Entrega:</span>
+                    <span style="color: #0ea5e9;">+ R$ ${calcBreakdown.shipping.toFixed(2)}</span>
+                  </div>
+                ` : ''}
+                ${calcBreakdown.totalDiscount > 0 ? `
+                  <div style="display: flex; justify-content: space-between; padding: 8px 0; color: #ef4444; font-size: 14px; font-weight: 700;">
+                    <span>Desconto Aplicado:</span>
+                    <span>- R$ ${calcBreakdown.totalDiscount.toFixed(2)}</span>
+                  </div>
+                ` : ''}
               </div>
-              ${calcBreakdown.shipping > 0 ? `
-              <div style="display: flex; justify-content: space-between; padding: 5px 0; color: #6b7280; font-size: 14px;">
-                <span>Frete:</span>
-                <span>+ R$ ${calcBreakdown.shipping.toFixed(2)}</span>
-              </div>` : ''}
-              ${calcBreakdown.totalDiscount > 0 ? `
-              <div style="display: flex; justify-content: space-between; padding: 5px 0; color: #ef4444; font-size: 14px;">
-                <span>Descontos:</span>
-                <span>- R$ ${calcBreakdown.totalDiscount.toFixed(2)}</span>
-              </div>` : ''}
-              <div style="display: flex; justify-content: space-between; padding: 15px 0; border-top: 2px solid #f3f4f6; margin-top: 10px;">
-                <span style="font-weight: 900; color: #111827; font-size: 18px;">TOTAL:</span>
-                <span style="font-weight: 900; color: #ec4899; font-size: 22px;">R$ ${calcBreakdown.finalPrice.toFixed(2)}</span>
+
+              <div style="background: #111827; border-radius: 25px; padding: 30px; margin-top: 15px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: ${calcBreakdown.downPayment > 0 ? '20px' : '0'};">
+                  <span style="font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;">Investimento Total</span>
+                  <span style="font-weight: 900; font-size: 28px;">R$ ${calcBreakdown.finalPrice.toFixed(2)}</span>
+                </div>
+                ${calcBreakdown.downPayment > 0 ? `
+                  <div style="padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.15);">
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; opacity: 0.6; text-transform: uppercase; margin-bottom: 5px;">
+                      <span>Sinal (Confirmado):</span>
+                      <span>R$ ${calcBreakdown.downPayment.toFixed(2)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="font-weight: 900; font-size: 12px; color: #4ade80; text-transform: uppercase; letter-spacing: 1px;">Saldo a Pagar:</span>
+                      <span style="font-weight: 900; font-size: 20px; color: #4ade80;">R$ ${calcBreakdown.remainingBalance.toFixed(2)}</span>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
-              ${calcBreakdown.downPayment > 0 ? `
-              <div style="background: #f0fdf4; padding: 10px; border-radius: 10px; margin-top: 10px;">
-                 <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #166534;">
-                    <span>Sinal Pago:</span>
-                    <span>R$ ${calcBreakdown.downPayment.toFixed(2)}</span>
-                 </div>
-                 <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; color: #166534; margin-top: 5px;">
-                    <span>Restante:</span>
-                    <span>R$ ${calcBreakdown.remainingBalance.toFixed(2)}</span>
-                 </div>
-              </div>` : ''}
             </div>
           </div>
 
-          ${proj.notes ? `
-          <div style="margin-top: 40px; border-top: 1px solid #f3f4f6; pt-20">
-            <p style="font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; margin-bottom: 5px;">Observações</p>
-            <p style="font-size: 12px; color: #4b5563; white-space: pre-wrap; line-height: 1.5;">${proj.notes}</p>
-          </div>` : ''}
+          <!-- Assinatura e Validade -->
+          <div style="margin-top: 80px; display: flex; justify-content: space-between; align-items: flex-end; page-break-inside: avoid;">
+            <div style="text-align: left;">
+              <p style="margin: 0; color: #9ca3af; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;">Validade da Proposta</p>
+              <div style="background: #f3f4f6; padding: 10px 20px; border-radius: 12px; font-size: 12px; font-weight: 800; color: #4b5563;">7 dias corridos</div>
+            </div>
+            <div style="text-align: center; width: 250px;">
+              <div style="height: 1px; background: #d1d5db; width: 100%; margin-bottom: 10px;"></div>
+              <p style="margin: 0; font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 1.5px;">Assinatura do Cliente</p>
+            </div>
+          </div>
 
-          <div style="margin-top: 60px; text-align: center; color: #9ca3af; font-size: 11px;">
-            <p>Obrigado pela preferência!</p>
-            <p style="font-weight: 700; margin-top: 5px; color: #4b5563;">${companyData.name} | ${companyData.phone || ''}</p>
+          <!-- Footer Final -->
+          <div style="margin-top: 60px; text-align: center; padding-top: 30px; border-top: 1px solid #f3f4f6;">
+            <p style="margin: 0; font-size: 15px; font-weight: 800; color: ${primaryColor};">✨ Criando memórias afetivas através do artesanato ✨</p>
+            <p style="margin: 10px 0 0 0; font-size: 9px; color: #d1d5db; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Documento Gerado Eletronicamente pelo Precifica Ateliê</p>
           </div>
         </div>
       `;
 
       document.body.appendChild(container);
 
+      // Renderização
       const canvas = await (window as any).html2canvas(container, {
         scale: 2,
         useCORS: true,
-        logging: false
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: 794
       });
       
       const imgData = canvas.toDataURL('image/png');
@@ -430,20 +497,22 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
 
-      const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Orcamento_${proj.quoteNumber || 'SemNum'}_${proj.theme?.replace(/\s+/g, '_')}.pdf`);
+      
+      const safeTheme = proj.theme?.replace(/[^a-z0-9]/gi, '_') || 'Orcamento';
+      pdf.save(`Orcamento_${proj.quoteNumber || '000'}_${safeTheme}.pdf`);
       
       document.body.removeChild(container);
     } catch (err) {
-      console.error("Erro ao gerar PDF:", err);
-      alert("Houve um erro ao gerar o PDF. Tente novamente.");
+      console.error("Erro Crítico no PDF:", err);
+      alert("Houve um erro técnico ao gerar o PDF. Verifique se o navegador permite o download.");
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -526,7 +595,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                            {statusLabels[proj.status] || proj.status}
                         </span>
                         {proj.quoteNumber && (
-                           <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase">
+                           <span className="bg-pink-50 text-pink-500 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase">
                               #{proj.quoteNumber}
                            </span>
                         )}
@@ -568,7 +637,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                      </div>
                    )}
                    <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase">
-                      <Calendar size={12} className="text-pink-400" /> Entrega: {proj.deliveryDate ? formatDisplayDate(proj.deliveryDate) : 'A combinar'}
+                      <Calendar size={12} className="text-pink-400" /> Entrega: {formatDisplayDate(proj.deliveryDate)}
                    </div>
                 </div>
 
@@ -666,7 +735,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
                     <Hash size={12} className="text-blue-500" /> Nº Orçamento
                   </label>
-                  <input type="text" className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: 2024-001" value={currentProject.quoteNumber} onChange={e => setCurrentProject({...currentProject, quoteNumber: e.target.value})} />
+                  <input type="text" className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: 1" value={currentProject.quoteNumber} onChange={e => setCurrentProject({...currentProject, quoteNumber: e.target.value})} />
                </div>
             </div>
 
@@ -891,55 +960,53 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                       <tr className="hover:bg-gray-50/30 transition-colors">
                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700"><Package size={14} className="text-yellow-500" /> Materiais</td>
                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.variableCosts.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.variableCosts / pieceValueBase) * 100 || 0).toFixed(1)}%</td>
+                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.variableCosts / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
                       </tr>
                       <tr className="hover:bg-gray-50/30 transition-colors">
                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700"><Clock size={14} className="text-pink-500" /> Mão de Obra</td>
                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.laborCosts.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.laborCosts / pieceValueBase) * 100 || 0).toFixed(1)}%</td>
+                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.laborCosts / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
                       </tr>
                       <tr className="hover:bg-gray-50/30 transition-colors">
                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700"><Receipt size={14} className="text-red-400" /> Despesas Fixas</td>
                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.fixedCosts.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.fixedCosts / pieceValueBase) * 100 || 0).toFixed(1)}%</td>
+                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.fixedCosts / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
                       </tr>
                       <tr className="hover:bg-gray-50/30 transition-colors">
                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700"><Layers size={14} className="text-gray-400" /> Despesas Variáveis</td>
                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.excedente.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.excedente / pieceValueBase) * 100 || 0).toFixed(1)}%</td>
+                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.excedente / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
                       </tr>
                       <tr className="hover:bg-gray-50/30 transition-colors">
                         <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700"><TrendingUp size={14} className="text-green-500" /> Lucro Líquido</td>
                         <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.profit.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.profit / pieceValueBase) * 100 || 0).toFixed(1)}%</td>
+                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.profit / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
                       </tr>
-                      {/* Linha de Subtotal: Valor da Peça */}
                       <tr className="bg-pink-50/50 border-t-2 border-pink-100">
                         <td className="px-6 py-4 flex items-center gap-3 font-black text-pink-600 uppercase text-[10px] tracking-widest"><Sparkles size={14} /> Valor da Peça (Subtotal)</td>
                         <td className="px-6 py-4 text-right font-black text-pink-700">R$ {pieceValueBase.toFixed(2)}</td>
                         <td className="px-6 py-4 text-right text-[10px] font-black text-pink-400">100.0%</td>
                       </tr>
                       
-                      {/* Seção de Ajustes Finais */}
                       {breakdown.totalDiscount > 0 && (
                         <tr className="bg-red-50/30">
                           <td className="px-6 py-4 flex items-center gap-3 font-black text-red-500 uppercase text-[10px] tracking-widest"><Percent size={14} /> Descontos Aplicados</td>
                           <td className="px-6 py-4 text-right font-black text-red-600">- R$ {breakdown.totalDiscount.toFixed(2)}</td>
-                          <td className="px-6 py-4 text-right text-[10px] font-black text-red-400">-{((breakdown.totalDiscount / pieceValueBase) * 100).toFixed(1)}%</td>
+                          <td className="px-6 py-4 text-right text-[10px] font-black text-red-400">-{((breakdown.totalDiscount / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
                         </tr>
                       )}
                       {breakdown.platformFees > 0 && (
                         <tr className="bg-purple-50/50 italic">
                           <td className="px-6 py-4 flex items-center gap-3 font-black text-purple-600 uppercase text-[10px] tracking-widest"><Store size={14} /> Taxas de Plataforma</td>
                           <td className="px-6 py-4 text-right font-black text-purple-700">R$ {breakdown.platformFees.toFixed(2)}</td>
-                          <td className="px-6 py-4 text-right text-[10px] font-black text-purple-400">{((breakdown.platformFees / breakdown.finalPrice) * 100 || 0).toFixed(1)}%</td>
+                          <td className="px-6 py-4 text-right text-[10px] font-black text-purple-400">{((breakdown.platformFees / (breakdown.finalPrice || 1)) * 100).toFixed(1)}%</td>
                         </tr>
                       )}
                       {breakdown.shipping > 0 && (
                         <tr className="bg-blue-50/30">
                           <td className="px-6 py-4 flex items-center gap-3 font-black text-blue-500 uppercase text-[10px] tracking-widest"><Truck size={14} /> Valor do Frete</td>
                           <td className="px-6 py-4 text-right font-black text-blue-700">R$ {breakdown.shipping.toFixed(2)}</td>
-                          <td className="px-6 py-4 text-right text-[10px] font-black text-blue-400">{((breakdown.shipping / breakdown.finalPrice) * 100 || 0).toFixed(1)}%</td>
+                          <td className="px-6 py-4 text-right text-[10px] font-black text-blue-400">{((breakdown.shipping / (breakdown.finalPrice || 1)) * 100).toFixed(1)}%</td>
                         </tr>
                       )}
                    </tbody>
@@ -980,7 +1047,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             </div>
             
             <div className="p-10 space-y-8">
-              <div className="space-y-4">
+              <div className="space-y-4 pt-4">
                 <button 
                   onClick={handleSaveProject} 
                   className="w-full py-5 bg-pink-600 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg shadow-pink-100 transition-all active:scale-95"
