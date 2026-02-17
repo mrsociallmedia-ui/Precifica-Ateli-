@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack } from 'lucide-react';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -32,6 +32,7 @@ export const Products: React.FC<ProductsProps> = ({
   
   const [selectedMatId, setSelectedMatId] = useState('');
   const [usageValue, setUsageValue] = useState(1);
+  const [usageType, setUsageType] = useState<'single' | 'multiple_per_unit' | 'multiple_units' | 'standard'>('standard');
   const [printingCost, setPrintingCost] = useState(0);
 
   const selectedMaterial = useMemo(() => materials.find(m => m.id === selectedMatId), [selectedMatId, materials]);
@@ -64,11 +65,13 @@ export const Products: React.FC<ProductsProps> = ({
   };
 
   const addMaterialToProduct = () => {
-    if (!selectedMatId || usageValue <= 0) return;
+    if (!selectedMatId) return;
     
     const matItem: ProjectItem = {
       materialId: selectedMatId,
-      quantity: usageValue,
+      quantity: usageType === 'standard' ? usageValue : 1,
+      usageType: usageType === 'standard' ? undefined : usageType,
+      usageValue: usageType !== 'standard' ? usageValue : undefined,
       printingCost: printingCost || 0
     };
 
@@ -80,6 +83,7 @@ export const Products: React.FC<ProductsProps> = ({
     setSelectedMatId('');
     setUsageValue(1);
     setPrintingCost(0);
+    setUsageType('standard');
   };
 
   const removeMaterialFromProduct = (index: number) => {
@@ -139,10 +143,8 @@ export const Products: React.FC<ProductsProps> = ({
     p.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Cálculo de prévia para o produto atual no formulário
   const currentPreview = useMemo(() => {
     if (!showForm) return null;
-    // Mock de projeto para usar a utilidade de cálculo
     const mockProject = {
       items: [{
         productId: 'preview',
@@ -157,6 +159,9 @@ export const Products: React.FC<ProductsProps> = ({
     };
     return calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
   }, [newProduct, materials, platforms, companyData, showForm]);
+
+  // Verifica se deve exibir opções de folha
+  const isFolhaOptionVisible = selectedMaterial?.unit?.toLowerCase().includes('folha') || newProduct.category?.toLowerCase() === 'folha';
 
   return (
     <div className="space-y-10 animate-fadeIn pb-20">
@@ -184,7 +189,7 @@ export const Products: React.FC<ProductsProps> = ({
            </div>
         </div>
         <div className="bg-white p-6 rounded-3xl border border-gray-100 flex items-center gap-4">
-           <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl"><Tag size={24} /></div>
+           <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl"><Tag size={24} /></div>
            <div>
               <p className="text-xs font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Categorias</p>
               <p className="text-2xl font-black text-gray-800 leading-none">{stats.categories}</p>
@@ -205,7 +210,6 @@ export const Products: React.FC<ProductsProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
         {filteredProducts.map(p => {
-          // Cálculo de preço para exibição no card
           const mockProject = {
             items: [{
               productId: p.id,
@@ -224,11 +228,11 @@ export const Products: React.FC<ProductsProps> = ({
             <div key={p.id} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group flex flex-col">
               <div className="flex justify-between items-start mb-6">
                  <div>
-                    <span className="text-[10px] font-black text-blue-500 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">{p.category}</span>
+                    <span className="text-[10px] font-black text-pink-500 bg-pink-50 px-3 py-1 rounded-full uppercase tracking-widest">{p.category}</span>
                     <h3 className="text-xl font-black text-gray-800 mt-2">{p.name}</h3>
                  </div>
                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => handleOpenEdit(p)} className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all">
+                    <button onClick={() => handleOpenEdit(p)} className="p-2 text-pink-400 hover:bg-pink-50 rounded-xl transition-all">
                        <Edit3 size={20} />
                     </button>
                     <button onClick={() => deleteProduct(p.id)} className="p-2 text-gray-200 hover:text-red-500 transition-colors">
@@ -242,7 +246,7 @@ export const Products: React.FC<ProductsProps> = ({
                     <Clock size={14} className="text-yellow-500" /> {p.minutesToMake} minutos de produção
                  </div>
                  <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
-                    <Package size={14} className="text-blue-500" /> {p.materials.length} materiais utilizados
+                    <Package size={14} className="text-pink-500" /> {p.materials.length} materiais utilizados
                  </div>
               </div>
 
@@ -269,8 +273,8 @@ export const Products: React.FC<ProductsProps> = ({
 
       {showForm && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn overflow-y-auto">
-          <div className="bg-white w-full max-w-4xl rounded-[3rem] p-10 shadow-2xl relative my-8 overflow-hidden">
-            <div className={`absolute top-0 left-0 w-full h-2 ${editingProductId ? 'bg-blue-500' : 'bg-yellow-400'}`}></div>
+          <div className="bg-white w-full max-w-5xl rounded-[3rem] p-10 shadow-2xl relative my-8 overflow-hidden">
+            <div className={`absolute top-0 left-0 w-full h-2 ${editingProductId ? 'bg-pink-500' : 'bg-yellow-400'}`}></div>
             <button 
               onClick={() => setShowForm(false)}
               className="absolute top-8 right-8 text-gray-300 hover:text-gray-500 transition-colors"
@@ -279,7 +283,7 @@ export const Products: React.FC<ProductsProps> = ({
             </button>
             
             <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
-              <div className={`p-3 rounded-2xl ${editingProductId ? 'bg-blue-50 text-blue-500' : 'bg-yellow-100 text-yellow-600'}`}>
+              <div className={`p-3 rounded-2xl ${editingProductId ? 'bg-pink-50 text-pink-500' : 'bg-yellow-100 text-yellow-600'}`}>
                 {editingProductId ? <Edit3 size={28} /> : <Plus size={28} />}
               </div>
               {editingProductId ? 'Editar Peça' : 'Nova Peça'}
@@ -289,7 +293,7 @@ export const Products: React.FC<ProductsProps> = ({
                <div className="lg:col-span-7 space-y-8">
                   <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 space-y-6">
                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-2">
-                        <Info size={14} className="text-blue-500" /> Informações Básicas
+                        <Info size={14} className="text-pink-500" /> Informações Básicas
                      </h4>
                      
                      <div className="space-y-2">
@@ -314,7 +318,7 @@ export const Products: React.FC<ProductsProps> = ({
                               >
                                 {productCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                               </select>
-                              <button type="button" onClick={addCategory} className="p-4 bg-blue-50 text-blue-500 rounded-2xl hover:bg-blue-100 transition-all">
+                              <button type="button" onClick={addCategory} className="p-4 bg-pink-50 text-pink-500 rounded-2xl hover:bg-pink-100 transition-all">
                                 <PlusCircle size={20} />
                               </button>
                            </div>
@@ -339,33 +343,96 @@ export const Products: React.FC<ProductsProps> = ({
                         <Package size={14} className="text-yellow-500" /> Materiais Necessários
                      </h4>
 
-                     <div className="flex flex-col gap-4 p-6 bg-yellow-50/50 rounded-3xl border border-yellow-100">
+                     <div className="flex flex-col gap-6 p-8 bg-yellow-50/50 rounded-3xl border border-yellow-100">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <select 
-                             className="p-4 bg-white border border-yellow-100 rounded-2xl outline-none font-bold text-gray-700 text-sm"
-                             value={selectedMatId}
-                             onChange={e => setSelectedMatId(e.target.value)}
-                           >
-                             <option value="">Selecione um material...</option>
-                             {materials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
-                           </select>
-                           <div className="flex gap-2">
-                              <input 
-                                type="number" step="0.01"
-                                className="flex-1 p-4 bg-white border border-yellow-100 rounded-2xl outline-none font-black text-gray-700 text-sm"
-                                placeholder="Qtd"
-                                value={usageValue}
-                                onChange={e => setUsageValue(parseFloat(e.target.value) || 0)}
-                              />
-                              <button 
-                                type="button"
-                                onClick={addMaterialToProduct}
-                                className="px-6 bg-yellow-400 text-yellow-900 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm hover:bg-yellow-500 transition-all"
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-yellow-600 uppercase tracking-widest ml-1">Material</label>
+                              <select 
+                                className="w-full p-4 bg-white border border-yellow-100 rounded-2xl outline-none font-bold text-gray-700 text-sm"
+                                value={selectedMatId}
+                                onChange={e => {
+                                  setSelectedMatId(e.target.value);
+                                  const mat = materials.find(m => m.id === e.target.value);
+                                  if (mat?.unit?.toLowerCase().includes('folha')) {
+                                    setUsageType('single');
+                                  } else {
+                                    setUsageType('standard');
+                                  }
+                                }}
                               >
-                                Add
-                              </button>
+                                <option value="">Selecione um material...</option>
+                                {materials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
+                              </select>
                            </div>
+                           
+                           {isFolhaOptionVisible ? (
+                             <div className="space-y-1">
+                                <label className="text-[9px] font-black text-yellow-600 uppercase tracking-widest ml-1">Uso da Folha</label>
+                                <select 
+                                  className="w-full p-4 bg-white border border-yellow-100 rounded-2xl outline-none font-bold text-gray-700 text-sm"
+                                  value={usageType}
+                                  onChange={e => setUsageType(e.target.value as any)}
+                                >
+                                  <option value="single">Apenas uma folha</option>
+                                  <option value="multiple_per_unit">Várias peças por folha</option>
+                                  <option value="multiple_units">Várias folhas por peça</option>
+                                  <option value="standard">Quantidade fixa (padrão)</option>
+                                </select>
+                             </div>
+                           ) : (
+                             <div className="space-y-1">
+                                <label className="text-[9px] font-black text-yellow-600 uppercase tracking-widest ml-1">Quantidade</label>
+                                <input 
+                                  type="number" step="0.01"
+                                  className="w-full p-4 bg-white border border-yellow-100 rounded-2xl outline-none font-black text-gray-700 text-sm"
+                                  placeholder="Qtd"
+                                  value={usageValue}
+                                  onChange={e => setUsageValue(parseFloat(e.target.value) || 0)}
+                                />
+                             </div>
+                           )}
                         </div>
+
+                        {isFolhaOptionVisible && usageType !== 'standard' && (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fadeIn">
+                             <div className="space-y-1">
+                                <label className="text-[9px] font-black text-yellow-600 uppercase tracking-widest ml-1">
+                                   {usageType === 'multiple_per_unit' ? 'Peças por folha' : usageType === 'multiple_units' ? 'Folhas por peça' : 'Folha por peça'}
+                                </label>
+                                <div className="relative">
+                                  {usageType === 'multiple_per_unit' ? <LayoutGrid size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" /> : <FileStack size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />}
+                                  <input 
+                                    type="number" step="1"
+                                    className="w-full pl-10 pr-4 py-4 bg-white border border-yellow-100 rounded-2xl outline-none font-black text-gray-700 text-sm"
+                                    disabled={usageType === 'single'}
+                                    value={usageType === 'single' ? 1 : usageValue}
+                                    onChange={e => setUsageValue(parseFloat(e.target.value) || 1)}
+                                  />
+                                </div>
+                             </div>
+                             <div className="md:col-span-2 space-y-1">
+                                <label className="text-[9px] font-black text-yellow-600 uppercase tracking-widest ml-1">Custo de Impressão (por folha)</label>
+                                <div className="relative">
+                                  <Printer size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                                  <input 
+                                    type="number" step="0.01"
+                                    className="w-full pl-10 pr-4 py-4 bg-white border border-yellow-100 rounded-2xl outline-none font-black text-pink-600 text-sm"
+                                    placeholder="R$ 0,00"
+                                    value={printingCost}
+                                    onChange={e => setPrintingCost(parseFloat(e.target.value) || 0)}
+                                  />
+                                </div>
+                             </div>
+                          </div>
+                        )}
+
+                        <button 
+                          type="button"
+                          onClick={addMaterialToProduct}
+                          className="w-full py-4 bg-yellow-400 text-yellow-900 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm hover:bg-yellow-500 transition-all flex items-center justify-center gap-2"
+                        >
+                          <PlusCircle size={18} /> Adicionar Material à Peça
+                        </button>
                      </div>
 
                      <div className="space-y-3">
@@ -374,10 +441,22 @@ export const Products: React.FC<ProductsProps> = ({
                           return (
                             <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 animate-slideUp">
                                <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-white rounded-xl text-yellow-500 shadow-sm"><Layers size={14} /></div>
+                                  <div className="p-2 bg-white rounded-xl text-yellow-500 shadow-sm">
+                                     {mat.usageType ? <FileText size={14} /> : <Layers size={14} />}
+                                  </div>
                                   <div>
                                      <p className="text-xs font-black text-gray-700">{mInfo?.name || 'Material Excluído'}</p>
-                                     <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{mat.quantity} {mInfo?.unit}</p>
+                                     <div className="flex items-center gap-2">
+                                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                                           {mat.usageType === 'multiple_per_unit' ? `${mat.usageValue} pçs/folha` : 
+                                            mat.usageType === 'multiple_units' ? `${mat.usageValue} folhas/pç` : 
+                                            mat.usageType === 'single' ? '1 folha inteira' :
+                                            `${mat.quantity} ${mInfo?.unit}`}
+                                        </p>
+                                        {mat.printingCost > 0 && (
+                                          <span className="text-[9px] font-black text-pink-500 bg-pink-50 px-2 py-0.5 rounded-full">+ R$ {mat.printingCost.toFixed(2)} imp.</span>
+                                        )}
+                                     </div>
                                   </div>
                                </div>
                                <button 
@@ -409,7 +488,7 @@ export const Products: React.FC<ProductsProps> = ({
                         </div>
                         <div className="flex justify-between items-center text-xs font-bold border-b border-white/10 pb-2">
                            <span className="opacity-60 uppercase tracking-widest">Mão de Obra</span>
-                           <span className="text-blue-400">R$ {currentPreview?.laborCosts.toFixed(2)}</span>
+                           <span className="text-pink-400">R$ {currentPreview?.laborCosts.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between items-center text-xs font-bold border-b border-white/10 pb-2">
                            <span className="opacity-60 uppercase tracking-widest">Lucro Bruto</span>
@@ -434,7 +513,7 @@ export const Products: React.FC<ProductsProps> = ({
                      <div className="space-y-4 pt-4">
                         <button 
                           type="submit"
-                          className={`w-full py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.25em] shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${editingProductId ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100' : 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900 shadow-yellow-100'}`}
+                          className={`w-full py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.25em] shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${editingProductId ? 'bg-pink-600 hover:bg-pink-700 text-white shadow-pink-100' : 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900 shadow-yellow-100'}`}
                         >
                            {editingProductId ? <CheckCircle2 size={20} /> : <Plus size={20} />}
                            {editingProductId ? 'Salvar Alterações' : 'Confirmar Cadastro'}

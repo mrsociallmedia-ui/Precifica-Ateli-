@@ -197,7 +197,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           </td>
           <td style="padding: 15px 0; text-align: center; font-weight: 600; color: #4b5563;">${item.quantity}</td>
           <td style="padding: 15px 0; text-align: right; font-weight: 800; color: #1f2937;">R$ ${(breakdown.finalPrice * (item.quantity / (totalUnits || 1)) / item.quantity).toFixed(2)}</td>
-          <td style="padding: 15px 0; text-align: right; font-weight: 800; color: #2563eb;">R$ ${(breakdown.finalPrice * (item.quantity / (totalUnits || 1))).toFixed(2)}</td>
+          <td style="padding: 15px 0; text-align: right; font-weight: 800; color: #ec4899;">R$ ${(breakdown.finalPrice * (item.quantity / (totalUnits || 1))).toFixed(2)}</td>
         </tr>
       `;
     }).join('');
@@ -225,11 +225,11 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           <p style="font-size: 12px; color: #4b5563; margin: 2px 0;">${customer?.phone || ''}</p>
         </div>
         <div style="background: #eff6ff; padding: 25px; border-radius: 30px; border: 1px solid #bfdbfe;">
-          <h2 style="font-size: 10px; font-weight: 900; text-transform: uppercase; color: #2563eb; margin-bottom: 10px; letter-spacing: 0.1em;">Detalhes do Pedido</h2>
+          <h2 style="font-size: 10px; font-weight: 900; text-transform: uppercase; color: #ec4899; margin-bottom: 10px; letter-spacing: 0.1em;">Detalhes do Pedido</h2>
           <p style="font-weight: 800; font-size: 16px; margin: 5px 0; color: #1f2937;">${currentProject.theme}</p>
           ${currentProject.celebrantName ? `<p style="font-size: 11px; color: #4b5563; margin: 2px 0;"><b>Aniversariante:</b> ${currentProject.celebrantName} ${currentProject.celebrantAge ? `(${currentProject.celebrantAge})` : ''}</p>` : ''}
           <p style="font-size: 11px; color: #4b5563; margin: 2px 0;"><b>Data do Pedido:</b> ${currentProject.orderDate ? new Date(currentProject.orderDate).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}</p>
-          <p style="font-size: 11px; font-weight: 800; color: #2563eb; margin: 2px 0;"><b>Data de Entrega:</b> ${currentProject.deliveryDate ? new Date(currentProject.deliveryDate).toLocaleDateString('pt-BR') : 'A combinar'}</p>
+          <p style="font-size: 11px; font-weight: 800; color: #ec4899; margin: 2px 0;"><b>Data de Entrega:</b> ${currentProject.deliveryDate ? new Date(currentProject.deliveryDate).toLocaleDateString('pt-BR') : 'A combinar'}</p>
         </div>
       </div>
 
@@ -264,8 +264,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         </div>
         <div style="text-align: right; width: 35%;">
           <p style="font-size: 12px; font-weight: 900; color: #9ca3af; text-transform: uppercase; margin-bottom: 5px;">Valor Total do Investimento</p>
-          <p style="font-size: 42px; font-weight: 900; color: #2563eb; margin: 0;">R$ ${breakdown.finalPrice.toFixed(2)}</p>
-          <div style="height: 4px; background: #bfdbfe; width: 100px; margin-left: auto; margin-top: 10px; border-radius: 10px;"></div>
+          <p style="font-size: 42px; font-weight: 900; color: #ec4899; margin: 0;">R$ {breakdown.finalPrice.toFixed(2)}</p>
+          <div style="height: 4px; background: #fbcfe8; width: 100px; margin-left: auto; margin-top: 10px; border-radius: 10px;"></div>
         </div>
       </div>
 
@@ -363,7 +363,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
   const statusColors: Record<string, string> = {
     pending: 'bg-yellow-50 text-yellow-700 border-yellow-100',
-    approved: 'bg-blue-50 text-blue-700 border-blue-100',
+    approved: 'bg-pink-50 text-pink-700 border-pink-100',
     delayed: 'bg-red-50 text-red-700 border-red-100',
     in_progress: 'bg-purple-50 text-purple-700 border-purple-100',
     completed: 'bg-green-50 text-green-700 border-green-100'
@@ -371,7 +371,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
   const tableRows = [
     { label: 'Materiais', value: breakdown.variableCosts, icon: Package, color: 'text-yellow-500', barColor: 'bg-yellow-400' },
-    { label: 'Mão de Obra', value: breakdown.laborCosts, icon: Clock, color: 'text-blue-500', barColor: 'bg-blue-400' },
+    { label: 'Mão de Obra', value: breakdown.laborCosts, icon: Clock, color: 'text-pink-500', barColor: 'bg-pink-400' },
     { label: 'Despesas Fixas', value: breakdown.fixedCosts, icon: Receipt, color: 'text-red-400', barColor: 'bg-red-400' },
     { label: 'Despesas Variáveis', value: breakdown.excedente, icon: Layers, color: 'text-gray-400', barColor: 'bg-gray-400' },
     { label: 'Canais de Venda', value: breakdown.platformFees, icon: Store, color: 'text-purple-500', barColor: 'bg-purple-400' },
@@ -385,7 +385,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
           <div className="flex flex-col gap-1">
              <h2 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-2">
-               <Tag size={28} className="text-blue-500" /> Lista de Pedidos
+               <Tag size={28} className="text-pink-500" /> Lista de Pedidos
              </h2>
              <p className="text-sm text-gray-400 font-medium">Veja seus orçamentos salvos e gerencie os pedidos em andamento.</p>
           </div>
@@ -394,19 +394,19 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             <div className="flex bg-white p-1 rounded-2xl border border-gray-100 shadow-sm">
                <button 
                  onClick={() => setStatusFilter('ongoing')}
-                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'ongoing' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'ongoing' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
                >
                  Em Andamento
                </button>
                <button 
                  onClick={() => setStatusFilter('completed')}
-                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'completed' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'completed' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
                >
                  Finalizados
                </button>
                <button 
                  onClick={() => setStatusFilter('all')}
-                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'all' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'all' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
                >
                  Todos
                </button>
@@ -417,7 +417,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               <input 
                 type="text" 
                 placeholder="Buscar pedido..." 
-                className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 focus:ring-pink-400"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
@@ -438,7 +438,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                            {statusLabels[proj.status] || proj.status}
                         </span>
                       </div>
-                      <h3 className="font-black text-gray-800 text-lg group-hover:text-blue-600 transition-colors truncate">{proj.theme}</h3>
+                      <h3 className="font-black text-gray-800 text-lg group-hover:text-pink-600 transition-colors truncate">{proj.theme}</h3>
                       <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">
                         {proj.items?.length || 0} Itens • {proj.items?.reduce((a, i) => a + i.quantity, 0) || 0} pçs
                       </p>
@@ -465,7 +465,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                      </div>
                    )}
                    <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase">
-                      <CalendarDays size={12} className="text-blue-400" /> Pedido: {proj.orderDate ? new Date(proj.orderDate).toLocaleDateString('pt-BR') : 'Não inf.'}
+                      <CalendarDays size={12} className="text-pink-400" /> Pedido: {proj.orderDate ? new Date(proj.orderDate).toLocaleDateString('pt-BR') : 'Não inf.'}
                    </div>
                    <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase">
                       <Calendar size={12} className="text-pink-400" /> Entrega: {proj.deliveryDate ? new Date(proj.deliveryDate).toLocaleDateString('pt-BR') : 'A combinar'}
@@ -488,7 +488,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                         setCurrentProject({...proj});
                         window.scrollTo({ top: 500, behavior: 'smooth' });
                      }}
-                     className="p-3 bg-gray-50 text-gray-400 rounded-2xl hover:bg-blue-500 hover:text-white transition-all shadow-sm"
+                     className="p-3 bg-gray-50 text-gray-400 rounded-2xl hover:bg-pink-500 hover:text-white transition-all shadow-sm"
                      title="Carregar Orçamento para Edição"
                    >
                      <ChevronRight size={20} />
@@ -505,7 +505,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         <div className="xl:col-span-8 space-y-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl shadow-sm">
+              <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl shadow-sm">
                 <Calculator size={28} />
               </div>
               <div>
@@ -515,7 +515,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             </div>
           </div>
 
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-blue-50 space-y-6">
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-6">
             <div className="flex items-center gap-2 border-b border-gray-50 pb-4">
                <Users size={20} className="text-pink-400" />
                <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">1. Dados do Cliente & Título</h3>
@@ -535,10 +535,10 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-blue-50/30 p-6 rounded-[2rem] border border-blue-100/50">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-pink-50/30 p-6 rounded-[2rem] border border-pink-100/50">
                <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                    <User size={12} className="text-blue-500" /> Nome do Aniversariante
+                    <User size={12} className="text-pink-500" /> Nome do Aniversariante
                   </label>
                   <input type="text" className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: Lucas Gabriel" value={currentProject.celebrantName} onChange={e => setCurrentProject({...currentProject, celebrantName: e.target.value})} />
                </div>
@@ -553,7 +553,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                    <CalendarDays size={12} className="text-blue-500" /> Data do Pedido
+                    <CalendarDays size={12} className="text-pink-500" /> Data do Pedido
                   </label>
                   <input type="date" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600" value={currentProject.orderDate} onChange={e => setCurrentProject({...currentProject, orderDate: e.target.value})} />
                 </div>
@@ -667,9 +667,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                     </div>
                     <div className="flex items-center gap-6">
                        <div className="flex items-center gap-3">
-                          <button onClick={() => updateItemQuantity(index, item.quantity - 1)} className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:text-blue-500">-</button>
+                          <button onClick={() => updateItemQuantity(index, item.quantity - 1)} className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:text-pink-500">-</button>
                           <span className="font-black text-gray-700">{item.quantity}</span>
-                          <button onClick={() => updateItemQuantity(index, item.quantity + 1)} className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:text-blue-500">+</button>
+                          <button onClick={() => updateItemQuantity(index, item.quantity + 1)} className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:text-pink-500">+</button>
                        </div>
                        <button onClick={() => removeItem(index)} className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button>
                     </div>
@@ -679,15 +679,15 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             </div>
           </div>
 
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-blue-50 space-y-6">
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-6">
             <div className="flex items-center gap-2 border-b border-gray-50 pb-4">
-               <StickyNote size={20} className="text-blue-500" />
+               <StickyNote size={20} className="text-pink-500" />
                <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">4. Observações do Pedido</h3>
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Notas adicionais (aparecem no PDF)</label>
               <textarea 
-                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-gray-700 h-32 resize-none focus:ring-2 focus:ring-blue-400 transition-all"
+                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-gray-700 h-32 resize-none focus:ring-2 focus:ring-pink-400 transition-all"
                 placeholder="Ex: Cliente solicitou alteração de cor no laço, prefere retirar no ateliê, etc..."
                 value={currentProject.notes}
                 onChange={e => setCurrentProject({...currentProject, notes: e.target.value})}
@@ -697,7 +697,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-6">
              <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                <TableIcon size={20} className="text-blue-500" />
+                <TableIcon size={20} className="text-pink-500" />
                 <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">5. Composição Detalhada do Preço</h3>
              </div>
 
@@ -736,7 +736,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                       })}
                    </tbody>
                    <tfoot>
-                      <tr className="bg-blue-600 text-white font-black">
+                      <tr className="bg-pink-600 text-white font-black">
                          <td className="px-6 py-6" colSpan={2}>PREÇO FINAL SUGERIDO</td>
                          <td className="px-6 py-6 text-right text-3xl" colSpan={2}>R$ {breakdown.finalPrice.toFixed(2)}</td>
                       </tr>
@@ -748,7 +748,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
         <div className="xl:col-span-4 sticky top-8 space-y-6">
           <div className="bg-white rounded-[3rem] shadow-xl border border-pink-100 overflow-hidden">
-            <div className="bg-blue-600 p-10 text-white text-center relative">
+            <div className="bg-pink-600 p-10 text-white text-center relative">
               <h3 className="text-xs font-black opacity-70 uppercase tracking-[0.2em] mb-2">Valor Total</h3>
               <p className="text-5xl font-black">R$ {breakdown.finalPrice.toFixed(2)}</p>
             </div>
@@ -758,7 +758,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1"><Store size={14} className="text-yellow-500" /> Canal de Venda</span>
                   <select 
-                    className="bg-gray-50 px-3 py-1 rounded-lg font-black text-blue-600 outline-none text-right text-xs"
+                    className="bg-gray-50 px-3 py-1 rounded-lg font-black text-pink-600 outline-none text-right text-xs"
                     value={currentProject.platformId}
                     onChange={e => setCurrentProject({...currentProject, platformId: e.target.value})}
                   >
@@ -768,7 +768,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               </div>
 
               <div className="space-y-4">
-                <button onClick={handleSaveProject} className="w-full py-5 bg-blue-600 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg shadow-blue-100 transition-all active:scale-95">
+                <button onClick={handleSaveProject} className="w-full py-5 bg-pink-600 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg shadow-pink-100 transition-all active:scale-95">
                   <Save size={20} /> Salvar Orçamento
                 </button>
 
