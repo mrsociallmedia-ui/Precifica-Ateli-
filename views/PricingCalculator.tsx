@@ -523,15 +523,15 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Título / Tema</label>
-                <input type="text" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: Batizado Lucas" value={currentProject.theme} onChange={e => setCurrentProject({...currentProject, theme: e.target.value})} />
-              </div>
-              <div className="space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Cliente</label>
                 <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-gray-700" value={currentProject.customerId} onChange={e => setCurrentProject({...currentProject, customerId: e.target.value})}>
                   <option value="">Selecione um cliente...</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Título / Tema</label>
+                <input type="text" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: Batizado Lucas" value={currentProject.theme} onChange={e => setCurrentProject({...currentProject, theme: e.target.value})} />
               </div>
             </div>
             
@@ -572,7 +572,6 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             </div>
           </div>
 
-          {/* NOVO: SEÇÃO DE TOPO DE BOLO */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-6">
             <div className="flex items-center justify-between border-b border-gray-50 pb-4">
                <div className="flex items-center gap-2">
