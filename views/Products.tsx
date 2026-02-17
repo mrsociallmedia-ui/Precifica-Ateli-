@@ -160,20 +160,19 @@ export const Products: React.FC<ProductsProps> = ({
     return calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
   }, [newProduct, materials, platforms, companyData, showForm]);
 
-  // Verifica se deve exibir opções de folha
   const isFolhaOptionVisible = selectedMaterial?.unit?.toLowerCase().includes('folha') || newProduct.category?.toLowerCase() === 'folha';
 
   return (
     <div className="space-y-10 animate-fadeIn pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black text-gray-800 tracking-tight">Catálogo de <span className="text-yellow-500">Produtos</span></h2>
+          <h2 className="text-4xl font-black text-gray-800 tracking-tight">Catálogo de <span className="text-pink-500">Produtos</span></h2>
           <p className="text-gray-400 font-medium">Cadastre suas peças e tenha preços automáticos.</p>
         </div>
         
         <button 
           onClick={handleOpenAdd}
-          className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg shadow-yellow-100 active:scale-95"
+          className="bg-pink-500 hover:bg-pink-600 text-white font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg shadow-pink-100 active:scale-95"
         >
           <Plus size={20} />
           Cadastrar Nova Peça
@@ -182,7 +181,7 @@ export const Products: React.FC<ProductsProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-3xl border border-gray-100 flex items-center gap-4">
-           <div className="p-3 bg-yellow-100 text-yellow-600 rounded-2xl"><Sparkles size={24} /></div>
+           <div className="p-3 bg-pink-50 text-pink-500 rounded-2xl"><Sparkles size={24} /></div>
            <div>
               <p className="text-xs font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Total de Peças</p>
               <p className="text-2xl font-black text-gray-800 leading-none">{stats.total}</p>
@@ -202,7 +201,7 @@ export const Products: React.FC<ProductsProps> = ({
         <input 
           type="text" 
           placeholder="Buscar no catálogo..." 
-          className="w-full pl-14 pr-6 py-4 bg-white border border-gray-100 rounded-[2rem] shadow-sm outline-none focus:ring-2 focus:ring-yellow-400 transition-all font-medium"
+          className="w-full pl-14 pr-6 py-4 bg-white border border-gray-100 rounded-[2rem] shadow-sm outline-none focus:ring-2 focus:ring-pink-400 transition-all font-medium"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -243,7 +242,7 @@ export const Products: React.FC<ProductsProps> = ({
 
               <div className="space-y-3 mb-8 flex-1">
                  <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
-                    <Clock size={14} className="text-yellow-500" /> {p.minutesToMake} minutos de produção
+                    <Clock size={14} className="text-pink-500" /> {p.minutesToMake} minutos de produção
                  </div>
                  <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
                     <Package size={14} className="text-pink-500" /> {p.materials.length} materiais utilizados
@@ -274,7 +273,7 @@ export const Products: React.FC<ProductsProps> = ({
       {showForm && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn overflow-y-auto">
           <div className="bg-white w-full max-w-5xl rounded-[3rem] p-10 shadow-2xl relative my-8 overflow-hidden">
-            <div className={`absolute top-0 left-0 w-full h-2 ${editingProductId ? 'bg-pink-500' : 'bg-yellow-400'}`}></div>
+            <div className={`absolute top-0 left-0 w-full h-2 ${editingProductId ? 'bg-pink-500' : 'bg-pink-400'}`}></div>
             <button 
               onClick={() => setShowForm(false)}
               className="absolute top-8 right-8 text-gray-300 hover:text-gray-500 transition-colors"
@@ -283,7 +282,7 @@ export const Products: React.FC<ProductsProps> = ({
             </button>
             
             <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
-              <div className={`p-3 rounded-2xl ${editingProductId ? 'bg-pink-50 text-pink-500' : 'bg-yellow-100 text-yellow-600'}`}>
+              <div className={`p-3 rounded-2xl ${editingProductId ? 'bg-pink-50 text-pink-500' : 'bg-pink-100 text-pink-600'}`}>
                 {editingProductId ? <Edit3 size={28} /> : <Plus size={28} />}
               </div>
               {editingProductId ? 'Editar Peça' : 'Nova Peça'}
@@ -300,7 +299,7 @@ export const Products: React.FC<ProductsProps> = ({
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome da Peça</label>
                         <input 
                           type="text" required
-                          className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 focus:ring-4 focus:ring-yellow-50 transition-all"
+                          className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 focus:ring-4 focus:ring-pink-50 transition-all"
                           value={newProduct.name}
                           onChange={e => setNewProduct({...newProduct, name: e.target.value})}
                           placeholder="Ex: Topo de Bolo Shaker Luxo"
@@ -326,7 +325,7 @@ export const Products: React.FC<ProductsProps> = ({
                         <div className="space-y-2">
                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tempo de Produção (Minutos)</label>
                            <div className="relative">
-                              <Clock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-500" />
+                              <Clock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-pink-500" />
                               <input 
                                 type="number" required
                                 className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700"
@@ -453,8 +452,8 @@ export const Products: React.FC<ProductsProps> = ({
                                             mat.usageType === 'single' ? '1 folha inteira' :
                                             `${mat.quantity} ${mInfo?.unit}`}
                                         </p>
-                                        {mat.printingCost > 0 && (
-                                          <span className="text-[9px] font-black text-pink-500 bg-pink-50 px-2 py-0.5 rounded-full">+ R$ {mat.printingCost.toFixed(2)} imp.</span>
+                                        {(mat.printingCost ?? 0) > 0 && (
+                                          <span className="text-[9px] font-black text-pink-500 bg-pink-50 px-2 py-0.5 rounded-full">+ R$ {mat.printingCost?.toFixed(2)} imp.</span>
                                         )}
                                      </div>
                                   </div>
