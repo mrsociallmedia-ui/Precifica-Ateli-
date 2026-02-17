@@ -1,4 +1,3 @@
-
 export interface Material {
   id: string;
   name: string;
@@ -41,32 +40,22 @@ export interface CompanyData {
   defaultExcedente: number;
 }
 
-export interface ProjectItem {
-  materialId: string;
-  quantity: number;
-  usageType?: 'single' | 'multiple_per_unit' | 'multiple_units' | 'standard';
-  usageValue?: number;
-  printingCost?: number;
-}
-
-export interface Product {
-  id: string;
-  name: string;
-  description: string;
-  minutesToMake: number;
-  materials: ProjectItem[];
-  category: string;
-  profitMargin: number;
-  marketPrice?: number; // Preço de mercado para comparação
-}
-
 export interface ProjectItemEntry {
-  productId: string;
+  productId?: string;
   name: string;
   quantity: number;
   hoursToMake: number;
   materials: ProjectItem[];
   profitMargin: number;
+  unitPrice?: number; // Preço de venda fixado pelo artesão
+}
+
+export interface ProjectItem {
+  materialId: string;
+  quantity: number;
+  usageType?: 'single' | 'multiple_per_unit' | 'multiple_units';
+  usageValue?: number;
+  printingCost?: number;
 }
 
 export interface Project {
@@ -74,6 +63,7 @@ export interface Project {
   name: string;
   customerId: string;
   description: string;
+  notes: string;
   items: ProjectItemEntry[];
   platformId: string;
   excedente: number;
@@ -85,24 +75,43 @@ export interface Project {
   theme: string;
   celebrantName: string;
   celebrantAge: string;
-  isCakeTopper: boolean;
+  quoteNumber?: string; // Número do Orçamento / Referência
+  
+  // Novos campos solicitados
+  shipping?: number;
+  discountPercentage?: number;
+  discountAmount?: number;
+  downPayment?: number;
+  isCakeTopper?: boolean;
   cakeShape?: 'round' | 'square';
   cakeSize?: string;
-  notes?: string;
+  
+  // Campos legados mantidos por compatibilidade
   hoursToMake: number;
   materials: ProjectItem[];
   profitMargin: number;
   quantity: number;
 }
 
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  minutesToMake: number;
+  materials: ProjectItem[];
+  profitMargin: number;
+  marketPrice: number;
+}
+
 export interface Transaction {
   id: string;
-  date: string;
   description: string;
   amount: number;
   type: 'income' | 'expense';
   category: string;
   paymentMethod: string;
+  date: string;
 }
 
 export interface PricingBreakdown {
@@ -112,5 +121,13 @@ export interface PricingBreakdown {
   excedente: number;
   profit: number;
   platformFees: number;
+  bonus: number;
+  
+  // Novos campos no breakdown
+  shipping: number;
+  totalDiscount: number;
+  downPayment: number;
+  remainingBalance: number;
   finalPrice: number;
+  basePieceValue: number; // Valor total das peças sem taxas e sem frete
 }

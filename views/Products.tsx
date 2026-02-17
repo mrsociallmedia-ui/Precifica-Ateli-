@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack } from 'lucide-react';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
@@ -154,7 +153,7 @@ export const Products: React.FC<ProductsProps> = ({
         materials: newProduct.materials || [],
         profitMargin: newProduct.profitMargin || 30
       }],
-      platformId: platforms[0]?.id || '',
+      platformId: platforms.find(p => p.feePercentage === 0)?.id || platforms[0]?.id || '',
       excedente: companyData.defaultExcedente
     };
     return calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
@@ -218,10 +217,12 @@ export const Products: React.FC<ProductsProps> = ({
               materials: p.materials,
               profitMargin: p.profitMargin
             }],
-            platformId: platforms[0]?.id || '',
+            platformId: platforms.find(p => p.feePercentage === 0)?.id || platforms[0]?.id || '',
             excedente: companyData.defaultExcedente
           };
           const breakdown = calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
+
+          const displayPrice = p.marketPrice > 0 ? p.marketPrice : breakdown.finalPrice;
 
           return (
             <div key={p.id} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group flex flex-col">
@@ -251,8 +252,8 @@ export const Products: React.FC<ProductsProps> = ({
 
               <div className="pt-6 border-t border-gray-50 flex items-center justify-between">
                  <div>
-                    <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Preço Sugerido</p>
-                    <p className="text-2xl font-black text-gray-800">R$ {breakdown.finalPrice.toFixed(2)}</p>
+                    <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">{p.marketPrice > 0 ? 'Preço de Venda' : 'Preço Sugerido'}</p>
+                    <p className="text-2xl font-black text-gray-800">R$ {displayPrice.toFixed(2)}</p>
                  </div>
                  <div className="text-right">
                     <p className="text-[9px] font-black text-green-500 uppercase tracking-widest mb-1">Margem Lucro</p>
@@ -334,6 +335,25 @@ export const Products: React.FC<ProductsProps> = ({
                               />
                            </div>
                         </div>
+                     </div>
+
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                           <DollarSign size={14} className="text-green-500" /> Preço de Venda (Fixo/Sugerido)
+                        </label>
+                        <div className="relative">
+                           <DollarSign size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-green-500" />
+                           <input 
+                             type="number" step="0.01"
+                             className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 focus:ring-4 focus:ring-green-50"
+                             value={newProduct.marketPrice}
+                             onChange={e => setNewProduct({...newProduct, marketPrice: parseFloat(e.target.value) || 0})}
+                             placeholder="Deixe 0 para usar o preço sugerido do sistema"
+                           />
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest px-1 italic">
+                           * Se definido, este valor será usado automaticamente nos seus orçamentos.
+                        </p>
                      </div>
                   </div>
 
@@ -476,7 +496,7 @@ export const Products: React.FC<ProductsProps> = ({
                <div className="lg:col-span-5 space-y-8">
                   <div className="bg-gray-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden flex flex-col items-center text-center">
                      <TrendingUp size={64} className="absolute -bottom-4 -right-4 opacity-5" />
-                     <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] mb-4">Prévia do Preço Final</p>
+                     <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] mb-4">Prévia do Preço Final Sugerido</p>
                      <h2 className="text-6xl font-black mb-2">R$ {currentPreview?.finalPrice.toFixed(2)}</h2>
                      <div className="h-1 w-20 bg-yellow-400 rounded-full mb-8"></div>
                      

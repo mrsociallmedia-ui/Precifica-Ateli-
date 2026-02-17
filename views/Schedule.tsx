@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -105,12 +104,19 @@ export const Schedule: React.FC<ScheduleProps> = ({
                 const { finalPrice } = calculateProjectBreakdown(project, materials, platforms, companyData);
                 return (
                   <div key={project.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group relative overflow-hidden flex flex-col">
+                    <div className="flex items-center gap-2 mb-1">
+                      {project.quoteNumber && (
+                        <span className="flex items-center gap-0.5 text-[8px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md">
+                           <Hash size={8} /> {project.quoteNumber}
+                        </span>
+                      )}
+                    </div>
                     <h4 className="font-black text-gray-800 text-base mb-1 truncate">{project.theme}</h4>
                     <p className="text-[10px] text-pink-500 font-black uppercase tracking-widest mb-4 truncate">{getCustomerName(project.customerId)}</p>
                     
                     <div className="grid grid-cols-1 gap-2 mb-6">
                       <div className="bg-gray-50/50 p-2 rounded-xl flex items-center gap-2 text-[10px] font-bold text-gray-500">
-                        <Clock size={12} className="text-blue-400" /> {project.hoursToMake}h prod.
+                        <Clock size={12} className="text-blue-400" /> {project.items?.reduce((acc, i) => acc + (i.hoursToMake * i.quantity), 0).toFixed(1)}h prod.
                       </div>
                       <div className="bg-gray-50/50 p-2 rounded-xl flex items-center gap-2 text-[10px] font-bold text-gray-500">
                         <CalendarIcon size={12} className="text-pink-400" /> {new Date(project.deliveryDate).toLocaleDateString('pt-BR')}
