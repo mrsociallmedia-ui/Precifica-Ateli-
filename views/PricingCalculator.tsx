@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calculator, 
@@ -61,7 +62,8 @@ import {
   ProjectItem, 
   PricingBreakdown,
   Product,
-  ProjectItemEntry
+  ProjectItemEntry,
+  Transaction
 } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -73,6 +75,7 @@ interface PricingCalculatorProps {
   projects: Project[];
   products: Product[];
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
+  setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
 }
 
 export const PricingCalculator: React.FC<PricingCalculatorProps> = ({ 
@@ -82,7 +85,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   companyData, 
   projects,
   products,
-  setProjects 
+  setProjects,
+  setTransactions
 }) => {
   // Lógica para gerar número sequencial real (baseado no maior número existente)
   const generateAutoQuoteNumber = () => {
@@ -213,6 +217,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
     const isEdit = !!currentProject.id;
     const projectId = currentProject.id || Date.now().toString();
+    const oldProject = projects.find(p => p.id === projectId);
 
     const newProj: Project = {
       id: projectId,
@@ -244,6 +249,21 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       profitMargin: currentProject.items![0]?.profitMargin || 30,
       quantity: currentProject.items!.reduce((acc, i) => acc + i.quantity, 0)
     };
+
+    // Automação: Se o pedido foi marcado como Finalizado AGORA
+    if (newProj.status === 'completed' && (!oldProject || oldProject.status !== 'completed')) {
+      const projBreakdown = calculateProjectBreakdown(newProj, materials, platforms, companyData);
+      const newTransaction: Transaction = {
+        id: `auto_calc_${Date.now()}_${newProj.id}`,
+        description: `Venda: ${newProj.theme}${newProj.quoteNumber ? ` (Nº ${newProj.quoteNumber})` : ''}`,
+        amount: projBreakdown.finalPrice,
+        type: 'income',
+        category: 'Venda',
+        paymentMethod: 'Pix',
+        date: new Date().toISOString().split('T')[0]
+      };
+      setTransactions(prev => [newTransaction, ...prev]);
+    }
     
     if (isEdit) {
       setProjects(prev => prev.map(p => p.id === projectId ? newProj : p));

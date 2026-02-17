@@ -1,11 +1,13 @@
+
 import React, { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash } from 'lucide-react';
-import { Project, Customer, Material, Platform, CompanyData } from '../types';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign } from 'lucide-react';
+import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
 interface ScheduleProps {
   projects: Project[];
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
+  setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
   customers: Customer[];
   materials: Material[];
   platforms: Platform[];
@@ -13,11 +15,30 @@ interface ScheduleProps {
 }
 
 export const Schedule: React.FC<ScheduleProps> = ({ 
-  projects, setProjects, customers, materials, platforms, companyData 
+  projects, setProjects, setTransactions, customers, materials, platforms, companyData 
 }) => {
   const [showBirthdaysModal, setShowBirthdaysModal] = useState(false);
 
   const updateStatus = (id: string, newStatus: Project['status']) => {
+    const projectToUpdate = projects.find(p => p.id === id);
+    
+    // Se o status mudar para 'completed', gera automaticamente a transação
+    if (projectToUpdate && newStatus === 'completed' && projectToUpdate.status !== 'completed') {
+      const breakdown = calculateProjectBreakdown(projectToUpdate, materials, platforms, companyData);
+      
+      const newTransaction: Transaction = {
+        id: `auto_${Date.now()}_${id}`,
+        description: `Venda: ${projectToUpdate.theme}${projectToUpdate.quoteNumber ? ` (Nº ${projectToUpdate.quoteNumber})` : ''}`,
+        amount: breakdown.finalPrice,
+        type: 'income',
+        category: 'Venda',
+        paymentMethod: 'Pix', // Padrão Pix, pode ser alterado no financeiro
+        date: new Date().toISOString().split('T')[0]
+      };
+
+      setTransactions(prev => [newTransaction, ...prev]);
+    }
+
     setProjects(projects.map(p => p.id === id ? { ...p, status: newStatus } : p));
   };
 

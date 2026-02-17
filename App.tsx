@@ -353,8 +353,8 @@ const App: React.FC = () => {
                   case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} />;
                   case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} />;
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;
-                  case 'pricing': return <PricingCalculator {...props} products={products} setProjects={setProjects} />;
-                  case 'schedule': return <Schedule {...props} setProjects={setProjects} />;
+                  case 'pricing': return <PricingCalculator {...props} products={products} setProjects={setProjects} setTransactions={setTransactions} />;
+                  case 'schedule': return <Schedule {...props} setProjects={setProjects} setTransactions={setTransactions} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
                   default: return <Dashboard {...props} />;
