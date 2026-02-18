@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calculator, 
@@ -51,7 +50,8 @@ import {
   File,
   Mail,
   Phone,
-  Signature
+  Signature,
+  Zap
 } from 'lucide-react';
 import { 
   Material, 
@@ -88,12 +88,17 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   setProjects,
   setTransactions
 }) => {
-  // Lógica para gerar número sequencial real (baseado no maior número existente)
+  // Lógica para gerar número sequencial simples (1, 2, 3, 4...)
   const generateAutoQuoteNumber = () => {
-    if (projects.length === 0) return '1';
+    if (!projects || projects.length === 0) return '1';
+    
     const nums = projects
-      .map(p => parseInt(p.quoteNumber || '0'))
+      .map(p => {
+        const onlyNums = p.quoteNumber?.replace(/\D/g, '') || '0';
+        return parseInt(onlyNums);
+      })
       .filter(n => !isNaN(n));
+      
     const max = nums.length > 0 ? Math.max(...nums) : 0;
     return (max + 1).toString();
   };
@@ -127,18 +132,16 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'completed'>('ongoing');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  // Gera número automático ao iniciar novo orçamento
+  // Efeito para preencher o número inicial
   useEffect(() => {
-    if (!currentProject.id && !currentProject.quoteNumber) {
+    if (!currentProject.id && (!currentProject.quoteNumber || currentProject.quoteNumber === '')) {
       setCurrentProject(prev => ({ ...prev, quoteNumber: generateAutoQuoteNumber() }));
     }
-  }, [currentProject.id, projects.length]);
+  }, [currentProject.id, projects]);
 
   const breakdown = useMemo(() => {
     return calculateProjectBreakdown(currentProject, materials, platforms, companyData);
   }, [currentProject, materials, companyData, platforms]);
-
-  const pieceValueBase = breakdown.basePieceValue;
 
   const resetForm = () => {
     setCurrentProject({
@@ -236,7 +239,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       theme: currentProject.theme || '',
       celebrantName: currentProject.celebrantName || '',
       celebrantAge: currentProject.celebrantAge || '',
-      quoteNumber: currentProject.quoteNumber || '',
+      quoteNumber: currentProject.quoteNumber || generateAutoQuoteNumber(),
       isCakeTopper: !!currentProject.isCakeTopper,
       cakeShape: currentProject.cakeShape,
       cakeSize: currentProject.cakeSize,
@@ -250,7 +253,6 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       quantity: currentProject.items!.reduce((acc, i) => acc + i.quantity, 0)
     };
 
-    // Automação: Se o pedido foi marcado como Finalizado AGORA
     if (newProj.status === 'completed' && (!oldProject || oldProject.status !== 'completed')) {
       const projBreakdown = calculateProjectBreakdown(newProj, materials, platforms, companyData);
       const newTransaction: Transaction = {
@@ -309,17 +311,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     if (currentProject.celebrantAge) message += `\n🎂 *Idade:* ${currentProject.celebrantAge}`;
     message += `\n📅 *Entrega:* ${dateFormatted}\n`;
     
-    if (breakdown.totalDiscount > 0) message += `\n📉 *Desconto:* R$ ${breakdown.totalDiscount.toFixed(2)}`;
-    if (breakdown.shipping > 0) message += `\n🚚 *Frete:* R$ ${breakdown.shipping.toFixed(2)}`;
-    
     message += `\n💰 *VALOR TOTAL:* R$ ${breakdown.finalPrice.toFixed(2)}`;
-    
-    if (breakdown.downPayment > 0) {
-      message += `\n💳 *Sinal:* R$ ${breakdown.downPayment.toFixed(2)}`;
-      message += `\n⏳ *Restante:* R$ ${breakdown.remainingBalance.toFixed(2)}`;
-    }
-
-    if (currentProject.notes) message += `\n\n📌 *Obs:* ${currentProject.notes}`;
     
     const phone = customer?.phone?.replace(/\D/g, '') || '';
     const encodedMessage = encodeURIComponent(message);
@@ -338,7 +330,6 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     setIsGeneratingPdf(true);
 
     try {
-      // Garantir que fontes estejam prontas
       if ((document as any).fonts) {
         await (document as any).fonts.ready;
       }
@@ -347,19 +338,16 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       container.style.position = 'absolute';
       container.style.left = '-9999px';
       container.style.top = '0';
-      container.style.width = '794px'; // A4 @ 96dpi
+      container.style.width = '794px'; 
       container.style.background = 'white';
       container.style.color = '#111827';
       container.style.fontFamily = "'Quicksand', sans-serif";
 
-      const primaryColor = '#ec4899'; // Rosa Precifica
+      const primaryColor = '#ec4899'; 
 
       container.innerHTML = `
         <div style="padding: 50px; border-top: 15px solid ${primaryColor}; position: relative;">
-          <!-- Marca D'água ou Detalhe Lateral -->
           <div style="position: absolute; top: 100px; right: -50px; width: 300px; height: 300px; background: ${primaryColor}; opacity: 0.03; border-radius: 50%; pointer-events: none;"></div>
-
-          <!-- Header -->
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 50px; position: relative; z-index: 1;">
             <div style="flex: 1.5;">
               ${companyData.logo ? 
@@ -367,40 +355,28 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 `<div style="height: 50px; width: 50px; background: ${primaryColor}; border-radius: 12px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-weight: 900; font-size: 24px;">${companyData.name.charAt(0)}</span></div>`
               }
               <h1 style="margin: 0; font-size: 28px; font-weight: 900; color: ${primaryColor}; letter-spacing: -1px; line-height: 1.1;">${companyData.name}</h1>
-              <div style="margin-top: 10px; color: #4b5563; font-size: 12px; font-weight: 600; line-height: 1.6;">
-                ${companyData.phone ? `<div style="display: flex; align-items: center; gap: 5px;"><strong style="color: ${primaryColor};">WhatsApp:</strong> ${companyData.phone}</div>` : ''}
-                ${companyData.email ? `<div style="display: flex; align-items: center; gap: 5px;"><strong style="color: ${primaryColor};">E-mail:</strong> ${companyData.email}</div>` : ''}
-                ${companyData.cnpj ? `<div style="display: flex; align-items: center; gap: 5px;"><strong style="color: ${primaryColor};">CNPJ:</strong> ${companyData.cnpj}</div>` : ''}
-              </div>
             </div>
             <div style="text-align: right; flex: 1;">
               <h2 style="margin: 0; font-size: 12px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 10px;">Proposta Comercial</h2>
               <div style="background: #fdf2f8; padding: 20px; border-radius: 25px; border: 1px solid #fce7f3; display: inline-block; min-width: 180px;">
                 <p style="margin: 0; font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Orçamento Nº</p>
-                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #1f2937; line-height: 1;">#${proj.quoteNumber || '001'}</p>
-                <div style="margin-top: 10px; height: 2px; width: 30px; background: ${primaryColor}; margin-left: auto;"></div>
+                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #1f2937; line-height: 1;">#${proj.quoteNumber || '1'}</p>
                 <p style="margin: 8px 0 0 0; font-size: 11px; color: #6b7280; font-weight: 700; text-transform: uppercase;">Emissão: ${new Date().toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
           </div>
-
-          <!-- Seção de Dados -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 50px;">
             <div style="background: #fafafa; padding: 25px; border-radius: 25px; border: 1px solid #f3f4f6;">
               <p style="margin: 0 0 10px 0; font-size: 10px; color: #9ca3af; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Dados do Cliente</p>
               <p style="margin: 0; font-weight: 800; color: #111827; font-size: 18px;">${customer?.name || 'Cliente Avulso'}</p>
               <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">${customer?.phone || 'Telefone não informado'}</p>
-              ${customer?.address ? `<p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280; line-height: 1.5;">${customer.address}</p>` : ''}
             </div>
             <div style="background: #f0f9ff; padding: 25px; border-radius: 25px; border: 1px solid #e0f2fe;">
               <p style="margin: 0 0 10px 0; font-size: 10px; color: #0ea5e9; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Resumo do Pedido</p>
               <p style="margin: 0; font-weight: 800; color: #111827; font-size: 18px;">${proj.theme}</p>
               <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">Data de Entrega: <span style="color: #0ea5e9;">${formatDisplayDate(proj.deliveryDate)}</span></p>
-              ${proj.celebrantName ? `<p style="margin: 8px 0 0 0; font-size: 12px; color: #4b5563;">Celebrante: <strong>${proj.celebrantName}</strong> ${proj.celebrantAge ? `(${proj.celebrantAge})` : ''}</p>` : ''}
             </div>
           </div>
-
-          <!-- Tabela -->
           <div style="margin-bottom: 50px; border-radius: 25px; overflow: hidden; border: 1px solid #f3f4f6; box-shadow: 0 4px 15px rgba(0,0,0,0.02);">
             <table style="width: 100%; border-collapse: collapse; background: white;">
               <thead>
@@ -425,114 +401,29 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               </tbody>
             </table>
           </div>
-
-          <!-- Rodapé de Valores -->
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; page-break-inside: avoid;">
-            <div style="flex: 1; padding-right: 40px;">
-              ${proj.notes ? `
-                <div style="background: #fdf2f8; border-radius: 20px; padding: 25px; border-left: 5px solid ${primaryColor};">
-                  <h4 style="margin: 0 0 10px 0; font-size: 10px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 2px;">Observações Importantes</h4>
-                  <p style="margin: 0; font-size: 12px; color: #4b5563; line-height: 1.7; font-weight: 600; white-space: pre-wrap;">${proj.notes}</p>
-                </div>
-              ` : `
-                <div style="padding: 25px; border: 1px dashed #d1d5db; border-radius: 20px;">
-                  <p style="margin: 0; font-size: 11px; color: #9ca3af; font-weight: 600; line-height: 1.5;">Garantimos a qualidade artesanal em cada detalhe. O prazo de produção inicia após a confirmação do pagamento do sinal.</p>
-                </div>
-              `}
-            </div>
-            <div style="width: 330px;">
-              <div style="padding: 10px 20px;">
-                <div style="display: flex; justify-content: space-between; padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 700;">
-                  <span>Subtotal Itens:</span>
-                  <span>R$ ${calcBreakdown.basePieceValue.toFixed(2)}</span>
-                </div>
-                ${calcBreakdown.shipping > 0 ? `
-                  <div style="display: flex; justify-content: space-between; padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 700;">
-                    <span>Frete / Entrega:</span>
-                    <span style="color: #0ea5e9;">+ R$ ${calcBreakdown.shipping.toFixed(2)}</span>
-                  </div>
-                ` : ''}
-                ${calcBreakdown.totalDiscount > 0 ? `
-                  <div style="display: flex; justify-content: space-between; padding: 8px 0; color: #ef4444; font-size: 14px; font-weight: 700;">
-                    <span>Desconto Aplicado:</span>
-                    <span>- R$ ${calcBreakdown.totalDiscount.toFixed(2)}</span>
-                  </div>
-                ` : ''}
-              </div>
-
-              <div style="background: #111827; border-radius: 25px; padding: 30px; margin-top: 15px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: ${calcBreakdown.downPayment > 0 ? '20px' : '0'};">
-                  <span style="font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;">Investimento Total</span>
-                  <span style="font-weight: 900; font-size: 28px;">R$ ${calcBreakdown.finalPrice.toFixed(2)}</span>
-                </div>
-                ${calcBreakdown.downPayment > 0 ? `
-                  <div style="padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.15);">
-                    <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; opacity: 0.6; text-transform: uppercase; margin-bottom: 5px;">
-                      <span>Sinal (Confirmado):</span>
-                      <span>R$ ${calcBreakdown.downPayment.toFixed(2)}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                      <span style="font-weight: 900; font-size: 12px; color: #4ade80; text-transform: uppercase; letter-spacing: 1px;">Saldo a Pagar:</span>
-                      <span style="font-weight: 900; font-size: 20px; color: #4ade80;">R$ ${calcBreakdown.remainingBalance.toFixed(2)}</span>
-                    </div>
-                  </div>
-                ` : ''}
+          <div style="display: flex; justify-content: flex-end;">
+            <div style="width: 330px; background: #111827; border-radius: 25px; padding: 30px; color: white;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;">Total Geral</span>
+                <span style="font-weight: 900; font-size: 28px;">R$ ${calcBreakdown.finalPrice.toFixed(2)}</span>
               </div>
             </div>
-          </div>
-
-          <!-- Assinatura e Validade -->
-          <div style="margin-top: 80px; display: flex; justify-content: space-between; align-items: flex-end; page-break-inside: avoid;">
-            <div style="text-align: left;">
-              <p style="margin: 0; color: #9ca3af; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;">Validade da Proposta</p>
-              <div style="background: #f3f4f6; padding: 10px 20px; border-radius: 12px; font-size: 12px; font-weight: 800; color: #4b5563;">7 dias corridos</div>
-            </div>
-            <div style="text-align: center; width: 250px;">
-              <div style="height: 1px; background: #d1d5db; width: 100%; margin-bottom: 10px;"></div>
-              <p style="margin: 0; font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 1.5px;">Assinatura do Cliente</p>
-            </div>
-          </div>
-
-          <!-- Footer Final -->
-          <div style="margin-top: 60px; text-align: center; padding-top: 30px; border-top: 1px solid #f3f4f6;">
-            <p style="margin: 0; font-size: 15px; font-weight: 800; color: ${primaryColor};">✨ Criando memórias afetivas através do artesanato ✨</p>
-            <p style="margin: 10px 0 0 0; font-size: 9px; color: #d1d5db; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Documento Gerado Eletronicamente pelo Precifica Ateliê</p>
           </div>
         </div>
       `;
 
       document.body.appendChild(container);
-
-      // Renderização
-      const canvas = await (window as any).html2canvas(container, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        windowWidth: 794
-      });
-      
+      const canvas = await (window as any).html2canvas(container, { scale: 2, backgroundColor: '#ffffff', windowWidth: 794 });
       const imgData = canvas.toDataURL('image/png');
       const { jsPDF } = (window as any).jspdf;
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-        compress: true
-      });
-
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      
-      const safeTheme = proj.theme?.replace(/[^a-z0-9]/gi, '_') || 'Orcamento';
-      pdf.save(`Orcamento_${proj.quoteNumber || '000'}_${safeTheme}.pdf`);
-      
+      pdf.save(`Orcamento_${proj.quoteNumber || '1'}.pdf`);
       document.body.removeChild(container);
     } catch (err) {
-      console.error("Erro Crítico no PDF:", err);
-      alert("Houve um erro técnico ao gerar o PDF. Verifique se o navegador permite o download.");
+      alert("Erro ao gerar PDF.");
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -543,15 +434,10 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       const matchesSearch = p.theme?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           p.celebrantName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           p.quoteNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      if (statusFilter === 'ongoing') {
-        return matchesSearch && p.status !== 'completed';
-      }
-      if (statusFilter === 'completed') {
-        return matchesSearch && p.status === 'completed';
-      }
+      if (statusFilter === 'ongoing') return matchesSearch && p.status !== 'completed';
+      if (statusFilter === 'completed') return matchesSearch && p.status === 'completed';
       return matchesSearch;
-    });
+    }).sort((a, b) => parseInt(b.quoteNumber || '0') - parseInt(a.quoteNumber || '0'));
   }, [projects, searchTerm, statusFilter]);
 
   const statusLabels: Record<string, string> = {
@@ -572,7 +458,6 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
   return (
     <div className="space-y-12 pb-24">
-      {/* 1. Lista de Pedidos / Orçamentos */}
       <div className="space-y-8 animate-fadeIn">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
           <div className="flex flex-col gap-1">
@@ -581,23 +466,15 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
              </h2>
              <p className="text-sm text-gray-400 font-medium">Gerencie seus orçamentos salvos e pedidos ativos.</p>
           </div>
-
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex bg-white p-1 rounded-2xl border border-gray-100 shadow-sm">
                <button onClick={() => setStatusFilter('ongoing')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'ongoing' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Ativos</button>
                <button onClick={() => setStatusFilter('completed')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'completed' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Finalizados</button>
                <button onClick={() => setStatusFilter('all')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'all' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Todos</button>
             </div>
-
             <div className="relative w-full md:w-64">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-              <input 
-                type="text" 
-                placeholder="Buscar por tema, cliente ou nº..." 
-                className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 focus:ring-pink-400"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
+              <input type="text" placeholder="Buscar orçamento..." className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 focus:ring-pink-400" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
             </div>
           </div>
         </div>
@@ -621,61 +498,18 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                         )}
                       </div>
                       <h3 className="font-black text-gray-800 text-lg group-hover:text-pink-600 transition-colors truncate">{proj.theme}</h3>
-                      <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">
-                        {proj.items?.length || 0} Itens • {proj.items?.reduce((a, i) => a + i.quantity, 0) || 0} pçs
-                      </p>
                    </div>
                    <div className="flex items-center gap-1">
-                     <button 
-                        onClick={() => handleGeneratePDF(proj)}
-                        title="Baixar Orçamento em PDF"
-                        className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"
-                      >
-                        <FileDown size={20} />
-                      </button>
-                     <button 
-                        onClick={(e) => {
-                           e.stopPropagation();
-                           if(confirm(`Excluir permanentemente o orçamento "${proj.theme}"?`)) {
-                              setProjects(prev => prev.filter(p => p.id !== proj.id));
-                           }
-                        }}
-                        className="p-2.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                      >
-                        <Trash2 size={20} />
-                      </button>
+                     <button onClick={() => handleGeneratePDF(proj)} className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"><FileDown size={20} /></button>
+                     <button onClick={() => setProjects(prev => prev.filter(p => p.id !== proj.id))} className="p-2.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
                    </div>
                 </div>
-
-                <div className="space-y-2 mb-4">
-                   <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase">
-                      <Users size={12} className="text-pink-400" /> {customer ? customer.name : 'Cliente Avulso'}
-                   </div>
-                   {proj.celebrantName && (
-                     <div className="flex items-center gap-2 text-[10px] text-pink-500 font-black uppercase">
-                        <PartyPopper size={12} /> {proj.celebrantName} {proj.celebrantAge ? `(${proj.celebrantAge})` : ''}
-                     </div>
-                   )}
-                   <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase">
-                      <Calendar size={12} className="text-pink-400" /> Entrega: {formatDisplayDate(proj.deliveryDate)}
-                   </div>
-                </div>
-
                 <div className="mt-auto flex items-center justify-between pt-6 border-t border-gray-50">
                    <div>
-                      <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Preço Final</p>
+                      <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Valor Total</p>
                       <p className="text-xl font-black text-gray-800">R$ {histBreakdown.finalPrice.toFixed(2)}</p>
                    </div>
-                   <button 
-                    onClick={() => {
-                        setCurrentProject({...proj});
-                        const el = document.getElementById('calc-form');
-                        if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="p-3 bg-pink-50 text-pink-500 rounded-2xl hover:bg-pink-600 hover:text-white transition-all shadow-sm"
-                  >
-                    <Edit3 size={18} />
-                  </button>
+                   <button onClick={() => { setCurrentProject({...proj}); document.getElementById('calc-form')?.scrollIntoView({ behavior: 'smooth' }); }} className="p-3 bg-pink-50 text-pink-500 rounded-2xl hover:bg-pink-600 hover:text-white transition-all shadow-sm"><Edit3 size={18} /></button>
                 </div>
               </div>
             );
@@ -683,37 +517,20 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         </div>
       </div>
 
-      {/* 2. Formulário de Novo Orçamento */}
       <div id="calc-form" className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start border-t border-gray-100 pt-12">
         <div className="xl:col-span-8 space-y-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl shadow-sm">
-                <Calculator size={28} />
-              </div>
+              <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl shadow-sm"><Calculator size={28} /></div>
               <div>
-                <h2 className="text-3xl font-black text-gray-800 tracking-tight">
-                  {currentProject.id ? 'Editando Orçamento' : 'Novo Orçamento'}
-                </h2>
+                <h2 className="text-3xl font-black text-gray-800 tracking-tight">{currentProject.id ? 'Editando Orçamento' : 'Novo Orçamento'}</h2>
                 <p className="text-gray-400 font-medium text-sm">Monte o pedido e visualize os lucros em tempo real.</p>
               </div>
             </div>
-            {currentProject.id && (
-              <button 
-                onClick={resetForm}
-                className="flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-pink-500 hover:text-white transition-all shadow-sm"
-              >
-                <RefreshCcw size={16} /> Limpar Tudo
-              </button>
-            )}
+            <button onClick={resetForm} className="flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-pink-500 hover:text-white transition-all shadow-sm"><RefreshCcw size={16} /> Limpar Tudo</button>
           </div>
 
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-6">
-            <div className="flex items-center gap-2 border-b border-gray-50 pb-4">
-               <Users size={20} className="text-pink-400" />
-               <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">1. Informações do Pedido</h3>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Cliente</label>
@@ -722,194 +539,85 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1"><Store size={12} className="text-yellow-500" /> Canal de Venda</label>
-                <select 
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-pink-600"
-                  value={currentProject.platformId}
-                  onChange={e => setCurrentProject({...currentProject, platformId: e.target.value})}
-                >
-                  {platforms.map(p => <option key={p.id} value={p.id}>{p.name} ({p.feePercentage}%)</option>)}
-                </select>
-              </div>
               <div className="space-y-2 md:col-span-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Tema / Título</label>
                 <input type="text" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: Safari Baby" value={currentProject.theme} onChange={e => setCurrentProject({...currentProject, theme: e.target.value})} />
               </div>
+              <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1"><Hash size={12} className="text-blue-500" /> Nº Orçamento</label>
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      className="w-full p-4 bg-white border border-gray-200 rounded-2xl outline-none font-black text-gray-700" 
+                      placeholder="Nº" 
+                      value={currentProject.quoteNumber} 
+                      onChange={e => setCurrentProject({...currentProject, quoteNumber: e.target.value})} 
+                    />
+                    {!currentProject.id && (
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[8px] font-black text-blue-500 bg-blue-50 px-2 py-1 rounded-lg uppercase tracking-widest border border-blue-100">
+                        <Zap size={8} /> Auto
+                      </div>
+                    )}
+                  </div>
+              </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-pink-50/30 p-6 rounded-[2rem] border border-pink-100/50">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-pink-50/30 p-6 rounded-[2rem] border border-pink-100/50">
                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                    <User size={12} className="text-pink-500" /> Nome do Aniversariante
-                  </label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1"><User size={12} className="text-pink-500" /> Nome do Aniversariante</label>
                   <input type="text" className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: João" value={currentProject.celebrantName} onChange={e => setCurrentProject({...currentProject, celebrantName: e.target.value})} />
                </div>
                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                    <Cake size={12} className="text-pink-500" /> Idade
-                  </label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1"><Cake size={12} className="text-pink-500" /> Idade</label>
                   <input type="text" className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: 2 anos" value={currentProject.celebrantAge} onChange={e => setCurrentProject({...currentProject, celebrantAge: e.target.value})} />
                </div>
-               <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                    <Hash size={12} className="text-blue-500" /> Nº Orçamento
-                  </label>
-                  <input type="text" className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: 1" value={currentProject.quoteNumber} onChange={e => setCurrentProject({...currentProject, quoteNumber: e.target.value})} />
-               </div>
-            </div>
-
-            <div className="bg-blue-50/30 p-6 rounded-[2rem] border border-blue-100/50 space-y-4">
-              <div className="flex items-center gap-2">
-                 <input 
-                   type="checkbox" 
-                   id="isCakeTopper"
-                   className="w-5 h-5 accent-blue-500"
-                   checked={currentProject.isCakeTopper} 
-                   onChange={e => setCurrentProject({...currentProject, isCakeTopper: e.target.checked})} 
-                 />
-                 <label htmlFor="isCakeTopper" className="text-xs font-black text-gray-600 uppercase tracking-widest cursor-pointer">O Pedido é um Topo de Bolo?</label>
-              </div>
-              
-              {currentProject.isCakeTopper && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Formato do Bolo</label>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => setCurrentProject({...currentProject, cakeShape: 'round'})}
-                        className={`flex-1 py-3 rounded-xl border-2 font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${currentProject.cakeShape === 'round' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-white bg-white text-gray-400'}`}
-                      >
-                        <Circle size={14} /> Redondo
-                      </button>
-                      <button 
-                        onClick={() => setCurrentProject({...currentProject, cakeShape: 'square'})}
-                        className={`flex-1 py-3 rounded-xl border-2 font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${currentProject.cakeShape === 'square' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-white bg-white text-gray-400'}`}
-                      >
-                        <Square size={14} /> Quadrado
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                      <Ruler size={12} className="text-blue-500" /> Tamanho do Bolo (cm/kg)
-                    </label>
-                    <input 
-                      type="text" 
-                      className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" 
-                      placeholder="Ex: 20cm ou 2kg" 
-                      value={currentProject.cakeSize} 
-                      onChange={e => setCurrentProject({...currentProject, cakeSize: e.target.value})} 
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                    <CalendarDays size={12} className="text-pink-500" /> Data do Pedido
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                    <CalendarDays size={14} className="text-pink-500" /> Data do Pedido
                   </label>
-                  <input type="date" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600" value={currentProject.orderDate} onChange={e => setCurrentProject({...currentProject, orderDate: e.target.value})} />
+                  <div className="relative">
+                    <Calendar size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
+                    <input 
+                      type="date" 
+                      className="w-full p-4 pr-12 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600 focus:ring-2 focus:ring-pink-200" 
+                      value={currentProject.orderDate} 
+                      onChange={e => setCurrentProject({...currentProject, orderDate: e.target.value})} 
+                    />
+                  </div>
                 </div>
                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                    <Calendar size={12} className="text-pink-500" /> Data de Entrega
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                    <Calendar size={14} className="text-pink-500" /> Data de Entrega
                   </label>
-                  <input type="date" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600" value={currentProject.deliveryDate} onChange={e => setCurrentProject({...currentProject, deliveryDate: e.target.value})} />
+                  <div className="relative">
+                    <Calendar size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
+                    <input 
+                      type="date" 
+                      className="w-full p-4 pr-12 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600 focus:ring-2 focus:ring-pink-200" 
+                      value={currentProject.deliveryDate} 
+                      onChange={e => setCurrentProject({...currentProject, deliveryDate: e.target.value})} 
+                    />
+                  </div>
                 </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                <StickyNote size={12} className="text-pink-500" /> Observações Internas
-              </label>
-              <textarea 
-                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-gray-700 h-24 resize-none" 
-                placeholder="Ex: Cliente pediu embalagem extra..." 
-                value={currentProject.notes} 
-                onChange={e => setCurrentProject({...currentProject, notes: e.target.value})} 
-              />
-            </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-green-50 space-y-6">
-            <div className="flex items-center gap-2 border-b border-gray-50 pb-4">
-               <Wallet size={20} className="text-green-500" />
-               <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">2. Frete, Descontos e Pagamento</h3>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                  <Truck size={12} className="text-blue-400" /> Frete (R$)
-                </label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-700" 
-                  value={currentProject.shipping} 
-                  onChange={e => setCurrentProject({...currentProject, shipping: parseFloat(e.target.value) || 0})} 
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                  <Percent size={12} className="text-red-400" /> Desconto (%)
-                </label>
-                <input 
-                  type="number" 
-                  step="0.1"
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-red-600" 
-                  value={currentProject.discountPercentage} 
-                  onChange={e => setCurrentProject({...currentProject, discountPercentage: parseFloat(e.target.value) || 0})} 
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                  <DollarSign size={12} className="text-red-400" /> Desconto (R$)
-                </label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-red-600" 
-                  value={currentProject.discountAmount} 
-                  onChange={e => setCurrentProject({...currentProject, discountAmount: parseFloat(e.target.value) || 0})} 
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                  <Wallet size={12} className="text-green-500" /> Sinal / Entrada
-                </label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-green-600" 
-                  value={currentProject.downPayment} 
-                  onChange={e => setCurrentProject({...currentProject, downPayment: parseFloat(e.target.value) || 0})} 
-                />
-              </div>
             </div>
           </div>
 
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-yellow-100 space-y-6">
             <div className="flex items-center justify-between border-b border-gray-50 pb-4">
-               <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest flex items-center gap-2">
-                 <Package size={18} className="text-yellow-500" /> 3. Itens e Preços de Venda
-               </h3>
-               <button onClick={() => setShowCatalog(!showCatalog)} className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2">
-                 <PlusCircle size={14} /> Adicionar do Catálogo
-               </button>
+               <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest flex items-center gap-2"><Package size={18} className="text-yellow-500" /> Itens do Pedido</h3>
+               <button onClick={() => setShowCatalog(!showCatalog)} className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2"><PlusCircle size={14} /> Adicionar do Catálogo</button>
             </div>
-
             {showCatalog && (
               <div className="bg-yellow-50/50 p-6 rounded-3xl border border-yellow-100 animate-fadeIn space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                    {products.map(p => (
                      <button key={p.id} onClick={() => addItemFromCatalog(p)} className="w-full text-left p-4 bg-white border border-yellow-100 rounded-2xl hover:bg-yellow-100 transition-all flex items-center justify-between group">
-                        <div className="flex flex-col">
+                        <div>
                            <span className="font-black text-gray-700 text-sm">{p.name}</span>
-                           <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Preço Base: R$ {p.marketPrice > 0 ? p.marketPrice.toFixed(2) : 'Cálculo Auto'}</span>
+                           <p className="text-[9px] text-gray-400 font-bold uppercase">Preço: R$ {p.marketPrice > 0 ? p.marketPrice.toFixed(2) : 'Sob consulta'}</p>
                         </div>
                         <Plus size={16} className="text-yellow-500" />
                      </button>
@@ -917,178 +625,43 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 </div>
               </div>
             )}
-
             <div className="space-y-4">
                {currentProject.items?.map((item, index) => (
                  <div key={index} className="flex flex-col md:flex-row md:items-center justify-between bg-gray-50/50 p-5 rounded-2xl border border-gray-100 gap-4">
                     <div className="flex items-center gap-4 flex-1">
                        <span className="font-black text-gray-400 text-xs">{index + 1}</span>
-                       <div className="flex flex-col">
-                          <p className="font-black text-gray-700 text-sm">{item.name}</p>
-                          <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Preço Final desejado:</p>
-                       </div>
+                       <p className="font-black text-gray-700 text-sm">{item.name}</p>
                     </div>
-                    
-                    <div className="flex items-center gap-4 flex-wrap">
+                    <div className="flex items-center gap-4">
                        <div className="flex flex-col gap-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">Preço Unitário (Venda)</label>
-                          <div className="relative">
-                             <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-green-500" />
-                             <input 
-                                type="number" 
-                                step="0.01" 
-                                className="w-28 pl-8 pr-2 py-2 bg-white border border-gray-200 rounded-xl outline-none font-black text-gray-700 text-sm focus:ring-2 focus:ring-green-400"
-                                value={item.unitPrice || 0}
-                                onChange={e => updateItemPrice(index, parseFloat(e.target.value) || 0)}
-                             />
-                          </div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Pç. Unitário</label>
+                          <input type="number" step="0.01" className="w-24 p-2 bg-white border border-gray-200 rounded-xl outline-none font-black text-gray-700 text-xs" value={item.unitPrice || 0} onChange={e => updateItemPrice(index, parseFloat(e.target.value) || 0)} />
                        </div>
-
                        <div className="flex flex-col gap-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">Quantidade</label>
-                          <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200">
-                             <button onClick={() => updateItemQuantity(index, item.quantity - 1)} className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 hover:text-pink-500">-</button>
-                             <span className="font-black text-gray-700 text-xs w-6 text-center">{item.quantity}</span>
-                             <button onClick={() => updateItemQuantity(index, item.quantity + 1)} className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 hover:text-pink-500">+</button>
-                          </div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Qtd</label>
+                          <input type="number" className="w-16 p-2 bg-white border border-gray-200 rounded-xl outline-none font-black text-gray-700 text-xs" value={item.quantity} onChange={e => updateItemQuantity(index, parseInt(e.target.value) || 1)} />
                        </div>
-
-                       <button onClick={() => removeItem(index)} className="text-gray-300 hover:text-red-500 self-end mb-1"><Trash2 size={18} /></button>
+                       <button onClick={() => removeItem(index)} className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button>
                     </div>
                  </div>
                ))}
-               {(!currentProject.items || currentProject.items.length === 0) && <p className="text-center py-8 text-gray-400 text-xs italic">Selecione produtos do catálogo para compor o orçamento.</p>}
             </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-6">
-             <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                <TableIcon size={20} className="text-pink-500" />
-                <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest">4. Composição Detalhada do Preço</h3>
-             </div>
-
-             <div className="overflow-hidden rounded-[2rem] border border-gray-100 shadow-sm">
-                <table className="w-full text-left text-sm">
-                   <thead>
-                      <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                         <th className="px-6 py-5">Componente</th>
-                         <th className="px-6 py-5 text-right">Valor</th>
-                         <th className="px-6 py-5 text-right">%</th>
-                      </tr>
-                   </thead>
-                   <tbody className="divide-y divide-gray-50">
-                      <tr className="hover:bg-gray-50/30 transition-colors">
-                        <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700"><Package size={14} className="text-yellow-500" /> Materiais</td>
-                        <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.variableCosts.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.variableCosts / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
-                      </tr>
-                      <tr className="hover:bg-gray-50/30 transition-colors">
-                        <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700"><Clock size={14} className="text-pink-500" /> Mão de Obra</td>
-                        <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.laborCosts.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.laborCosts / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
-                      </tr>
-                      <tr className="hover:bg-gray-50/30 transition-colors">
-                        <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700"><Receipt size={14} className="text-red-400" /> Despesas Fixas</td>
-                        <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.fixedCosts.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.fixedCosts / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
-                      </tr>
-                      <tr className="hover:bg-gray-50/30 transition-colors">
-                        <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700"><Layers size={14} className="text-gray-400" /> Despesas Variáveis</td>
-                        <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.excedente.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.excedente / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
-                      </tr>
-                      <tr className="hover:bg-gray-50/30 transition-colors">
-                        <td className="px-6 py-4 flex items-center gap-3 font-bold text-gray-700"><TrendingUp size={14} className="text-green-500" /> Lucro Líquido</td>
-                        <td className="px-6 py-4 text-right font-black text-gray-700">R$ {breakdown.profit.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-right text-[10px] font-black text-gray-400">{((breakdown.profit / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
-                      </tr>
-                      <tr className="bg-pink-50/50 border-t-2 border-pink-100">
-                        <td className="px-6 py-4 flex items-center gap-3 font-black text-pink-600 uppercase text-[10px] tracking-widest"><Sparkles size={14} /> Valor da Peça (Subtotal)</td>
-                        <td className="px-6 py-4 text-right font-black text-pink-700">R$ {pieceValueBase.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-right text-[10px] font-black text-pink-400">100.0%</td>
-                      </tr>
-                      
-                      {breakdown.totalDiscount > 0 && (
-                        <tr className="bg-red-50/30">
-                          <td className="px-6 py-4 flex items-center gap-3 font-black text-red-500 uppercase text-[10px] tracking-widest"><Percent size={14} /> Descontos Aplicados</td>
-                          <td className="px-6 py-4 text-right font-black text-red-600">- R$ {breakdown.totalDiscount.toFixed(2)}</td>
-                          <td className="px-6 py-4 text-right text-[10px] font-black text-red-400">-{((breakdown.totalDiscount / (pieceValueBase || 1)) * 100).toFixed(1)}%</td>
-                        </tr>
-                      )}
-                      {breakdown.platformFees > 0 && (
-                        <tr className="bg-purple-50/50 italic">
-                          <td className="px-6 py-4 flex items-center gap-3 font-black text-purple-600 uppercase text-[10px] tracking-widest"><Store size={14} /> Taxas de Plataforma</td>
-                          <td className="px-6 py-4 text-right font-black text-purple-700">R$ {breakdown.platformFees.toFixed(2)}</td>
-                          <td className="px-6 py-4 text-right text-[10px] font-black text-purple-400">{((breakdown.platformFees / (breakdown.finalPrice || 1)) * 100).toFixed(1)}%</td>
-                        </tr>
-                      )}
-                      {breakdown.shipping > 0 && (
-                        <tr className="bg-blue-50/30">
-                          <td className="px-6 py-4 flex items-center gap-3 font-black text-blue-500 uppercase text-[10px] tracking-widest"><Truck size={14} /> Valor do Frete</td>
-                          <td className="px-6 py-4 text-right font-black text-blue-700">R$ {breakdown.shipping.toFixed(2)}</td>
-                          <td className="px-6 py-4 text-right text-[10px] font-black text-blue-400">{((breakdown.shipping / (breakdown.finalPrice || 1)) * 100).toFixed(1)}%</td>
-                        </tr>
-                      )}
-                   </tbody>
-                   <tfoot>
-                      <tr className="bg-pink-600 text-white font-black">
-                         <td className="px-6 py-6 flex items-center gap-2 text-sm uppercase tracking-widest">Preço Final <ArrowRight size={16} /></td>
-                         <td className="px-6 py-6 text-right text-3xl" colSpan={2}>R$ {breakdown.finalPrice.toFixed(2)}</td>
-                      </tr>
-                      {breakdown.downPayment > 0 && (
-                        <>
-                          <tr className="bg-green-50 text-green-700 font-bold border-t border-green-100">
-                             <td className="px-6 py-4 text-[10px] uppercase tracking-widest">Sinal Recebido</td>
-                             <td className="px-6 py-4 text-right text-lg" colSpan={2}>R$ {breakdown.downPayment.toFixed(2)}</td>
-                          </tr>
-                          <tr className="bg-yellow-50 text-yellow-700 font-black border-t border-yellow-100">
-                             <td className="px-6 py-4 text-[10px] uppercase tracking-widest">Saldo Restante a Receber</td>
-                             <td className="px-6 py-4 text-right text-xl" colSpan={2}>R$ {breakdown.remainingBalance.toFixed(2)}</td>
-                          </tr>
-                        </>
-                      )}
-                   </tfoot>
-                </table>
-             </div>
           </div>
         </div>
 
         <div className="xl:col-span-4 sticky top-8 space-y-6">
           <div className="bg-white rounded-[3rem] shadow-xl border border-pink-100 overflow-hidden">
-            <div className="bg-pink-600 p-10 text-white text-center relative">
-              <h3 className="text-xs font-black opacity-70 uppercase tracking-[0.2em] mb-2">Preço Final</h3>
+            <div className="bg-pink-600 p-10 text-white text-center">
+              <h3 className="text-xs font-black opacity-70 uppercase tracking-[0.2em] mb-2">Total do Orçamento</h3>
               <p className="text-5xl font-black">R$ {breakdown.finalPrice.toFixed(2)}</p>
-              {breakdown.remainingBalance > 0 && breakdown.downPayment > 0 && (
-                <div className="mt-4 bg-white/20 p-3 rounded-2xl backdrop-blur-md">
-                   <p className="text-[10px] font-black uppercase tracking-widest mb-1">Restante a Receber</p>
-                   <p className="text-xl font-black">R$ {breakdown.remainingBalance.toFixed(2)}</p>
-                </div>
-              )}
             </div>
-            
-            <div className="p-10 space-y-8">
-              <div className="space-y-4 pt-4">
-                <button 
-                  onClick={handleSaveProject} 
-                  className="w-full py-5 bg-pink-600 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg shadow-pink-100 transition-all active:scale-95"
-                >
-                  <Save size={20} /> {currentProject.id ? 'Salvar Alterações' : 'Salvar Orçamento'}
-                </button>
-
-                <div className="grid grid-cols-1 gap-4">
-                  <button 
-                    onClick={() => handleGeneratePDF()}
-                    disabled={isGeneratingPdf}
-                    className="py-5 bg-blue-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:opacity-50"
-                  >
-                    {isGeneratingPdf ? <RefreshCcw className="animate-spin" size={20} /> : <File size={20} />}
-                    {isGeneratingPdf ? 'Gerando PDF...' : 'Gerar PDF do Orçamento'}
-                  </button>
-                  <button onClick={handleWhatsAppShare} className="py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg shadow-green-100 transition-all active:scale-95">
-                    <MessageCircle size={20} /> Enviar Orçamento por Zap
-                  </button>
-                </div>
-              </div>
+            <div className="p-10 space-y-4">
+              <button onClick={handleSaveProject} className="w-full py-5 bg-pink-600 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"><Save size={20} /> Salvar Orçamento</button>
+              <button onClick={() => handleGeneratePDF()} disabled={isGeneratingPdf} className="w-full py-5 bg-blue-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50">
+                {/* Fixed: Replaced RefreshCw with imported RefreshCcw */}
+                {isGeneratingPdf ? <RefreshCcw className="animate-spin" /> : <File size={20} />} Gerar PDF
+              </button>
+              <button onClick={handleWhatsAppShare} className="w-full py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"><MessageCircle size={20} /> Enviar Zap</button>
             </div>
           </div>
         </div>
