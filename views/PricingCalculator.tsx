@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calculator, 
@@ -51,7 +52,13 @@ import {
   Mail,
   Phone,
   Signature,
-  Zap
+  Zap,
+  Ticket,
+  AlignLeft,
+  Layers3,
+  MessageSquare,
+  BarChart4,
+  Wallet2
 } from 'lucide-react';
 import { 
   Material, 
@@ -111,14 +118,16 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     orderDate: new Date().toISOString().split('T')[0],
     deliveryDate: '',
     customerId: '',
+    platformId: platforms.find(p => p.feePercentage === 0)?.id || platforms[0]?.id || '',
     description: '',
+    observations: '',
     notes: '',
     items: [],
-    platformId: platforms.find(p => p.feePercentage === 0)?.id || platforms[0]?.id || '',
     excedente: companyData.defaultExcedente,
     status: 'pending',
     isCakeTopper: false,
     cakeShape: 'round',
+    cakeFloors: '1',
     cakeSize: '',
     shipping: 0,
     discountPercentage: 0,
@@ -165,7 +174,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           materials: product.materials,
           profitMargin: product.profitMargin || companyData.defaultProfitMargin
         }],
-        platformId: platforms.find(p => p.feePercentage === 0)?.id || platforms[0]?.id || '',
+        platformId: currentProject.platformId || platforms[0]?.id || '',
         excedente: companyData.defaultExcedente
       };
       const breakdownResult = calculateProjectBreakdown(mockProj as any, materials, platforms, companyData);
@@ -227,6 +236,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       name: `${currentProject.theme} - ${currentProject.celebrantName || 'S/N'}`,
       customerId: currentProject.customerId || '',
       description: currentProject.description || '',
+      observations: currentProject.observations || '',
       notes: currentProject.notes || '',
       items: currentProject.items!,
       platformId: currentProject.platformId || '',
@@ -242,6 +252,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       quoteNumber: currentProject.quoteNumber || generateAutoQuoteNumber(),
       isCakeTopper: !!currentProject.isCakeTopper,
       cakeShape: currentProject.cakeShape,
+      cakeFloors: currentProject.cakeFloors,
       cakeSize: currentProject.cakeSize,
       shipping: currentProject.shipping || 0,
       discountPercentage: currentProject.discountPercentage || 0,
@@ -304,15 +315,23 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     });
 
     if (currentProject.isCakeTopper) {
-      message += `\n🎂 *Topo de Bolo:* ${currentProject.cakeShape === 'round' ? 'Redondo' : 'Quadrado'} - ${currentProject.cakeSize || 'Tam. não inf.'}`;
+      message += `\n🎂 *Topo de Bolo:* ${currentProject.cakeShape === 'round' ? 'Redondo' : 'Quadrado'} - ${currentProject.cakeFloors} Andar(es) - ${currentProject.cakeSize || 'Tam. não inf.'}`;
     }
 
     if (currentProject.celebrantName) message += `\n👤 *Nome:* ${currentProject.celebrantName}`;
     if (currentProject.celebrantAge) message += `\n🎂 *Idade:* ${currentProject.celebrantAge}`;
     message += `\n📅 *Entrega:* ${dateFormatted}\n`;
     
+    if (breakdown.totalDiscount > 0) message += `\n📉 *Desconto:* R$ ${breakdown.totalDiscount.toFixed(2)}`;
+    if (breakdown.shipping > 0) message += `\n🚚 *Frete:* R$ ${breakdown.shipping.toFixed(2)}`;
+    
     message += `\n💰 *VALOR TOTAL:* R$ ${breakdown.finalPrice.toFixed(2)}`;
     
+    if (breakdown.downPayment > 0) {
+      message += `\n💳 *Sinal:* R$ ${breakdown.downPayment.toFixed(2)}`;
+      message += `\n⏳ *Falta:* R$ ${breakdown.remainingBalance.toFixed(2)}`;
+    }
+
     const phone = customer?.phone?.replace(/\D/g, '') || '';
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
@@ -402,11 +421,21 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             </table>
           </div>
           <div style="display: flex; justify-content: flex-end;">
-            <div style="width: 330px; background: #111827; border-radius: 25px; padding: 30px; color: white;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;">Total Geral</span>
-                <span style="font-weight: 900; font-size: 28px;">R$ ${calcBreakdown.finalPrice.toFixed(2)}</span>
-              </div>
+            <div style="width: 350px;">
+                <div style="padding: 10px 20px;">
+                    <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #6b7280; font-weight: 700;">
+                        <span>Subtotal:</span>
+                        <span>R$ ${calcBreakdown.basePieceValue.toFixed(2)}</span>
+                    </div>
+                    ${calcBreakdown.shipping > 0 ? `<div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #6b7280; font-weight: 700;"><span>Frete:</span><span>+ R$ ${calcBreakdown.shipping.toFixed(2)}</span></div>` : ''}
+                    ${calcBreakdown.totalDiscount > 0 ? `<div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #ef4444; font-weight: 700;"><span>Desconto:</span><span>- R$ ${calcBreakdown.totalDiscount.toFixed(2)}</span></div>` : ''}
+                </div>
+                <div style="background: #111827; border-radius: 25px; padding: 30px; color: white; margin-top: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;">Total Geral</span>
+                    <span style="font-weight: 900; font-size: 28px;">R$ ${calcBreakdown.finalPrice.toFixed(2)}</span>
+                  </div>
+                </div>
             </div>
           </div>
         </div>
@@ -482,7 +511,6 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredHistory.map(proj => {
             const histBreakdown = calculateProjectBreakdown(proj, materials, platforms, companyData);
-            const customer = customers.find(c => c.id === proj.customerId);
             return (
               <div key={proj.id} className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group flex flex-col relative overflow-hidden">
                 <div className="flex justify-between items-start mb-6">
@@ -504,6 +532,23 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                      <button onClick={() => setProjects(prev => prev.filter(p => p.id !== proj.id))} className="p-2.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
                    </div>
                 </div>
+                
+                {/* DETALHES FINANCEIROS NO HISTÓRICO */}
+                <div className="grid grid-cols-2 gap-3 mb-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                   <div className="flex flex-col">
+                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Truck size={8} /> Frete</span>
+                      <span className="text-xs font-black text-gray-700">R$ {histBreakdown.shipping.toFixed(2)}</span>
+                   </div>
+                   <div className="flex flex-col">
+                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Wallet2 size={8} /> Entrada</span>
+                      <span className="text-xs font-black text-blue-600">R$ {histBreakdown.downPayment.toFixed(2)}</span>
+                   </div>
+                   <div className="flex flex-col col-span-2 pt-2 border-t border-gray-200">
+                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Falta Pagar (Restante)</span>
+                      <span className="text-sm font-black text-pink-600">R$ {histBreakdown.remainingBalance.toFixed(2)}</span>
+                   </div>
+                </div>
+
                 <div className="mt-auto flex items-center justify-between pt-6 border-t border-gray-50">
                    <div>
                       <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Valor Total</p>
@@ -531,17 +576,30 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           </div>
 
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Cliente</label>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                  <User size={14} className="text-pink-400" /> Cliente
+                </label>
                 <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-gray-700" value={currentProject.customerId} onChange={e => setCurrentProject({...currentProject, customerId: e.target.value})}>
                   <option value="">Selecione um cliente...</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Tema / Título</label>
-                <input type="text" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: Safari Baby" value={currentProject.theme} onChange={e => setCurrentProject({...currentProject, theme: e.target.value})} />
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                  <Store size={14} className="text-blue-400" /> Meio de Venda
+                </label>
+                <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-gray-700" value={currentProject.platformId} onChange={e => setCurrentProject({...currentProject, platformId: e.target.value})}>
+                  {platforms.map(p => <option key={p.id} value={p.id}>{p.name} ({p.feePercentage}%)</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="space-y-2 md:col-span-3">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Tema / Título do Pedido</label>
+                <input type="text" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: Safari Baby para João" value={currentProject.theme} onChange={e => setCurrentProject({...currentProject, theme: e.target.value})} />
               </div>
               <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1"><Hash size={12} className="text-blue-500" /> Nº Orçamento</label>
@@ -575,33 +633,89 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                    <CalendarDays size={14} className="text-pink-500" /> Data do Pedido
-                  </label>
-                  <div className="relative">
-                    <Calendar size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
-                    <input 
-                      type="date" 
-                      className="w-full p-4 pr-12 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600 focus:ring-2 focus:ring-pink-200" 
-                      value={currentProject.orderDate} 
-                      onChange={e => setCurrentProject({...currentProject, orderDate: e.target.value})} 
-                    />
-                  </div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Data do Pedido</label>
+                  <input 
+                    type="date" 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600 focus:ring-2 focus:ring-pink-200" 
+                    value={currentProject.orderDate} 
+                    onChange={e => setCurrentProject({...currentProject, orderDate: e.target.value})} 
+                  />
                 </div>
                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                    <Calendar size={14} className="text-pink-500" /> Data de Entrega
-                  </label>
-                  <div className="relative">
-                    <Calendar size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
-                    <input 
-                      type="date" 
-                      className="w-full p-4 pr-12 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600 focus:ring-2 focus:ring-pink-200" 
-                      value={currentProject.deliveryDate} 
-                      onChange={e => setCurrentProject({...currentProject, deliveryDate: e.target.value})} 
-                    />
-                  </div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Data de Entrega</label>
+                  <input 
+                    type="date" 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600 focus:ring-2 focus:ring-pink-200" 
+                    value={currentProject.deliveryDate} 
+                    onChange={e => setCurrentProject({...currentProject, deliveryDate: e.target.value})} 
+                  />
                 </div>
+            </div>
+
+            {/* SEÇÃO TOPO DE BOLO */}
+            <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100 space-y-6">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-2"><Cake size={16} /> Detalhes do Topo de Bolo</h3>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-gray-400 uppercase">É Topo de Bolo?</span>
+                        <input 
+                            type="checkbox" 
+                            className="w-5 h-5 accent-blue-500" 
+                            checked={currentProject.isCakeTopper} 
+                            onChange={e => setCurrentProject({...currentProject, isCakeTopper: e.target.checked})} 
+                        />
+                    </div>
+                </div>
+
+                {currentProject.isCakeTopper && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fadeIn">
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Formato do Bolo</label>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => setCurrentProject({...currentProject, cakeShape: 'round'})}
+                                    className={`flex-1 py-3 rounded-xl border flex items-center justify-center gap-1 transition-all ${currentProject.cakeShape === 'round' ? 'bg-blue-500 text-white border-blue-500 shadow-md' : 'bg-white text-gray-400 border-gray-100'}`}
+                                >
+                                    <Circle size={14} /> Redondo
+                                </button>
+                                <button 
+                                    onClick={() => setCurrentProject({...currentProject, cakeShape: 'square'})}
+                                    className={`flex-1 py-3 rounded-xl border flex items-center justify-center gap-1 transition-all ${currentProject.cakeShape === 'square' ? 'bg-blue-500 text-white border-blue-500 shadow-md' : 'bg-white text-gray-400 border-gray-100'}`}
+                                >
+                                    <Square size={14} /> Quadrado
+                                </button>
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Nº de Andares</label>
+                            <div className="flex gap-1">
+                               {['1', '2', '3'].map(num => (
+                                 <button
+                                   key={num}
+                                   type="button"
+                                   onClick={() => setCurrentProject({...currentProject, cakeFloors: num})}
+                                   className={`flex-1 py-3 rounded-xl border text-xs font-black transition-all ${currentProject.cakeFloors === num ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-400 border-gray-100'}`}
+                                 >
+                                   {num} {parseInt(num) === 1 ? 'Andar' : 'Andares'}
+                                 </button>
+                               ))}
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Tamanho/Medida (cm)</label>
+                            <div className="relative">
+                                <Ruler size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Ex: 20cm"
+                                    className="w-full pl-9 pr-3 py-3 bg-white border border-gray-100 rounded-xl outline-none font-bold text-gray-700 text-sm"
+                                    value={currentProject.cakeSize}
+                                    onChange={e => setCurrentProject({...currentProject, cakeSize: e.target.value})}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
           </div>
 
@@ -646,22 +760,201 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                  </div>
                ))}
             </div>
+
+            {/* CAMPO DE OBSERVAÇÕES */}
+            <div className="space-y-2 pt-8 border-t border-gray-50">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                   <MessageSquare size={14} className="text-pink-500" /> Observações do Pedido
+                </label>
+                <textarea 
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-600 min-h-[100px] resize-none focus:ring-4 focus:ring-pink-50 transition-all"
+                  placeholder="Insira aqui observações importantes sobre o pedido, materiais específicos ou personalizações..."
+                  value={currentProject.observations}
+                  onChange={e => setCurrentProject({...currentProject, observations: e.target.value})}
+                ></textarea>
+            </div>
+
+            {/* TABELA DE COMPOSIÇÃO FINANCEIRA DETALHADA - MOVIDA ABAIXO DE OBSERVAÇÕES */}
+            <div className="mt-8 pt-8 border-t border-gray-100 space-y-6">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                        <BarChart4 size={18} className="text-blue-500" /> Composição Financeira Detalhada
+                    </h3>
+                    <div className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase tracking-widest">
+                        Total Base Peça: R$ {breakdown.basePieceValue.toFixed(2)}
+                    </div>
+                </div>
+
+                <div className="overflow-hidden rounded-3xl border border-gray-100 shadow-sm bg-white">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                            <tr>
+                                <th className="px-6 py-4">Categoria</th>
+                                <th className="px-6 py-4 text-right">Valor (R$)</th>
+                                <th className="px-6 py-4 text-right">Proporção (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 font-bold text-gray-600">
+                            <tr className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4 flex items-center gap-3">
+                                    <div className="p-2 bg-yellow-50 text-yellow-500 rounded-xl"><Package size={14} /></div>
+                                    <span>Material (Custo Variável)</span>
+                                </td>
+                                <td className="px-6 py-4 text-right">R$ {breakdown.variableCosts.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                    {breakdown.basePieceValue > 0 ? ((breakdown.variableCosts / breakdown.basePieceValue) * 100).toFixed(1) : 0}%
+                                </td>
+                            </tr>
+                            <tr className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4 flex items-center gap-3">
+                                    <div className="p-2 bg-pink-50 text-pink-500 rounded-xl"><Clock size={14} /></div>
+                                    <span>Mão de Obra (Salário)</span>
+                                </td>
+                                <td className="px-6 py-4 text-right">R$ {breakdown.laborCosts.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                    {breakdown.basePieceValue > 0 ? ((breakdown.laborCosts / breakdown.basePieceValue) * 100).toFixed(1) : 0}%
+                                </td>
+                            </tr>
+                            <tr className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4 flex items-center gap-3">
+                                    <div className="p-2 bg-blue-50 text-blue-500 rounded-xl"><Receipt size={14} /></div>
+                                    <span>Custos Fixos (Estrutura)</span>
+                                </td>
+                                <td className="px-6 py-4 text-right">R$ {breakdown.fixedCosts.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                    {breakdown.basePieceValue > 0 ? ((breakdown.fixedCosts / breakdown.basePieceValue) * 100).toFixed(1) : 0}%
+                                </td>
+                            </tr>
+                            <tr className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4 flex items-center gap-3">
+                                    <div className="p-2 bg-gray-50 text-gray-500 rounded-xl"><AlertCircle size={14} /></div>
+                                    <span>Custos Variáveis / Segurança</span>
+                                </td>
+                                <td className="px-6 py-4 text-right">R$ {breakdown.excedente.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                    {breakdown.basePieceValue > 0 ? ((breakdown.excedente / breakdown.basePieceValue) * 100).toFixed(1) : 0}%
+                                </td>
+                            </tr>
+                            <tr className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4 flex items-center gap-3">
+                                    <div className="p-2 bg-orange-50 text-orange-500 rounded-xl"><Store size={14} /></div>
+                                    <span>Custo Meio de Venda (Taxas)</span>
+                                </td>
+                                <td className="px-6 py-4 text-right">R$ {breakdown.platformFees.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                    {breakdown.finalPrice > 0 ? ((breakdown.platformFees / (breakdown.finalPrice - breakdown.shipping)) * 100).toFixed(1) : 0}%
+                                </td>
+                            </tr>
+                            <tr className="bg-green-50/50">
+                                <td className="px-6 py-4 flex items-center gap-3 font-black text-green-700">
+                                    <div className="p-2 bg-green-500 text-white rounded-xl"><Zap size={14} /></div>
+                                    <span>Lucro Líquido Real</span>
+                                </td>
+                                <td className="px-6 py-4 text-right font-black text-green-700">R$ {breakdown.profit.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-right text-[10px] font-black text-green-500">
+                                    {breakdown.basePieceValue > 0 ? ((breakdown.profit / breakdown.basePieceValue) * 100).toFixed(1) : 0}%
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    <Info size={16} className="text-blue-400 shrink-0" />
+                    <p className="text-[10px] font-medium text-gray-400 leading-relaxed italic">
+                        * O <strong>Lucro Líquido</strong> é o que sobra para sua empresa investir em novos equipamentos após você já ter recebido seu <strong>Salário</strong> (Mão de Obra) e pago todas as <strong>Taxas</strong> e <strong>Materiais</strong>.
+                    </p>
+                </div>
+            </div>
           </div>
         </div>
 
         <div className="xl:col-span-4 sticky top-8 space-y-6">
           <div className="bg-white rounded-[3rem] shadow-xl border border-pink-100 overflow-hidden">
-            <div className="bg-pink-600 p-10 text-white text-center">
-              <h3 className="text-xs font-black opacity-70 uppercase tracking-[0.2em] mb-2">Total do Orçamento</h3>
-              <p className="text-5xl font-black">R$ {breakdown.finalPrice.toFixed(2)}</p>
-            </div>
-            <div className="p-10 space-y-4">
-              <button onClick={handleSaveProject} className="w-full py-5 bg-pink-600 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"><Save size={20} /> Salvar Orçamento</button>
-              <button onClick={() => handleGeneratePDF()} disabled={isGeneratingPdf} className="w-full py-5 bg-blue-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50">
-                {/* Fixed: Replaced RefreshCw with imported RefreshCcw */}
-                {isGeneratingPdf ? <RefreshCcw className="animate-spin" /> : <File size={20} />} Gerar PDF
-              </button>
-              <button onClick={handleWhatsAppShare} className="w-full py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"><MessageCircle size={20} /> Enviar Zap</button>
+            <div className="p-8 space-y-6">
+              {/* BLOCO DE VALORES ADICIONAIS */}
+              <div className="space-y-4 pb-6 border-b border-gray-100">
+                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Ajustes Financeiros</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                          <label className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><Truck size={10} /> Frete (R$)</label>
+                          <input 
+                            type="number" step="0.01"
+                            className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none font-black text-gray-700 text-sm focus:ring-2 focus:ring-pink-200"
+                            value={currentProject.shipping}
+                            onChange={e => setCurrentProject({...currentProject, shipping: parseFloat(e.target.value) || 0})}
+                          />
+                      </div>
+                      <div className="space-y-1">
+                          <label className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><Percent size={10} /> Desconto (%)</label>
+                          <input 
+                            type="number" step="1"
+                            className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none font-black text-red-500 text-sm focus:ring-2 focus:ring-pink-200"
+                            value={currentProject.discountPercentage}
+                            onChange={e => setCurrentProject({...currentProject, discountPercentage: parseFloat(e.target.value) || 0})}
+                          />
+                      </div>
+                      <div className="space-y-1">
+                          <label className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><Ticket size={10} /> Desconto (R$)</label>
+                          <input 
+                            type="number" step="0.01"
+                            className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none font-black text-red-500 text-sm focus:ring-2 focus:ring-pink-200"
+                            value={currentProject.discountAmount}
+                            onChange={e => setCurrentProject({...currentProject, discountAmount: parseFloat(e.target.value) || 0})}
+                          />
+                      </div>
+                      <div className="space-y-1">
+                          <label className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><Wallet size={10} /> Sinal / Entrada (R$)</label>
+                          <input 
+                            type="number" step="0.01"
+                            className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl outline-none font-black text-blue-600 text-sm focus:ring-2 focus:ring-blue-200"
+                            value={currentProject.downPayment}
+                            onChange={e => setCurrentProject({...currentProject, downPayment: parseFloat(e.target.value) || 0})}
+                          />
+                      </div>
+                  </div>
+              </div>
+
+              {/* TOTAL DO ORÇAMENTO */}
+              <div className="bg-pink-600 p-8 rounded-[2.5rem] text-white text-center shadow-lg shadow-pink-100">
+                <h3 className="text-xs font-black opacity-70 uppercase tracking-[0.2em] mb-2">Total do Orçamento</h3>
+                <p className="text-5xl font-black">R$ {breakdown.finalPrice.toFixed(2)}</p>
+                {breakdown.downPayment > 0 && (
+                  <div className="mt-4 pt-4 border-t border-white/20">
+                     <p className="text-[10px] font-black opacity-70 uppercase tracking-[0.2em]">Sinal Recebido</p>
+                     <p className="text-xl font-black text-yellow-300">R$ {breakdown.downPayment.toFixed(2)}</p>
+                     <p className="text-[10px] font-black opacity-70 uppercase tracking-[0.2em] mt-2">Saldo a Receber</p>
+                     <p className="text-2xl font-black text-white">R$ {breakdown.remainingBalance.toFixed(2)}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* RESUMO RÁPIDO */}
+              <div className="space-y-3">
+                  <div className="flex justify-between items-center text-xs font-bold text-gray-500">
+                      <span>Subtotal Itens:</span>
+                      <span>R$ {breakdown.basePieceValue.toFixed(2)}</span>
+                  </div>
+                  {breakdown.totalDiscount > 0 && (
+                      <div className="flex justify-between items-center text-xs font-bold text-red-500">
+                          <span>Total Desconto:</span>
+                          <span>- R$ {breakdown.totalDiscount.toFixed(2)}</span>
+                      </div>
+                  )}
+                  {breakdown.downPayment > 0 && (
+                      <div className="flex justify-between items-center text-xs font-black text-blue-600 bg-blue-50 p-2 rounded-lg">
+                          <span>Falta Receber:</span>
+                          <span>R$ {breakdown.remainingBalance.toFixed(2)}</span>
+                      </div>
+                  )}
+              </div>
+
+              <div className="space-y-3 pt-4">
+                <button onClick={handleSaveProject} className="w-full py-5 bg-pink-600 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 hover:bg-pink-700"><Save size={20} /> Salvar Orçamento</button>
+                <button onClick={() => handleGeneratePDF()} disabled={isGeneratingPdf} className="w-full py-5 bg-blue-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50 hover:bg-blue-600">
+                  {isGeneratingPdf ? <RefreshCcw className="animate-spin" /> : <File size={20} />} Gerar PDF
+                </button>
+                <button onClick={handleWhatsAppShare} className="w-full py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 hover:bg-green-600"><MessageCircle size={20} /> Enviar Zap</button>
+              </div>
             </div>
           </div>
         </div>

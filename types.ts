@@ -1,3 +1,4 @@
+
 export interface Material {
   id: string;
   name: string;
@@ -63,6 +64,7 @@ export interface Project {
   name: string;
   customerId: string;
   description: string;
+  observations?: string; // Alterado de detailedComposition para observations
   notes: string;
   items: ProjectItemEntry[];
   platformId: string;
@@ -85,6 +87,7 @@ export interface Project {
   isCakeTopper?: boolean;
   cakeShape?: 'round' | 'square';
   cakeSize?: string;
+  cakeFloors?: string; 
   
   // Campos legados mantidos por compatibilidade
   hoursToMake: number;
