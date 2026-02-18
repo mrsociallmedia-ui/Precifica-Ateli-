@@ -487,82 +487,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
   return (
     <div className="space-y-12 pb-24">
-      <div className="space-y-8 animate-fadeIn">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-          <div className="flex flex-col gap-1">
-             <h2 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-2">
-               <Tag size={28} className="text-pink-500" /> Histórico de Orçamentos
-             </h2>
-             <p className="text-sm text-gray-400 font-medium">Gerencie seus orçamentos salvos e pedidos ativos.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex bg-white p-1 rounded-2xl border border-gray-100 shadow-sm">
-               <button onClick={() => setStatusFilter('ongoing')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'ongoing' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Ativos</button>
-               <button onClick={() => setStatusFilter('completed')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'completed' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Finalizados</button>
-               <button onClick={() => setStatusFilter('all')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'all' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Todos</button>
-            </div>
-            <div className="relative w-full md:w-64">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-              <input type="text" placeholder="Buscar orçamento..." className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 focus:ring-pink-400" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredHistory.map(proj => {
-            const histBreakdown = calculateProjectBreakdown(proj, materials, platforms, companyData);
-            return (
-              <div key={proj.id} className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group flex flex-col relative overflow-hidden">
-                <div className="flex justify-between items-start mb-6">
-                   <div className="flex-1 overflow-hidden">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase border ${statusColors[proj.status] || 'bg-gray-50'}`}>
-                           {statusLabels[proj.status] || proj.status}
-                        </span>
-                        {proj.quoteNumber && (
-                           <span className="bg-pink-50 text-pink-500 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase">
-                              #{proj.quoteNumber}
-                           </span>
-                        )}
-                      </div>
-                      <h3 className="font-black text-gray-800 text-lg group-hover:text-pink-600 transition-colors truncate">{proj.theme}</h3>
-                   </div>
-                   <div className="flex items-center gap-1">
-                     <button onClick={() => handleGeneratePDF(proj)} className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"><FileDown size={20} /></button>
-                     <button onClick={() => setProjects(prev => prev.filter(p => p.id !== proj.id))} className="p-2.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
-                   </div>
-                </div>
-                
-                {/* DETALHES FINANCEIROS NO HISTÓRICO */}
-                <div className="grid grid-cols-2 gap-3 mb-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                   <div className="flex flex-col">
-                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Truck size={8} /> Frete</span>
-                      <span className="text-xs font-black text-gray-700">R$ {histBreakdown.shipping.toFixed(2)}</span>
-                   </div>
-                   <div className="flex flex-col">
-                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Wallet2 size={8} /> Entrada</span>
-                      <span className="text-xs font-black text-blue-600">R$ {histBreakdown.downPayment.toFixed(2)}</span>
-                   </div>
-                   <div className="flex flex-col col-span-2 pt-2 border-t border-gray-200">
-                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Falta Pagar (Restante)</span>
-                      <span className="text-sm font-black text-pink-600">R$ {histBreakdown.remainingBalance.toFixed(2)}</span>
-                   </div>
-                </div>
-
-                <div className="mt-auto flex items-center justify-between pt-6 border-t border-gray-50">
-                   <div>
-                      <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Valor Total</p>
-                      <p className="text-xl font-black text-gray-800">R$ {histBreakdown.finalPrice.toFixed(2)}</p>
-                   </div>
-                   <button onClick={() => { setCurrentProject({...proj}); document.getElementById('calc-form')?.scrollIntoView({ behavior: 'smooth' }); }} className="p-3 bg-pink-50 text-pink-500 rounded-2xl hover:bg-pink-600 hover:text-white transition-all shadow-sm"><Edit3 size={18} /></button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div id="calc-form" className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start border-t border-gray-100 pt-12">
+      {/* SEÇÃO NOVO ORÇAMENTO (FORMULÁRIO) - AGORA NO TOPO */}
+      <div id="calc-form" className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start pt-4">
         <div className="xl:col-span-8 space-y-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -774,7 +700,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 ></textarea>
             </div>
 
-            {/* TABELA DE COMPOSIÇÃO FINANCEIRA DETALHADA - MOVIDA ABAIXO DE OBSERVAÇÕES */}
+            {/* TABELA DE COMPOSIÇÃO FINANCEIRA DETALHADA */}
             <div className="mt-8 pt-8 border-t border-gray-100 space-y-6">
                 <div className="flex items-center justify-between">
                     <h3 className="text-xs font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
@@ -957,6 +883,82 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* HISTÓRICO DE ORÇAMENTOS - MOVIDO PARA BAIXO DO FORMULÁRIO */}
+      <div className="space-y-8 animate-fadeIn border-t border-gray-100 pt-16">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+          <div className="flex flex-col gap-1">
+             <h2 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-2">
+               <Tag size={28} className="text-pink-500" /> Histórico de Orçamentos
+             </h2>
+             <p className="text-sm text-gray-400 font-medium">Gerencie seus orçamentos salvos e pedidos ativos.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex bg-white p-1 rounded-2xl border border-gray-100 shadow-sm">
+               <button onClick={() => setStatusFilter('ongoing')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'ongoing' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Ativos</button>
+               <button onClick={() => setStatusFilter('completed')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'completed' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Finalizados</button>
+               <button onClick={() => setStatusFilter('all')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'all' ? 'bg-pink-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Todos</button>
+            </div>
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+              <input type="text" placeholder="Buscar orçamento..." className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 focus:ring-pink-400" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {filteredHistory.map(proj => {
+            const histBreakdown = calculateProjectBreakdown(proj, materials, platforms, companyData);
+            return (
+              <div key={proj.id} className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group flex flex-col relative overflow-hidden">
+                <div className="flex justify-between items-start mb-6">
+                   <div className="flex-1 overflow-hidden">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase border ${statusColors[proj.status] || 'bg-gray-50'}`}>
+                           {statusLabels[proj.status] || proj.status}
+                        </span>
+                        {proj.quoteNumber && (
+                           <span className="bg-pink-50 text-pink-500 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase">
+                              #{proj.quoteNumber}
+                           </span>
+                        )}
+                      </div>
+                      <h3 className="font-black text-gray-800 text-lg group-hover:text-pink-600 transition-colors truncate">{proj.theme}</h3>
+                   </div>
+                   <div className="flex items-center gap-1">
+                     <button onClick={() => handleGeneratePDF(proj)} className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"><FileDown size={20} /></button>
+                     <button onClick={() => setProjects(prev => prev.filter(p => p.id !== proj.id))} className="p-2.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
+                   </div>
+                </div>
+                
+                {/* DETALHES FINANCEIROS NO HISTÓRICO */}
+                <div className="grid grid-cols-2 gap-3 mb-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                   <div className="flex flex-col">
+                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Truck size={8} /> Frete</span>
+                      <span className="text-xs font-black text-gray-700">R$ {histBreakdown.shipping.toFixed(2)}</span>
+                   </div>
+                   <div className="flex flex-col">
+                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Wallet2 size={8} /> Entrada</span>
+                      <span className="text-xs font-black text-blue-600">R$ {histBreakdown.downPayment.toFixed(2)}</span>
+                   </div>
+                   <div className="flex flex-col col-span-2 pt-2 border-t border-gray-200">
+                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Falta Pagar (Restante)</span>
+                      <span className="text-sm font-black text-pink-600">R$ {histBreakdown.remainingBalance.toFixed(2)}</span>
+                   </div>
+                </div>
+
+                <div className="mt-auto flex items-center justify-between pt-6 border-t border-gray-50">
+                   <div>
+                      <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Valor Total</p>
+                      <p className="text-xl font-black text-gray-800">R$ {histBreakdown.finalPrice.toFixed(2)}</p>
+                   </div>
+                   <button onClick={() => { setCurrentProject({...proj}); document.getElementById('calc-form')?.scrollIntoView({ behavior: 'smooth' }); }} className="p-3 bg-pink-50 text-pink-500 rounded-2xl hover:bg-pink-600 hover:text-white transition-all shadow-sm"><Edit3 size={18} /></button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
