@@ -69,7 +69,7 @@ export interface Project {
   items: ProjectItemEntry[];
   platformId: string;
   excedente: number;
-  status: 'pending' | 'approved' | 'delayed' | 'in_progress' | 'completed';
+  status: 'pending' | 'approved' | 'delayed' | 'in_progress' | 'pending_payment' | 'completed';
   createdAt: string;
   dueDate: string;
   orderDate: string;

@@ -49,6 +49,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
     approved: 'Aprovado',
     delayed: 'Atrasado',
     in_progress: 'Produzindo',
+    pending_payment: 'Pag. Pendente',
     completed: 'Finalizado',
   };
 
@@ -57,6 +58,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
     approved: 'border-blue-200 bg-blue-50 text-blue-700',
     delayed: 'border-red-200 bg-red-50 text-red-700',
     in_progress: 'border-purple-200 bg-purple-50 text-purple-700',
+    pending_payment: 'border-orange-200 bg-orange-50 text-orange-700',
     completed: 'border-green-200 bg-green-50 text-green-700',
   };
 
@@ -110,8 +112,8 @@ export const Schedule: React.FC<ScheduleProps> = ({
       </div>
 
       {/* Kanban Board */}
-      <div className="flex gap-6 overflow-x-auto pb-6 -mx-4 px-4 xl:grid xl:grid-cols-5 xl:overflow-visible">
-        {(['pending', 'approved', 'delayed', 'in_progress', 'completed'] as const).map(status => (
+      <div className="flex gap-6 overflow-x-auto pb-6 -mx-4 px-4 xl:grid xl:grid-cols-6 xl:overflow-visible">
+        {(['pending', 'approved', 'delayed', 'in_progress', 'pending_payment', 'completed'] as const).map(status => (
           <div key={status} className="flex flex-col gap-6 min-w-[280px] flex-shrink-0 xl:min-w-0">
             <div className={`flex items-center justify-between px-6 py-4 rounded-3xl border ${statusColors[status]} shadow-sm`}>
               <h3 className="font-black uppercase text-[10px] tracking-[0.15em]">{statusLabels[status]}</h3>
@@ -157,7 +159,8 @@ export const Schedule: React.FC<ScheduleProps> = ({
                               pending: 'approved',
                               approved: 'in_progress',
                               delayed: 'in_progress',
-                              in_progress: 'completed'
+                              in_progress: 'pending_payment',
+                              pending_payment: 'completed'
                             };
                             updateStatus(project.id, next[status]);
                           }}

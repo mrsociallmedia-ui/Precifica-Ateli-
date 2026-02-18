@@ -492,6 +492,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     approved: 'Aprovado',
     delayed: 'Atrasado',
     in_progress: 'Produzindo',
+    pending_payment: 'Pag. Pendente',
     completed: 'Finalizado'
   };
 
@@ -500,6 +501,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     approved: 'bg-pink-50 text-pink-700 border-pink-100',
     delayed: 'bg-red-50 text-red-700 border-red-100',
     in_progress: 'bg-purple-50 text-purple-700 border-purple-100',
+    pending_payment: 'bg-orange-50 text-orange-700 border-orange-100',
     completed: 'bg-green-50 text-green-700 border-green-100'
   };
 
