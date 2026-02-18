@@ -347,7 +347,7 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 lg:p-10 pb-24 lg:pb-10">
           <div className="max-w-[1600px] mx-auto">
              {(() => {
-                const props = { projects, customers, materials, companyData, platforms, transactions };
+                const props = { projects, customers, materials, companyData, platforms, transactions, products };
                 switch (activeTab) {
                   case 'dashboard': return <Dashboard {...props} />;
                   case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} />;

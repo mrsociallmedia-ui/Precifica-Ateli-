@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit3, Search, Truck, Package, X } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Truck, Package, X, Ruler, Layers, LayoutGrid, Info, Zap } from 'lucide-react';
 import { Material } from '../types';
 
 interface InventoryProps {
@@ -14,12 +14,12 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
   const [searchTerm, setSearchTerm] = useState('');
   
   const [newMaterial, setNewMaterial] = useState<Partial<Material>>({
-    name: '', unit: 'unidade', price: 0, quantity: 1, supplier: ''
+    name: '', unit: 'unidade', price: 0, quantity: 1, supplier: '', defaultPiecesPerUnit: 1
   });
 
   const handleOpenAdd = () => {
     setEditingMaterialId(null);
-    setNewMaterial({ name: '', unit: 'unidade', price: 0, quantity: 1, supplier: '' });
+    setNewMaterial({ name: '', unit: 'unidade', price: 0, quantity: 1, supplier: '', defaultPiecesPerUnit: 1 });
     setShowForm(true);
   };
 
@@ -46,13 +46,12 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
         unit: newMaterial.unit!,
         price: Number(newMaterial.price),
         quantity: Number(newMaterial.quantity),
-        supplier: newMaterial.supplier || ''
+        supplier: newMaterial.supplier || '',
+        defaultPiecesPerUnit: Number(newMaterial.defaultPiecesPerUnit) || 1
       };
       setMaterials(prev => [...prev, material]);
     }
 
-    setNewMaterial({ name: '', unit: 'unidade', price: 0, quantity: 1, supplier: '' });
-    setEditingMaterialId(null);
     setShowForm(false);
   };
 
@@ -67,17 +66,19 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
     m.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const lengthUnits = ['metro', 'cm'];
+
   return (
     <div className="space-y-6 animate-fadeIn pb-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-gray-800 tracking-tight">Estoque de <span className="text-yellow-500">Materiais</span></h2>
-          <p className="text-gray-400 font-medium">Controle seus insumos e fornecedores.</p>
+          <p className="text-gray-400 font-medium">Controle seus insumos e rendimentos.</p>
         </div>
         
         <button 
           onClick={handleOpenAdd}
-          className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg shadow-yellow-100 active:scale-95"
+          className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg active:scale-95"
         >
           <Plus size={20} />
           Novo Material
@@ -100,68 +101,63 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-yellow-50 text-yellow-700 uppercase text-[10px] font-black tracking-[0.15em]">
-                <th className="px-8 py-5">Material / Fornecedor</th>
+                <th className="px-8 py-5">Material</th>
                 <th className="px-8 py-5">Unidade</th>
                 <th className="px-8 py-5">Preço Pago</th>
-                <th className="px-8 py-5 text-center">Qtd. Total</th>
-                <th className="px-8 py-5 text-center">Preço Unit.</th>
+                <th className="px-8 py-5 text-center">Rendimento</th>
+                <th className="px-8 py-5 text-center">Custo Unit.</th>
                 <th className="px-8 py-5 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-yellow-50">
               {filteredMaterials.map(m => {
+                const isLength = lengthUnits.includes(m.unit.toLowerCase());
                 const unitPrice = m.quantity > 0 ? m.price / m.quantity : 0;
+                const costPerPiece = m.defaultPiecesPerUnit && m.defaultPiecesPerUnit > 0 
+                  ? unitPrice / m.defaultPiecesPerUnit 
+                  : unitPrice;
+
                 return (
                   <tr key={m.id} className="hover:bg-yellow-50/20 transition-colors group">
                     <td className="px-8 py-5">
                       <div className="flex flex-col">
                         <span className="font-black text-gray-700 text-base">{m.name}</span>
-                        {m.supplier && (
-                          <span className="text-[10px] text-gray-400 font-bold uppercase flex items-center gap-1 mt-0.5">
-                            <Truck size={10} className="text-yellow-500" /> {m.supplier}
-                          </span>
-                        )}
+                        {m.supplier && <span className="text-[10px] text-gray-400 font-bold uppercase">{m.supplier}</span>}
                       </div>
                     </td>
                     <td className="px-8 py-5">
-                      <span className="px-3 py-1 bg-blue-50 text-blue-500 rounded-lg text-xs font-black uppercase tracking-widest">{m.unit}</span>
+                      <span className={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-widest flex items-center gap-2 w-fit ${isLength ? 'bg-orange-50 text-orange-500' : 'bg-blue-50 text-blue-500'}`}>
+                        {isLength ? <Ruler size={12} /> : <Layers size={12} />}
+                        {m.unit}
+                      </span>
                     </td>
                     <td className="px-8 py-5 font-black text-gray-800">R$ {m.price.toFixed(2)}</td>
-                    <td className="px-8 py-5 text-center text-gray-600 font-bold">{m.quantity}</td>
                     <td className="px-8 py-5 text-center">
-                      <span className="font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full text-xs">
-                        R$ {unitPrice.toFixed(2)}
-                      </span>
+                       {m.defaultPiecesPerUnit && m.defaultPiecesPerUnit > 1 ? (
+                         <div className="flex flex-col items-center">
+                            <span className="text-xs font-black text-pink-500 flex items-center gap-1">
+                               <LayoutGrid size={12} /> {m.defaultPiecesPerUnit} pçs/{m.unit}
+                            </span>
+                         </div>
+                       ) : (
+                         <span className="text-[10px] font-black text-gray-300 uppercase italic">Integral</span>
+                       )}
+                    </td>
+                    <td className="px-8 py-5 text-center">
+                       <div className="flex flex-col items-center">
+                          <span className="font-black text-blue-600 text-xs">R$ {costPerPiece.toFixed(3)}</span>
+                          <span className="text-[8px] text-gray-400 font-bold uppercase tracking-widest">por peça</span>
+                       </div>
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => handleOpenEdit(m)}
-                          className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"
-                        >
-                          <Edit3 size={18} />
-                        </button>
-                        <button 
-                          onClick={() => deleteMaterial(m.id)}
-                          className="p-2.5 text-gray-300 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        <button onClick={() => handleOpenEdit(m)} className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"><Edit3 size={18} /></button>
+                        <button onClick={() => deleteMaterial(m.id)} className="p-2.5 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                       </div>
                     </td>
                   </tr>
                 );
               })}
-              {filteredMaterials.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-8 py-20 text-center">
-                    <div className="flex flex-col items-center gap-3 text-gray-300">
-                      <Package size={48} className="opacity-10" />
-                      <p className="font-black text-xs uppercase tracking-widest">Nenhum material cadastrado.</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -171,12 +167,7 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-xl rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
             <div className={`absolute top-0 left-0 w-full h-2 ${editingMaterialId ? 'bg-blue-400' : 'bg-yellow-400'}`}></div>
-            <button 
-              onClick={() => setShowForm(false)}
-              className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors"
-            >
-              <X size={24} />
-            </button>
+            <button onClick={() => setShowForm(false)} className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors"><X size={24} /></button>
             <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
                <div className={`p-3 rounded-2xl ${editingMaterialId ? 'bg-blue-50 text-blue-500' : 'bg-yellow-100 text-yellow-600'}`}>
                  {editingMaterialId ? <Edit3 size={24} /> : <Plus size={24} />}
@@ -188,25 +179,11 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Nome do Material</label>
-                  <input 
-                    type="text" required
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 outline-none font-bold"
-                    value={newMaterial.name}
-                    onChange={e => setNewMaterial({...newMaterial, name: e.target.value})}
-                    placeholder="Ex: Papel Lamicote Gold"
-                  />
+                  <input type="text" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold" value={newMaterial.name} onChange={e => setNewMaterial({...newMaterial, name: e.target.value})} placeholder="Ex: Fita de Cetim ou Polasseal" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                    <Truck size={12} className="text-yellow-500" /> Fornecedor
-                  </label>
-                  <input 
-                    type="text"
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 outline-none font-bold"
-                    value={newMaterial.supplier}
-                    onChange={e => setNewMaterial({...newMaterial, supplier: e.target.value})}
-                    placeholder="Ex: Papelaria Criativa"
-                  />
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Fornecedor</label>
+                  <input type="text" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold" value={newMaterial.supplier} onChange={e => setNewMaterial({...newMaterial, supplier: e.target.value})} />
                 </div>
               </div>
 
@@ -214,61 +191,67 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Unidade</label>
                   <select 
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 outline-none font-bold text-gray-700"
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700"
                     value={newMaterial.unit}
                     onChange={e => setNewMaterial({...newMaterial, unit: e.target.value})}
                   >
-                    <option value="unidade">Unidade</option>
-                    <option value="pacote">Pacote</option>
+                    <option value="unidade">Unidade (un)</option>
+                    <option value="metro">Metro (m)</option>
+                    <option value="cm">Centímetro (cm)</option>
                     <option value="folha">Folha</option>
-                    <option value="embalagem">Embalagem</option>
-                    <option value="metro">Metro</option>
-                    <option value="cm">Centímetro</option>
-                    <option value="gramas">Gramas</option>
-                    <option value="litro">Litro</option>
+                    <option value="polasseal">Polasseal</option>
+                    <option value="adesivo">Papel Adesivo</option>
+                    <option value="rolo">Rolo / Carretel</option>
+                    <option value="pacote">Pacote</option>
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Qtd Total</label>
-                  <input 
-                    type="number" step="0.01" required
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 outline-none font-bold"
-                    value={newMaterial.quantity}
-                    onChange={e => setNewMaterial({...newMaterial, quantity: Number(e.target.value)})}
-                  />
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Qtd Comprada</label>
+                  <input type="number" step="0.01" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold" value={newMaterial.quantity} onChange={e => setNewMaterial({...newMaterial, quantity: Number(e.target.value)})} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Preço Total Pago</label>
-                  <input 
-                    type="number" step="0.01" required
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 outline-none font-black text-blue-600"
-                    value={newMaterial.price}
-                    onChange={e => setNewMaterial({...newMaterial, price: Number(e.target.value)})}
-                  />
+                  <input type="number" step="0.01" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-blue-600" value={newMaterial.price} onChange={e => setNewMaterial({...newMaterial, price: Number(e.target.value)})} />
                 </div>
               </div>
 
-              <div className="bg-blue-50 p-4 rounded-2xl flex items-center justify-between">
-                <span className="text-xs font-black text-blue-400 uppercase tracking-widest">Custo por Unidade</span>
-                <span className="text-xl font-black text-blue-600">
-                  R$ {((newMaterial.price || 0) / (newMaterial.quantity || 1)).toFixed(2)}
-                </span>
+              {/* Seção de Aproveitamento / Rendimento */}
+              <div className="bg-pink-50 p-6 rounded-[2.5rem] border border-pink-100 animate-fadeIn space-y-4">
+                 <div className="flex items-center gap-2">
+                    <div className="p-2 bg-pink-500 text-white rounded-xl shadow-sm"><Zap size={16} /></div>
+                    <h4 className="text-[10px] font-black text-pink-600 uppercase tracking-widest">Inteligência de Aproveitamento</h4>
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-pink-400 uppercase tracking-widest ml-1">Quantas peças cabem em 1 {newMaterial.unit}?</label>
+                    <div className="relative">
+                       <LayoutGrid size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-pink-400" />
+                       <input 
+                         type="number" 
+                         className="w-full pl-12 pr-4 py-4 bg-white border border-pink-100 rounded-2xl outline-none font-black text-pink-600 focus:ring-4 focus:ring-pink-100 transition-all"
+                         placeholder="Ex: Se render 4 peças, digite 4"
+                         value={newMaterial.defaultPiecesPerUnit}
+                         onChange={e => setNewMaterial({...newMaterial, defaultPiecesPerUnit: parseInt(e.target.value) || 1})}
+                       />
+                    </div>
+                 </div>
+                 <div className="flex items-center gap-2 px-1">
+                    <Info size={12} className="text-pink-300" />
+                    <p className="text-[9px] text-pink-400 font-bold italic">
+                       Isso criará uma sugestão automática de custo por peça na sua precificação.
+                    </p>
+                 </div>
+              </div>
+
+              <div className="bg-blue-50 p-6 rounded-[2rem] flex items-center justify-between">
+                <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-none mb-1">Custo por Peça (Baseado no Rendimento)</span>
+                    <span className="text-2xl font-black text-blue-600">R$ {((newMaterial.price || 0) / (newMaterial.quantity || 1) / (newMaterial.defaultPiecesPerUnit || 1)).toFixed(3)}</span>
+                </div>
               </div>
 
               <div className="flex gap-4 pt-4">
-                <button 
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="flex-1 px-6 py-4 border-2 border-gray-50 text-gray-400 rounded-2xl font-black uppercase tracking-widest hover:bg-gray-50 transition-all"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  className={`flex-1 px-6 py-4 text-white font-black rounded-2xl transition-all shadow-lg ${editingMaterialId ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-100' : 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 shadow-yellow-100'}`}
-                >
-                  {editingMaterialId ? 'Salvar Alterações' : 'Salvar Material'}
-                </button>
+                <button type="button" onClick={() => setShowForm(false)} className="flex-1 px-6 py-4 border-2 border-gray-50 text-gray-400 rounded-2xl font-black uppercase tracking-widest hover:bg-gray-50 transition-all">Cancelar</button>
+                <button type="submit" className={`flex-1 px-6 py-4 text-white font-black rounded-2xl shadow-lg ${editingMaterialId ? 'bg-blue-500 hover:bg-blue-600' : 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500'}`}>Salvar Material</button>
               </div>
             </form>
           </div>

@@ -6,6 +6,7 @@ export interface Material {
   price: number;
   quantity: number;
   supplier?: string;
+  defaultPiecesPerUnit?: number; // Novo: Quantas peças cabem em uma unidade (ex: 4 tags por folha)
 }
 
 export interface Customer {
