@@ -22,17 +22,17 @@ export const Schedule: React.FC<ScheduleProps> = ({
   const updateStatus = (id: string, newStatus: Project['status']) => {
     const projectToUpdate = projects.find(p => p.id === id);
     
-    // Se o status mudar para 'completed', gera automaticamente a transação
+    // Se o status mudar para 'completed', gera automaticamente a transação do SALDO RESTANTE
     if (projectToUpdate && newStatus === 'completed' && projectToUpdate.status !== 'completed') {
       const breakdown = calculateProjectBreakdown(projectToUpdate, materials, platforms, companyData);
       
       const newTransaction: Transaction = {
-        id: `auto_${Date.now()}_${id}`,
-        description: `Venda: ${projectToUpdate.theme}${projectToUpdate.quoteNumber ? ` (Nº ${projectToUpdate.quoteNumber})` : ''}`,
-        amount: breakdown.finalPrice,
+        id: `auto_final_${Date.now()}_${id}`,
+        description: `Saldo Final: ${projectToUpdate.theme}${projectToUpdate.quoteNumber ? ` (#${projectToUpdate.quoteNumber})` : ''}`,
+        amount: breakdown.remainingBalance, // Agora lança apenas o que falta (venda - sinal)
         type: 'income',
         category: 'Venda',
-        paymentMethod: 'Pix', // Padrão Pix, pode ser alterado no financeiro
+        paymentMethod: 'Pix',
         date: new Date().toISOString().split('T')[0]
       };
 

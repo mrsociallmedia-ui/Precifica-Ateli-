@@ -264,18 +264,36 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       quantity: currentProject.items!.reduce((acc, i) => acc + i.quantity, 0)
     };
 
-    if (newProj.status === 'completed' && (!oldProject || oldProject.status !== 'completed')) {
-      const projBreakdown = calculateProjectBreakdown(newProj, materials, platforms, companyData);
-      const newTransaction: Transaction = {
-        id: `auto_calc_${Date.now()}_${newProj.id}`,
-        description: `Venda: ${newProj.theme}${newProj.quoteNumber ? ` (Nº ${newProj.quoteNumber})` : ''}`,
-        amount: projBreakdown.finalPrice,
+    const projBreakdown = calculateProjectBreakdown(newProj, materials, platforms, companyData);
+    const previousDownPayment = oldProject?.downPayment || 0;
+    const downPaymentIncrease = newProj.downPayment! - previousDownPayment;
+
+    // 1. LANÇAMENTO DE SINAL (Se houver valor novo de entrada)
+    if (downPaymentIncrease > 0) {
+      const signalTransaction: Transaction = {
+        id: `signal_${Date.now()}_${newProj.id}`,
+        description: `Sinal: ${newProj.theme}${newProj.quoteNumber ? ` (#${newProj.quoteNumber})` : ''}`,
+        amount: downPaymentIncrease,
         type: 'income',
         category: 'Venda',
         paymentMethod: 'Pix',
         date: new Date().toISOString().split('T')[0]
       };
-      setTransactions(prev => [newTransaction, ...prev]);
+      setTransactions(prev => [signalTransaction, ...prev]);
+    }
+
+    // 2. LANÇAMENTO DE SALDO FINAL (Ao completar o pedido)
+    if (newProj.status === 'completed' && (!oldProject || oldProject.status !== 'completed')) {
+      const finalTransaction: Transaction = {
+        id: `final_bal_${Date.now()}_${newProj.id}`,
+        description: `Saldo Final: ${newProj.theme}${newProj.quoteNumber ? ` (#${newProj.quoteNumber})` : ''}`,
+        amount: projBreakdown.remainingBalance, // Apenas o que falta pagar
+        type: 'income',
+        category: 'Venda',
+        paymentMethod: 'Pix',
+        date: new Date().toISOString().split('T')[0]
+      };
+      setTransactions(prev => [finalTransaction, ...prev]);
     }
     
     if (isEdit) {
