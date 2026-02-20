@@ -50,6 +50,7 @@ export interface ProjectItemEntry {
   materials: ProjectItem[];
   profitMargin: number;
   unitPrice?: number; // Preço de venda fixado pelo artesão
+  manualBaseCost?: number;
 }
 
 export interface ProjectItem {
@@ -106,6 +107,7 @@ export interface Product {
   materials: ProjectItem[];
   profitMargin: number;
   marketPrice: number;
+  manualBaseCost?: number;
 }
 
 export interface Transaction {

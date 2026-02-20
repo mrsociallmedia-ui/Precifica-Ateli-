@@ -172,13 +172,14 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           quantity: 1,
           hoursToMake: (product.minutesToMake || 0) / 60,
           materials: product.materials,
-          profitMargin: product.profitMargin || companyData.defaultProfitMargin
+          profitMargin: product.profitMargin || companyData.defaultProfitMargin,
+          manualBaseCost: product.manualBaseCost
         }],
         platformId: currentProject.platformId || platforms[0]?.id || '',
         excedente: companyData.defaultExcedente
       };
       const breakdownResult = calculateProjectBreakdown(mockProj as any, materials, platforms, companyData);
-      priceToUse = breakdownResult.finalPrice;
+      priceToUse = breakdownResult.basePieceValue;
     }
 
     const newItem: ProjectItemEntry = {

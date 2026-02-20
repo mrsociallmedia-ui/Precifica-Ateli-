@@ -42,6 +42,7 @@ export const Products: React.FC<ProductsProps> = ({
 
   useEffect(() => {
     if (selectedMaterial) {
+      setPrintingCost(0); // Reset printing cost on new selection
       if (isSheetMaterial) {
         if (selectedMaterial.defaultPiecesPerUnit && selectedMaterial.defaultPiecesPerUnit > 1) {
           setUsageType('multiple_per_unit');
@@ -127,7 +128,15 @@ export const Products: React.FC<ProductsProps> = ({
   const currentPreview = useMemo(() => {
     if (!showForm) return null;
     const mockProject = {
-      items: [{ productId: 'preview', name: newProduct.name || 'Preview', quantity: 1, hoursToMake: (newProduct.minutesToMake || 0) / 60, materials: newProduct.materials || [], profitMargin: newProduct.profitMargin || 30 }],
+      items: [{ 
+        productId: 'preview', 
+        name: newProduct.name || 'Preview', 
+        quantity: 1, 
+        hoursToMake: (newProduct.minutesToMake || 0) / 60, 
+        materials: newProduct.materials || [], 
+        profitMargin: newProduct.profitMargin || 30,
+        manualBaseCost: newProduct.manualBaseCost
+      }],
       platformId: platforms[0]?.id || '',
       excedente: companyData.defaultExcedente
     };
@@ -169,7 +178,14 @@ export const Products: React.FC<ProductsProps> = ({
                  </div>
               </div>
               <div className="pt-6 border-t border-gray-50 flex items-center justify-between mt-auto">
-                 <div><p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Preço Sugerido</p><p className="text-2xl font-black text-gray-800">R$ {breakdown.finalPrice.toFixed(2)}</p></div>
+                 <div>
+                    <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">
+                       {p.marketPrice > 0 ? 'Preço Definido' : 'Preço Sugerido'}
+                    </p>
+                    <p className="text-2xl font-black text-gray-800">
+                       R$ {(p.marketPrice > 0 ? p.marketPrice : breakdown.finalPrice).toFixed(2)}
+                    </p>
+                 </div>
                  <div className="text-right"><p className="text-[9px] font-black text-green-500 uppercase tracking-widest mb-1">Lucro</p><p className="text-sm font-black text-gray-700">{p.profitMargin}%</p></div>
               </div>
             </div>
@@ -204,10 +220,21 @@ export const Products: React.FC<ProductsProps> = ({
                         </div>
                      </div>
                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Base Peça</label>
-                        <div className="w-full p-4 bg-gray-100 border border-gray-100 rounded-2xl font-black text-gray-500">
-                           R$ {((currentPreview?.laborCosts || 0) + (currentPreview?.variableCosts || 0)).toFixed(2)}
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Preço de Venda (Opcional)</label>
+                        <div className="relative">
+                           <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                           <input 
+                             type="number" 
+                             step="0.01" 
+                             className="w-full p-4 pl-12 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 focus:ring-2 focus:ring-pink-400 transition-all" 
+                             placeholder={`Sugerido: R$ ${currentPreview?.finalPrice.toFixed(2)}`}
+                             value={newProduct.marketPrice || ''} 
+                             onChange={e => setNewProduct({...newProduct, marketPrice: parseFloat(e.target.value) || 0})} 
+                           />
                         </div>
+                        <p className="text-[9px] text-gray-400 font-bold italic px-1">
+                           Se definido, este valor será usado como preço fixo no catálogo.
+                        </p>
                      </div>
                   </div>
 
@@ -241,9 +268,26 @@ export const Products: React.FC<ProductsProps> = ({
                                 </div>
                              </div>
                            )}
-                        </div>
+                            {isSheetMaterial && (
+                              <div className="space-y-1">
+                                 <label className="text-[9px] font-black text-yellow-600 uppercase tracking-widest ml-1 flex items-center gap-1">
+                                    <Printer size={10} /> Custo de Impressão (R$)
+                                 </label>
+                                 <div className="relative">
+                                    <input 
+                                      type="number" 
+                                      step="0.01" 
+                                      className="w-full p-4 bg-white border border-yellow-100 rounded-2xl outline-none font-black text-gray-700 text-sm" 
+                                      placeholder="0,00"
+                                      value={printingCost || ''} 
+                                      onChange={e => setPrintingCost(parseFloat(e.target.value) || 0)} 
+                                    />
+                                 </div>
+                              </div>
+                            )}
+                     </div>
 
-                        {/* Lógica Específica para Folhas / Polasseal / Adesivos */}
+                     {/* Lógica Específica para Folhas / Polasseal / Adesivos */}
                         {isSheetMaterial && (
                           <div className="space-y-4 animate-fadeIn">
                              <label className="text-[9px] font-black text-yellow-600 uppercase tracking-widest ml-1">Como você usa este material?</label>
@@ -316,6 +360,7 @@ export const Products: React.FC<ProductsProps> = ({
                                        {mat.usageType === 'multiple_per_unit' ? `Rendimento: 1/${mat.usageValue} ${mInfo?.unit}` : 
                                         mat.usageType === 'multiple_units' ? `Consumo: ${mat.usageValue} ${mInfo?.unit}s` : 
                                         `${mat.quantity} ${mInfo?.unit}`}
+                                       {mat.printingCost && mat.printingCost > 0 ? ` • Impressão: R$ ${mat.printingCost.toFixed(2)}` : ''}
                                      </p>
                                   </div>
                                </div>
@@ -330,8 +375,13 @@ export const Products: React.FC<ProductsProps> = ({
                <div className="lg:col-span-5">
                   <div className="bg-gray-900 rounded-[3rem] p-10 text-white shadow-2xl text-center space-y-6">
                      <div>
-                        <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] mb-4">Valor Sugerido de Venda</p>
-                        <h2 className="text-6xl font-black mb-2">R$ {currentPreview?.finalPrice.toFixed(2)}</h2>
+                        <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] mb-4">Valor de Venda</p>
+                        <h2 className="text-6xl font-black mb-2">R$ {(newProduct.marketPrice || currentPreview?.finalPrice || 0).toFixed(2)}</h2>
+                        {newProduct.marketPrice ? (
+                           <p className="text-[10px] font-black text-pink-400 uppercase tracking-widest">Preço Fixo Definido</p>
+                        ) : (
+                           <p className="text-[10px] font-black text-green-400 uppercase tracking-widest">Cálculo Sugerido</p>
+                        )}
                      </div>
                      <div className="bg-white/10 p-6 rounded-[2rem] border border-white/5 space-y-3">
                         <div className="flex justify-between items-center text-[10px] font-black uppercase opacity-60">
@@ -341,10 +391,6 @@ export const Products: React.FC<ProductsProps> = ({
                         <div className="flex justify-between items-center text-[10px] font-black uppercase opacity-60">
                            <span>Materiais</span>
                            <span className="text-white">R$ {currentPreview?.variableCosts.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px] font-black uppercase text-yellow-400">
-                           <span>Total Base Peça</span>
-                           <span>R$ {((currentPreview?.laborCosts || 0) + (currentPreview?.variableCosts || 0)).toFixed(2)}</span>
                         </div>
                         <div className="pt-3 border-t border-white/5 flex justify-between items-center text-xs font-black">
                            <span className="text-green-400">Lucro Líquido</span>
