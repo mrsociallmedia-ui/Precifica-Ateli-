@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit3, Search, Truck, Package, X, Ruler, Layers, LayoutGrid, Info, Zap } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Truck, Package, X, Ruler, Layers, LayoutGrid } from 'lucide-react';
 import { Material } from '../types';
 
 interface InventoryProps {
@@ -212,40 +212,6 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Preço Total Pago</label>
                   <input type="number" step="0.01" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-blue-600" value={newMaterial.price} onChange={e => setNewMaterial({...newMaterial, price: Number(e.target.value)})} />
-                </div>
-              </div>
-
-              {/* Seção de Aproveitamento / Rendimento */}
-              <div className="bg-pink-50 p-6 rounded-[2.5rem] border border-pink-100 animate-fadeIn space-y-4">
-                 <div className="flex items-center gap-2">
-                    <div className="p-2 bg-pink-500 text-white rounded-xl shadow-sm"><Zap size={16} /></div>
-                    <h4 className="text-[10px] font-black text-pink-600 uppercase tracking-widest">Inteligência de Aproveitamento</h4>
-                 </div>
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black text-pink-400 uppercase tracking-widest ml-1">Quantas peças cabem em 1 {newMaterial.unit}?</label>
-                    <div className="relative">
-                       <LayoutGrid size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-pink-400" />
-                       <input 
-                         type="number" 
-                         className="w-full pl-12 pr-4 py-4 bg-white border border-pink-100 rounded-2xl outline-none font-black text-pink-600 focus:ring-4 focus:ring-pink-100 transition-all"
-                         placeholder="Ex: Se render 4 peças, digite 4"
-                         value={newMaterial.defaultPiecesPerUnit}
-                         onChange={e => setNewMaterial({...newMaterial, defaultPiecesPerUnit: parseInt(e.target.value) || 1})}
-                       />
-                    </div>
-                 </div>
-                 <div className="flex items-center gap-2 px-1">
-                    <Info size={12} className="text-pink-300" />
-                    <p className="text-[9px] text-pink-400 font-bold italic">
-                       Isso criará uma sugestão automática de custo por peça na sua precificação.
-                    </p>
-                 </div>
-              </div>
-
-              <div className="bg-blue-50 p-6 rounded-[2rem] flex items-center justify-between">
-                <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-none mb-1">Custo por Peça (Baseado no Rendimento)</span>
-                    <span className="text-2xl font-black text-blue-600">R$ {((newMaterial.price || 0) / (newMaterial.quantity || 1) / (newMaterial.defaultPiecesPerUnit || 1)).toFixed(3)}</span>
                 </div>
               </div>
 
