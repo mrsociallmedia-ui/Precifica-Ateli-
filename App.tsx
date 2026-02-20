@@ -30,7 +30,7 @@ import { SettingsView } from './views/SettingsView';
 import { Products } from './views/Products';
 import { FinancialControl } from './views/FinancialControl';
 import { LoginView } from './views/LoginView';
-import { CompanyData, Material, Customer, Platform, Project, Product, Transaction } from './types';
+import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 import { supabase } from './supabaseClient';
 
@@ -55,6 +55,7 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [closures, setClosures] = useState<CashClosure[]>([]);
   const [productCategories, setProductCategories] = useState<string[]>(['Festas', 'Papelaria', 'Presentes', 'Geral']);
   const [transactionCategories, setTransactionCategories] = useState<string[]>(['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Outros']);
   const [paymentMethods, setPaymentMethods] = useState<string[]>(['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']);
@@ -105,6 +106,7 @@ const App: React.FC = () => {
       craft_projects: setProjects,
       craft_products: setProducts,
       craft_transactions: setTransactions,
+      craft_closures: setClosures,
       craft_prod_categories: setProductCategories,
       craft_trans_categories: setTransactionCategories,
       craft_pay_methods: setPaymentMethods
@@ -129,6 +131,7 @@ const App: React.FC = () => {
       craft_projects: projects,
       craft_products: products,
       craft_transactions: transactions,
+      craft_closures: closures,
       craft_prod_categories: productCategories,
       craft_trans_categories: transactionCategories,
       craft_pay_methods: paymentMethods,
@@ -165,6 +168,7 @@ const App: React.FC = () => {
         if (s.craft_projects) setProjects(s.craft_projects);
         if (s.craft_products) setProducts(s.craft_products);
         if (s.craft_transactions) setTransactions(s.craft_transactions);
+        if (s.craft_closures) setClosures(s.craft_closures);
         if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
         if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
         if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
@@ -192,6 +196,7 @@ const App: React.FC = () => {
       craft_projects: projects,
       craft_products: products,
       craft_transactions: transactions,
+      craft_closures: closures,
       craft_prod_categories: productCategories,
       craft_trans_categories: transactionCategories,
       craft_pay_methods: paymentMethods,
@@ -355,7 +360,7 @@ const App: React.FC = () => {
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;
                   case 'pricing': return <PricingCalculator {...props} products={products} setProjects={setProjects} setTransactions={setTransactions} />;
                   case 'schedule': return <Schedule {...props} setProjects={setProjects} setTransactions={setTransactions} />;
-                  case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
+                  case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
                   default: return <Dashboard {...props} />;
                 }

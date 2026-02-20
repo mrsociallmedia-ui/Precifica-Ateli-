@@ -118,6 +118,22 @@ export interface Transaction {
   category: string;
   paymentMethod: string;
   date: string;
+  closed?: boolean;
+}
+
+export interface CashClosure {
+  id: string;
+  date: string;
+  type: 'daily' | 'monthly' | 'custom';
+  startDate: string;
+  endDate: string;
+  systemBalance: number;
+  realBalance: number;
+  difference: number;
+  laborAccumulated: number;
+  profitAccumulated: number;
+  notes: string;
+  closedAt: string;
 }
 
 export interface PricingBreakdown {

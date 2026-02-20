@@ -21,6 +21,7 @@ import {
   Download,
   CheckCircle2,
   Clock,
+  RefreshCw,
   Sparkles,
   Zap,
   ShoppingBag,
@@ -30,12 +31,14 @@ import {
   BarChart3,
   Scale
 } from 'lucide-react';
-import { Transaction, Project, Material, Platform, CompanyData } from '../types';
+import { Transaction, Project, Material, Platform, CompanyData, CashClosure } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
 interface FinancialControlProps {
   transactions: Transaction[];
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
+  closures: CashClosure[];
+  setClosures: React.Dispatch<React.SetStateAction<CashClosure[]>>;
   projects: Project[];
   materials: Material[];
   platforms: Platform[];
@@ -47,7 +50,7 @@ interface FinancialControlProps {
 }
 
 export const FinancialControl: React.FC<FinancialControlProps> = ({ 
-  transactions, setTransactions, projects, materials, platforms, companyData, categories, setCategories, paymentMethods, setPaymentMethods
+  transactions, setTransactions, closures, setClosures, projects, materials, platforms, companyData, categories, setCategories, paymentMethods, setPaymentMethods
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [showClosure, setShowClosure] = useState(false);
@@ -57,6 +60,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
   const [closureStartDate, setClosureStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [closureEndDate, setClosureEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [closureNotes, setClosureNotes] = useState('');
+  const [realBalance, setRealBalance] = useState<number | ''>('');
   
   const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
     description: '',
@@ -68,8 +72,9 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
   });
 
   const totals = useMemo(() => {
-    const income = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const expense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    const openTransactions = transactions.filter(t => !t.closed);
+    const income = openTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    const expense = openTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
     return { income, expense, balance: income - expense };
   }, [transactions]);
 
@@ -172,6 +177,194 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     });
   };
 
+  const handlePrintClosure = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const periodText = closureType === 'daily' 
+      ? `Dia: ${new Date(closureDate + 'T00:00:00').toLocaleDateString('pt-BR')}` 
+      : closureType === 'monthly' 
+        ? `Mês: ${closureDate.substring(0, 7)}` 
+        : `Período: ${new Date(closureStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} até ${new Date(closureEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}`;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Fechamento de Caixa - ${companyData.name}</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #333; }
+            .header { border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 30px; }
+            .title { font-size: 24px; font-weight: bold; margin: 0; }
+            .subtitle { color: #666; font-size: 14px; margin-top: 5px; }
+            .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
+            .stat-card { padding: 20px; border: 1px solid #eee; border-radius: 10px; }
+            .stat-label { font-size: 12px; color: #999; text-transform: uppercase; font-weight: bold; }
+            .stat-value { font-size: 20px; font-weight: bold; margin-top: 5px; }
+            .section-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+            th { text-align: left; font-size: 12px; color: #999; text-transform: uppercase; padding: 10px; border-bottom: 2px solid #eee; }
+            td { padding: 10px; border-bottom: 1px solid #eee; font-size: 14px; }
+            .observations { background: #f9f9f9; padding: 20px; border-radius: 10px; font-style: italic; font-size: 14px; white-space: pre-wrap; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 class="title">Relatório de Fechamento de Caixa</h1>
+            <div class="subtitle">${companyData.name} | ${periodText}</div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Saldo do Período</div>
+              <div class="stat-value">R$ ${closureStats.balance.toFixed(2)}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Movimentações</div>
+              <div class="stat-value">${closureStats.count}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Mão de Obra (Salário)</div>
+              <div class="stat-value">R$ ${closureStats.laborAccumulated.toFixed(2)}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Lucro Real (Empresa)</div>
+              <div class="stat-value">R$ ${closureStats.profitAccumulated.toFixed(2)}</div>
+            </div>
+          </div>
+
+          <div class="section-title">Detalhamento de Vendas</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Descrição</th>
+                <th>Recebido</th>
+                <th>Mão de Obra</th>
+                <th>Lucro</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${closureStats.salesBreakdownList.map(item => `
+                <tr>
+                  <td>${item.name}</td>
+                  <td>R$ ${item.amount.toFixed(2)}</td>
+                  <td>R$ ${item.labor.toFixed(2)}</td>
+                  <td>R$ ${item.profit.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          ${closureNotes ? `
+            <div class="section-title">Observações</div>
+            <div class="observations">${closureNotes}</div>
+          ` : ''}
+
+          <script>
+            window.onload = () => {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handleCloseCash = () => {
+    if (realBalance === '') {
+      alert('Por favor, informe o saldo real em caixa!');
+      return;
+    }
+
+    if (!confirm('Deseja realmente fechar o caixa para este período? As movimentações serão arquivadas.')) return;
+
+    const filtered = transactions.filter(t => {
+      if (t.closed) return false;
+      if (closureType === 'daily') return t.date === closureDate;
+      if (closureType === 'monthly') {
+        const [year, month] = closureDate.split('-');
+        const [tYear, tMonth] = t.date.split('-');
+        return year === tYear && month === tMonth;
+      }
+      return t.date >= closureStartDate && t.date <= closureEndDate;
+    });
+
+    if (filtered.length === 0) {
+      alert('Não há movimentações abertas para fechar neste período!');
+      return;
+    }
+
+    const newClosure: CashClosure = {
+      id: `closure_${Date.now()}`,
+      date: closureDate,
+      type: closureType,
+      startDate: closureType === 'custom' ? closureStartDate : closureDate,
+      endDate: closureType === 'custom' ? closureEndDate : closureDate,
+      systemBalance: closureStats.balance,
+      realBalance: Number(realBalance),
+      difference: Number(realBalance) - closureStats.balance,
+      laborAccumulated: closureStats.laborAccumulated,
+      profitAccumulated: closureStats.profitAccumulated,
+      notes: closureNotes,
+      closedAt: new Date().toISOString()
+    };
+
+    // Mark transactions as closed
+    const updatedTransactions = transactions.map(t => {
+      if (filtered.some(ft => ft.id === t.id)) {
+        return { ...t, closed: true };
+      }
+      return t;
+    });
+
+    setTransactions(updatedTransactions);
+    setClosures([newClosure, ...closures]);
+    setShowClosure(false);
+    setRealBalance('');
+    setClosureNotes('');
+    alert('Caixa fechado com sucesso!');
+  };
+
+  const handleReopenCash = () => {
+    if (closures.length === 0) {
+      alert('Não há fechamentos para reabrir!');
+      return;
+    }
+
+    if (!confirm('Deseja reabrir o último fechamento? As movimentações voltarão para o fluxo ativo.')) return;
+
+    const lastClosure = closures[0];
+    
+    // Unmark transactions that were closed in the last closure's period
+    const updatedTransactions = transactions.map(t => {
+      if (!t.closed) return t;
+      
+      let shouldReopen = false;
+      if (lastClosure.type === 'daily') {
+        shouldReopen = t.date === lastClosure.date;
+      } else if (lastClosure.type === 'monthly') {
+        const [year, month] = lastClosure.date.split('-');
+        const [tYear, tMonth] = t.date.split('-');
+        shouldReopen = year === tYear && month === tMonth;
+      } else {
+        shouldReopen = t.date >= lastClosure.startDate && t.date <= lastClosure.endDate;
+      }
+
+      if (shouldReopen) {
+        return { ...t, closed: false };
+      }
+      return t;
+    });
+
+    setTransactions(updatedTransactions);
+    setClosures(closures.slice(1));
+    alert('Caixa reaberto com sucesso!');
+  };
+
   // Fixed missing deleteTransaction function
   const deleteTransaction = (id: string) => {
     if (confirm('Deseja excluir este lançamento?')) {
@@ -179,10 +372,12 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     }
   };
 
-  const filteredTransactions = transactions.filter(t => 
-    t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.category.toLowerCase().includes(searchTerm.toLowerCase())
-  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const filteredTransactions = transactions
+    .filter(t => !t.closed) // Only show open transactions in the main list
+    .filter(t => 
+      t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.category.toLowerCase().includes(searchTerm.toLowerCase())
+    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
     <div className="space-y-10 animate-fadeIn pb-24">
@@ -405,16 +600,27 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                     </div>
                  </div>
 
-                 <div className="flex gap-4">
-                    <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 text-center">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center">
                        <p className="text-[9px] font-black text-gray-400 uppercase">Movimentações</p>
                        <p className="text-xl font-black text-gray-800">{closureStats.count}</p>
                     </div>
-                    <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 text-center">
-                       <p className="text-[9px] font-black text-gray-400 uppercase">Saldo do Período</p>
+                    <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center">
+                       <p className="text-[9px] font-black text-gray-400 uppercase">Saldo Sistema</p>
                        <p className={`text-xl font-black ${closureStats.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                          R$ {closureStats.balance.toFixed(2)}
                        </p>
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl border border-blue-100 text-center shadow-sm">
+                       <p className="text-[9px] font-black text-blue-400 uppercase">Saldo Real em Caixa</p>
+                       <input 
+                         type="number" 
+                         step="0.01"
+                         placeholder="0.00"
+                         className="w-full text-center text-xl font-black text-blue-600 outline-none bg-transparent"
+                         value={realBalance}
+                         onChange={e => setRealBalance(e.target.value === '' ? '' : Number(e.target.value))}
+                       />
                     </div>
                  </div>
               </div>
@@ -497,11 +703,19 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
               </div>
             </div>
 
-            <div className="p-8 bg-gray-50 border-t border-gray-100 flex gap-4">
-               <button className="flex-1 py-4 bg-gray-800 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition-all flex items-center justify-center gap-2">
-                 <Printer size={16} /> Imprimir Fechamento
+            <div className="p-8 bg-gray-50 border-t border-gray-100 flex flex-wrap gap-4">
+               <button onClick={handlePrintClosure} className="flex-1 min-w-[180px] py-4 bg-gray-800 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition-all flex items-center justify-center gap-2">
+                 <Printer size={16} /> Imprimir
                </button>
-               <button onClick={() => { setShowClosure(false); setClosureNotes(''); }} className="flex-1 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-gray-100 transition-all">
+               <button onClick={handleCloseCash} className="flex-1 min-w-[180px] py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+                 <CheckCircle2 size={16} /> Efetuar Fechamento
+               </button>
+               {closures.length > 0 && (
+                 <button onClick={handleReopenCash} className="flex-1 min-w-[180px] py-4 bg-red-50 text-red-500 border border-red-100 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-red-100 transition-all flex items-center justify-center gap-2">
+                   <RefreshCw size={16} /> Reabrir Último
+                 </button>
+               )}
+               <button onClick={() => { setShowClosure(false); setClosureNotes(''); setRealBalance(''); }} className="flex-1 min-w-[180px] py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-gray-100 transition-all">
                  Fechar Relatório
                </button>
             </div>
