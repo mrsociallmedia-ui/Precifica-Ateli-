@@ -17,6 +17,26 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
     name: '', unit: 'unidade', price: 0, quantity: 1, supplier: '', defaultPiecesPerUnit: 1
   });
 
+  const [units, setUnits] = useState([
+    { value: 'unidade', label: 'Unidade (un)' },
+    { value: 'metro', label: 'Metro (m)' },
+    { value: 'cm', label: 'Centímetro (cm)' },
+    { value: 'folha', label: 'Folha' },
+    { value: 'rolo', label: 'Rolo / Carretel' },
+    { value: 'pacote', label: 'Pacote' }
+  ]);
+
+  const handleAddUnit = () => {
+    const customUnit = prompt("Digite o nome da nova unidade (ex: Litro, Par, Caixa):");
+    if (customUnit) {
+      const value = customUnit.toLowerCase().trim();
+      if (!units.find(u => u.value === value)) {
+        setUnits([...units, { value, label: customUnit }]);
+        setNewMaterial({...newMaterial, unit: value});
+      }
+    }
+  };
+
   const handleOpenAdd = () => {
     setEditingMaterialId(null);
     setNewMaterial({ name: '', unit: 'unidade', price: 0, quantity: 1, supplier: '', defaultPiecesPerUnit: 1 });
@@ -190,20 +210,25 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Unidade</label>
-                  <select 
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700"
-                    value={newMaterial.unit}
-                    onChange={e => setNewMaterial({...newMaterial, unit: e.target.value})}
-                  >
-                    <option value="unidade">Unidade (un)</option>
-                    <option value="metro">Metro (m)</option>
-                    <option value="cm">Centímetro (cm)</option>
-                    <option value="folha">Folha</option>
-                    <option value="polasseal">Polasseal</option>
-                    <option value="adesivo">Papel Adesivo</option>
-                    <option value="rolo">Rolo / Carretel</option>
-                    <option value="pacote">Pacote</option>
-                  </select>
+                  <div className="flex gap-2">
+                    <select 
+                      className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700"
+                      value={newMaterial.unit}
+                      onChange={e => setNewMaterial({...newMaterial, unit: e.target.value})}
+                    >
+                      {units.map(u => (
+                        <option key={u.value} value={u.value}>{u.label}</option>
+                      ))}
+                    </select>
+                    <button 
+                      type="button"
+                      onClick={handleAddUnit}
+                      className="p-4 bg-yellow-100 text-yellow-600 rounded-2xl hover:bg-yellow-200 transition-colors"
+                      title="Adicionar nova unidade"
+                    >
+                      <Plus size={20} />
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Qtd Comprada</label>
