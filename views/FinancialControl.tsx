@@ -159,7 +159,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       profitAccumulated,
       salesBreakdownList
     };
-  }, [transactions, closureDate, projects, materials, platforms, companyData]);
+  }, [transactions, closureType, closureDate, closureStartDate, closureEndDate, projects, materials, platforms, companyData]);
 
   const handleAddTransaction = (e: React.FormEvent) => {
     e.preventDefault();
@@ -697,9 +697,42 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                     ))}
                     {closureStats.salesBreakdownList.length === 0 && (
                       <div className="py-10 text-center bg-gray-50 rounded-3xl border border-dashed border-gray-200">
-                        <p className="text-xs text-gray-400 font-bold italic">Nenhuma venda de orçamento registrada nesta data.</p>
+                        <p className="text-xs text-gray-400 font-bold italic">Nenhuma venda de orçamento registrada neste período.</p>
                       </div>
                     )}
+                 </div>
+              </div>
+
+              {/* OUTRAS MOVIMENTAÇÕES */}
+              <div className="space-y-4">
+                 <h4 className="text-[11px] font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                   <ArrowDownUp size={16} className="text-purple-500" /> Outras Movimentações (Despesas e Diversos)
+                 </h4>
+                 <div className="space-y-3">
+                    {transactions.filter(t => {
+                       if (closureType === 'daily') return t.date === closureDate;
+                       if (closureType === 'monthly') {
+                          const [year, month] = closureDate.split('-');
+                          const [tYear, tMonth] = t.date.split('-');
+                          return year === tYear && month === tMonth;
+                       }
+                       return t.date >= closureStartDate && t.date <= closureEndDate;
+                    }).filter(t => t.category !== 'Venda').map((t, idx) => (
+                       <div key={idx} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl shadow-sm">
+                          <div className="flex items-center gap-3">
+                             <div className={`p-2 rounded-xl ${t.type === 'income' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
+                                {t.type === 'income' ? <ArrowUpCircle size={14} /> : <ArrowDownCircle size={14} />}
+                             </div>
+                             <div>
+                                <p className="font-black text-gray-700 text-xs">{t.description}</p>
+                                <p className="text-[9px] text-gray-400 font-bold uppercase">{t.category} • {new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
+                             </div>
+                          </div>
+                          <p className={`text-xs font-black ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                             {t.type === 'income' ? '+' : '-'} R$ {t.amount.toFixed(2)}
+                          </p>
+                       </div>
+                    ))}
                  </div>
               </div>
 
