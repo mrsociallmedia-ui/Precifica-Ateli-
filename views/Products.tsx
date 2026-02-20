@@ -178,8 +178,8 @@ export const Products: React.FC<ProductsProps> = ({
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn overflow-y-auto">
-          <div className="bg-white w-full max-w-5xl rounded-[3rem] p-10 shadow-2xl relative my-8 overflow-hidden">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white w-[90vw] h-[90vh] rounded-[3rem] p-10 shadow-2xl relative overflow-y-auto">
             <button onClick={() => setShowForm(false)} className="absolute top-8 right-8 text-gray-300 hover:text-gray-500"><X size={28} /></button>
             <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
               <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl">{editingProductId ? <Edit3 size={28} /> : <Plus size={28} />}</div>
@@ -201,6 +201,12 @@ export const Products: React.FC<ProductsProps> = ({
                         <div className="space-y-2">
                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Margem (%)</label>
                            <input type="number" className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-green-600" value={newProduct.profitMargin} onChange={e => setNewProduct({...newProduct, profitMargin: parseFloat(e.target.value) || 0})} />
+                        </div>
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Base Peça</label>
+                        <div className="w-full p-4 bg-gray-100 border border-gray-100 rounded-2xl font-black text-gray-500">
+                           R$ {((currentPreview?.laborCosts || 0) + (currentPreview?.variableCosts || 0)).toFixed(2)}
                         </div>
                      </div>
                   </div>
@@ -335,6 +341,10 @@ export const Products: React.FC<ProductsProps> = ({
                         <div className="flex justify-between items-center text-[10px] font-black uppercase opacity-60">
                            <span>Materiais</span>
                            <span className="text-white">R$ {currentPreview?.variableCosts.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase text-yellow-400">
+                           <span>Total Base Peça</span>
+                           <span>R$ {((currentPreview?.laborCosts || 0) + (currentPreview?.variableCosts || 0)).toFixed(2)}</span>
                         </div>
                         <div className="pt-3 border-t border-white/5 flex justify-between items-center text-xs font-black">
                            <span className="text-green-400">Lucro Líquido</span>
