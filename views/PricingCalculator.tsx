@@ -393,6 +393,11 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 `<div style="height: 50px; width: 50px; background: ${primaryColor}; border-radius: 12px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-weight: 900; font-size: 24px;">${companyData.name.charAt(0)}</span></div>`
               }
               <h1 style="margin: 0; font-size: 28px; font-weight: 900; color: ${primaryColor}; letter-spacing: -1px; line-height: 1.1;">${companyData.name}</h1>
+              <div style="margin-top: 10px; font-size: 11px; color: #6b7280; font-weight: 600; line-height: 1.5;">
+                ${companyData.email ? `<div>${companyData.email}</div>` : ''}
+                ${companyData.phone ? `<div>${companyData.phone}</div>` : ''}
+                ${companyData.cnpj ? `<div>CNPJ: ${companyData.cnpj}</div>` : ''}
+              </div>
             </div>
             <div style="text-align: right; flex: 1;">
               <h2 style="margin: 0; font-size: 12px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 10px;">Proposta Comercial</h2>
@@ -456,6 +461,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                   </div>
                 </div>
             </div>
+          </div>
+          <div style="margin-top: 50px; text-align: center; border-top: 1px solid #f3f4f6; padding-top: 20px;">
+            <p style="margin: 0; font-size: 12px; color: #9ca3af; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Orçamento válido por 7 dias</p>
           </div>
         </div>
       `;

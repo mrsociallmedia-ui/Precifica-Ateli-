@@ -51,8 +51,12 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [showClosure, setShowClosure] = useState(false);
+  const [closureType, setClosureType] = useState<'daily' | 'monthly' | 'custom'>('daily');
   const [searchTerm, setSearchTerm] = useState('');
   const [closureDate, setClosureDate] = useState(new Date().toISOString().split('T')[0]);
+  const [closureStartDate, setClosureStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [closureEndDate, setClosureEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [closureNotes, setClosureNotes] = useState('');
   
   const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
     description: '',
@@ -71,7 +75,19 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
 
   // Cálculos de Fechamento de Caixa com Mão de Obra e Lucro Real
   const closureStats = useMemo(() => {
-    const filtered = transactions.filter(t => t.date === closureDate);
+    const filtered = transactions.filter(t => {
+      if (closureType === 'daily') {
+        return t.date === closureDate;
+      } else if (closureType === 'monthly') {
+        // Monthly closure: check if year and month match
+        const [year, month] = closureDate.split('-');
+        const [tYear, tMonth] = t.date.split('-');
+        return year === tYear && month === tMonth;
+      } else {
+        // Custom period closure
+        return t.date >= closureStartDate && t.date <= closureEndDate;
+      }
+    });
     const income = filtered.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
     const expense = filtered.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
     
@@ -309,31 +325,93 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
             <div className="bg-blue-600 p-8 text-white flex justify-between items-center">
               <div>
                 <h3 className="text-2xl font-black">Fechamento de Caixa</h3>
-                <p className="text-blue-100 font-bold text-xs uppercase tracking-widest">Análise de Lucratividade Diária</p>
+                <p className="text-blue-100 font-bold text-xs uppercase tracking-widest">
+                  Análise de Lucratividade {closureType === 'daily' ? 'Diária' : closureType === 'monthly' ? 'Mensal' : 'por Período'}
+                </p>
               </div>
-              <button onClick={() => setShowClosure(false)} className="p-2 bg-white/20 hover:bg-white/40 rounded-full transition-all">
+              <button onClick={() => { setShowClosure(false); setClosureNotes(''); }} className="p-2 bg-white/20 hover:bg-white/40 rounded-full transition-all">
                 <X size={24} />
               </button>
             </div>
 
             <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar">
-              <div className="flex flex-col md:flex-row md:items-center gap-4 bg-gray-50 p-6 rounded-[2rem] border border-gray-100">
-                 <div className="flex-1 space-y-1">
-                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Selecionar Data de Fechamento</label>
-                   <input 
-                     type="date" 
-                     className="w-full p-4 bg-white border border-gray-200 rounded-2xl outline-none font-black text-gray-700" 
-                     value={closureDate} 
-                     onChange={e => setClosureDate(e.target.value)} 
-                   />
+              <div className="flex flex-col gap-6 bg-gray-50 p-6 rounded-[2rem] border border-gray-100">
+                 <div className="flex flex-col md:flex-row md:items-center gap-6">
+                    <div className="flex-1 space-y-2">
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tipo de Fechamento</label>
+                       <div className="flex bg-white p-1 rounded-xl border border-gray-200">
+                          <button 
+                            onClick={() => setClosureType('daily')}
+                            className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${closureType === 'daily' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}
+                          >
+                            Diário
+                          </button>
+                          <button 
+                            onClick={() => setClosureType('monthly')}
+                            className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${closureType === 'monthly' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}
+                          >
+                            Mensal
+                          </button>
+                          <button 
+                            onClick={() => setClosureType('custom')}
+                            className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${closureType === 'custom' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}
+                          >
+                            Período
+                          </button>
+                       </div>
+                    </div>
+
+                    <div className="flex-[2] space-y-2">
+                      {closureType === 'custom' ? (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Data Início</label>
+                            <input 
+                              type="date" 
+                              className="w-full p-4 bg-white border border-gray-200 rounded-2xl outline-none font-black text-gray-700" 
+                              value={closureStartDate} 
+                              onChange={e => setClosureStartDate(e.target.value)} 
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Data Fim</label>
+                            <input 
+                              type="date" 
+                              className="w-full p-4 bg-white border border-gray-200 rounded-2xl outline-none font-black text-gray-700" 
+                              value={closureEndDate} 
+                              onChange={e => setClosureEndDate(e.target.value)} 
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                            {closureType === 'daily' ? 'Selecionar Data' : 'Selecionar Mês/Ano'}
+                          </label>
+                          <input 
+                            type={closureType === 'daily' ? 'date' : 'month'} 
+                            className="w-full p-4 bg-white border border-gray-200 rounded-2xl outline-none font-black text-gray-700" 
+                            value={closureType === 'daily' ? closureDate : closureDate.substring(0, 7)} 
+                            onChange={e => {
+                              if (closureType === 'daily') {
+                                setClosureDate(e.target.value);
+                              } else {
+                                setClosureDate(`${e.target.value}-01`);
+                              }
+                            }} 
+                          />
+                        </div>
+                      )}
+                    </div>
                  </div>
+
                  <div className="flex gap-4">
-                    <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center min-w-[120px]">
+                    <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 text-center">
                        <p className="text-[9px] font-black text-gray-400 uppercase">Movimentações</p>
                        <p className="text-xl font-black text-gray-800">{closureStats.count}</p>
                     </div>
-                    <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center min-w-[150px]">
-                       <p className="text-[9px] font-black text-gray-400 uppercase">Saldo do Dia</p>
+                    <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 text-center">
+                       <p className="text-[9px] font-black text-gray-400 uppercase">Saldo do Período</p>
                        <p className={`text-xl font-black ${closureStats.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                          R$ {closureStats.balance.toFixed(2)}
                        </p>
@@ -407,13 +485,23 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                     <strong>Como funciona este cálculo?</strong> O sistema analisa cada recebimento (Sinal ou Saldo) e aplica a porcentagem de Mão de Obra e Lucro que foi calculada lá no orçamento original. Assim, você gerencia seu caixa sabendo exatamente o que é dinheiro seu (Salário) e o que é dinheiro da empresa (Lucro Real).
                  </p>
               </div>
+
+              <div className="space-y-2">
+                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Observações do Fechamento</label>
+                 <textarea 
+                   className="w-full p-6 bg-gray-50 border border-gray-100 rounded-[2rem] outline-none font-medium text-gray-700 text-sm min-h-[120px] resize-none focus:bg-white focus:border-blue-100 transition-all"
+                   placeholder="Digite aqui anotações importantes sobre este período..."
+                   value={closureNotes}
+                   onChange={e => setClosureNotes(e.target.value)}
+                 />
+              </div>
             </div>
 
             <div className="p-8 bg-gray-50 border-t border-gray-100 flex gap-4">
                <button className="flex-1 py-4 bg-gray-800 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition-all flex items-center justify-center gap-2">
                  <Printer size={16} /> Imprimir Fechamento
                </button>
-               <button onClick={() => setShowClosure(false)} className="flex-1 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-gray-100 transition-all">
+               <button onClick={() => { setShowClosure(false); setClosureNotes(''); }} className="flex-1 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-gray-100 transition-all">
                  Fechar Relatório
                </button>
             </div>
