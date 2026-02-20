@@ -14,6 +14,7 @@ import {
   Wallet2,
   LogOut,
   RefreshCw,
+  History,
   Cloud,
   CloudOff,
   CloudDownload,
@@ -29,6 +30,7 @@ import { Schedule } from './views/Schedule';
 import { SettingsView } from './views/SettingsView';
 import { Products } from './views/Products';
 import { FinancialControl } from './views/FinancialControl';
+import { OrderHistory } from './views/OrderHistory';
 import { LoginView } from './views/LoginView';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
@@ -259,6 +261,7 @@ const App: React.FC = () => {
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard, color: 'text-pink-500' },
     { id: 'pricing', label: 'Orçamentos', icon: Calculator, color: 'text-blue-500' },
     { id: 'schedule', label: 'Cronograma', icon: Calendar, color: 'text-blue-500' },
+    { id: 'order_history', label: 'Histórico Pedidos', icon: History, color: 'text-pink-500' },
     { id: 'finance', label: 'Financeiro', icon: Wallet2, color: 'text-green-500' },
     { id: 'products', label: 'Precificação', icon: Sparkles, color: 'text-yellow-600' },
     { id: 'inventory', label: 'Estoque', icon: Package, color: 'text-yellow-600' },
@@ -360,6 +363,7 @@ const App: React.FC = () => {
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;
                   case 'pricing': return <PricingCalculator {...props} products={products} setProjects={setProjects} setTransactions={setTransactions} />;
                   case 'schedule': return <Schedule {...props} setProjects={setProjects} setTransactions={setTransactions} />;
+                  case 'order_history': return <OrderHistory {...props} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
                   default: return <Dashboard {...props} />;

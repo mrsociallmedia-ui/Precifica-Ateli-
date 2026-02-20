@@ -121,6 +121,12 @@ export const Products: React.FC<ProductsProps> = ({
     setShowForm(false);
   };
 
+  const handleDeleteProduct = (id: string) => {
+    if (confirm('Deseja realmente excluir este produto do catálogo?')) {
+      setProducts(prev => prev.filter(p => p.id !== id));
+    }
+  };
+
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -175,6 +181,7 @@ export const Products: React.FC<ProductsProps> = ({
                  </div>
                  <div className="flex gap-2">
                     <button onClick={() => { setEditingProductId(p.id); setNewProduct({...p}); setShowForm(true); }} className="p-2 text-pink-400 hover:bg-pink-50 rounded-xl transition-all"><Edit3 size={20} /></button>
+                    <button onClick={() => handleDeleteProduct(p.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
                  </div>
               </div>
               <div className="pt-6 border-t border-gray-50 flex items-center justify-between mt-auto">

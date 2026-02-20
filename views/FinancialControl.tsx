@@ -6,6 +6,7 @@ import {
   ArrowDownCircle, 
   Plus, 
   Trash2, 
+  Edit3,
   Search, 
   TrendingUp, 
   DollarSign, 
@@ -54,6 +55,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [showClosure, setShowClosure] = useState(false);
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [closureType, setClosureType] = useState<'daily' | 'monthly' | 'custom'>('daily');
   const [searchTerm, setSearchTerm] = useState('');
   const [closureDate, setClosureDate] = useState(() => {
@@ -165,17 +167,27 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     e.preventDefault();
     if (!newTransaction.description || !newTransaction.amount) return;
 
-    const transaction: Transaction = {
-      id: `manual_${Date.now()}`,
-      description: newTransaction.description!,
-      amount: Number(newTransaction.amount),
-      type: newTransaction.type as 'income' | 'expense',
-      category: newTransaction.category || 'Geral',
-      paymentMethod: newTransaction.paymentMethod || 'Dinheiro',
-      date: newTransaction.date || new Date().toISOString().split('T')[0]
-    };
+    if (editingTransactionId) {
+      const updatedTransactions = transactions.map(t => 
+        t.id === editingTransactionId 
+          ? { ...t, ...newTransaction as Transaction } 
+          : t
+      );
+      setTransactions(updatedTransactions);
+      setEditingTransactionId(null);
+    } else {
+      const transaction: Transaction = {
+        id: `manual_${Date.now()}`,
+        description: newTransaction.description!,
+        amount: Number(newTransaction.amount),
+        type: newTransaction.type as 'income' | 'expense',
+        category: newTransaction.category || 'Geral',
+        paymentMethod: newTransaction.paymentMethod || 'Dinheiro',
+        date: newTransaction.date || new Date().toISOString().split('T')[0]
+      };
+      setTransactions([transaction, ...transactions]);
+    }
 
-    setTransactions([transaction, ...transactions]);
     setShowForm(false);
     setNewTransaction({ 
       description: '', amount: 0, type: 'income', category: 'Venda', paymentMethod: 'Pix', 
@@ -414,7 +426,14 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
             Fechamento de Caixa
           </button>
           <button 
-            onClick={() => setShowForm(true)}
+            onClick={() => {
+              setEditingTransactionId(null);
+              setNewTransaction({ 
+                description: '', amount: 0, type: 'income', category: 'Venda', paymentMethod: 'Pix', 
+                date: new Date().toISOString().split('T')[0] 
+              });
+              setShowForm(true);
+            }}
             className="bg-green-500 hover:bg-green-600 text-white font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg active:scale-95"
           >
             <Plus size={20} />
@@ -510,9 +529,21 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                     {t.type === 'income' ? '+' : '-'} R$ {t.amount.toFixed(2)}
                   </td>
                   <td className="px-8 py-5 text-right">
-                    <button onClick={() => deleteTransaction(t.id)} className="p-2 text-gray-200 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => {
+                          setEditingTransactionId(t.id);
+                          setNewTransaction({ ...t });
+                          setShowForm(true);
+                        }} 
+                        className="p-2 text-gray-400 hover:text-blue-500 transition-colors"
+                      >
+                        <Edit3 size={16} />
+                      </button>
+                      <button onClick={() => deleteTransaction(t.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -779,14 +810,14 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-xl rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
             <div className={`absolute top-0 left-0 w-full h-2 ${newTransaction.type === 'income' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <button onClick={() => setShowForm(false)} className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors">
+            <button onClick={() => { setShowForm(false); setEditingTransactionId(null); }} className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors">
               <X size={24} />
             </button>
             <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
               <div className={`p-3 rounded-2xl ${newTransaction.type === 'income' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
                 {newTransaction.type === 'income' ? <ArrowUpCircle size={24} /> : <ArrowDownCircle size={24} />}
               </div>
-              {newTransaction.type === 'income' ? 'Nova Entrada' : 'Nova Saída'}
+              {editingTransactionId ? 'Editar Lançamento' : (newTransaction.type === 'income' ? 'Nova Entrada' : 'Nova Saída')}
             </h3>
             <form onSubmit={handleAddTransaction} className="space-y-6">
                <div className="grid grid-cols-2 gap-4 bg-gray-50 p-2 rounded-2xl border border-gray-100 mb-4">
@@ -826,8 +857,10 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                </div>
 
                <div className="flex gap-4 pt-4">
-                  <button type="button" onClick={() => setShowForm(false)} className="flex-1 px-6 py-4 border-2 border-gray-50 text-gray-400 rounded-2xl font-black uppercase tracking-widest hover:bg-gray-50 transition-all">Cancelar</button>
-                  <button type="submit" className={`flex-1 px-6 py-4 text-white font-black rounded-2xl transition-all shadow-lg ${newTransaction.type === 'income' ? 'bg-green-500 hover:bg-green-600 shadow-green-100' : 'bg-red-500 hover:bg-red-600 shadow-red-100'}`}>Confirmar Lançamento</button>
+                  <button type="button" onClick={() => { setShowForm(false); setEditingTransactionId(null); }} className="flex-1 px-6 py-4 border-2 border-gray-50 text-gray-400 rounded-2xl font-black uppercase tracking-widest hover:bg-gray-50 transition-all">Cancelar</button>
+                  <button type="submit" className={`flex-1 px-6 py-4 text-white font-black rounded-2xl transition-all shadow-lg ${newTransaction.type === 'income' ? 'bg-green-500 hover:bg-green-600 shadow-green-100' : 'bg-red-500 hover:bg-red-600 shadow-red-100'}`}>
+                    {editingTransactionId ? 'Salvar Alterações' : 'Confirmar Lançamento'}
+                  </button>
                </div>
             </form>
           </div>
