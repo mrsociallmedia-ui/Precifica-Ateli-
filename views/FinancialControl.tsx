@@ -56,8 +56,14 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
   const [showClosure, setShowClosure] = useState(false);
   const [closureType, setClosureType] = useState<'daily' | 'monthly' | 'custom'>('daily');
   const [searchTerm, setSearchTerm] = useState('');
-  const [closureDate, setClosureDate] = useState(new Date().toISOString().split('T')[0]);
-  const [closureStartDate, setClosureStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [closureDate, setClosureDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [closureStartDate, setClosureStartDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  });
   const [closureEndDate, setClosureEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [closureNotes, setClosureNotes] = useState('');
   const [realBalance, setRealBalance] = useState<number | ''>('');
@@ -321,12 +327,24 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       return t;
     });
 
-    setTransactions(updatedTransactions);
+    // Create a carry-over transaction for the next period
+    const carryOverTransaction: Transaction = {
+      id: `carryover_${Date.now()}`,
+      description: `Saldo Anterior (${closureType === 'daily' ? 'Dia' : closureType === 'monthly' ? 'Mês' : 'Período'} Anterior)`,
+      amount: Number(realBalance),
+      type: 'income',
+      category: 'Saldo Inicial',
+      paymentMethod: 'Saldo em Caixa',
+      date: new Date().toISOString().split('T')[0],
+      closed: false
+    };
+
+    setTransactions([carryOverTransaction, ...updatedTransactions]);
     setClosures([newClosure, ...closures]);
     setShowClosure(false);
     setRealBalance('');
     setClosureNotes('');
-    alert('Caixa fechado com sucesso!');
+    alert('Caixa fechado com sucesso! O saldo real foi transportado para o novo período.');
   };
 
   const handleReopenCash = () => {

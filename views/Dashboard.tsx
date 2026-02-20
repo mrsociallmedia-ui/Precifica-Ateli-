@@ -47,8 +47,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       totalOrçado += finalPrice;
     });
 
-    const income = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const expense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    const openTransactions = transactions.filter(t => !t.closed);
+    const income = openTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    const expense = openTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
     const actualBalance = income - expense;
 
     const dueToday = projects.filter(p => p.deliveryDate === todayStr && p.status !== 'completed');
@@ -378,7 +379,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50 pb-4 flex items-center gap-2">
                        <ArrowRight size={12} /> Caixa Recente
                     </h4>
-                    {transactions.slice(0, 4).map(t => (
+                    {transactions.filter(t => !t.closed).slice(0, 4).map(t => (
                         <div key={t.id} className={`flex items-center justify-between p-4 rounded-2xl border ${t.type === 'income' ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'} hover:bg-white transition-all cursor-default`}>
                             <div className="flex items-center gap-3">
                                 <div className={`p-2 bg-white rounded-xl shadow-sm ${t.type === 'income' ? 'text-green-500' : 'text-red-500'}`}>
