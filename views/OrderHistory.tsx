@@ -33,6 +33,8 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const getCustomerName = (id: string) => customers.find(c => c.id === id)?.name || 'Cliente Avulso';
 
@@ -59,9 +61,10 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
       const search = searchTerm.toLowerCase();
       const matchesSearch = theme.includes(search) || customerName.includes(search);
       const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesDate = (!startDate || p.deliveryDate >= startDate) && (!endDate || p.deliveryDate <= endDate);
+      return matchesSearch && matchesStatus && matchesDate;
     }).sort((a, b) => new Date(b.deliveryDate).getTime() - new Date(a.deliveryDate).getTime());
-  }, [projects, searchTerm, statusFilter, customers]);
+  }, [projects, searchTerm, statusFilter, customers, startDate, endDate]);
 
   const stats = useMemo(() => {
     const total = projects.length;
@@ -115,6 +118,22 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
             className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-transparent rounded-2xl outline-none focus:bg-white focus:border-pink-200 transition-all font-medium"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-2 bg-gray-50 px-4 rounded-2xl border border-transparent">
+          <Calendar className="text-gray-400" size={18} />
+          <input 
+            type="date" 
+            className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+          <span className="text-gray-300">-</span>
+          <input 
+            type="date" 
+            className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
           />
         </div>
         <div className="flex items-center gap-2 bg-gray-50 px-4 rounded-2xl border border-transparent">
