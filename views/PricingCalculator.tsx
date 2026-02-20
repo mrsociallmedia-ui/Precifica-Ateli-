@@ -110,12 +110,20 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     return (max + 1).toString();
   };
 
+  const getLocalDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const initialProjectState: Partial<Project> = {
     theme: '',
     celebrantName: '',
     celebrantAge: '',
     quoteNumber: '',
-    orderDate: new Date().toISOString().split('T')[0],
+    orderDate: getLocalDate(),
     deliveryDate: '',
     customerId: '',
     platformId: platforms.find(p => p.feePercentage === 0)?.id || platforms[0]?.id || '',
@@ -245,7 +253,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       status: currentProject.status || 'pending',
       createdAt: currentProject.createdAt || new Date().toISOString(),
       dueDate: currentProject.deliveryDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      orderDate: currentProject.orderDate || new Date().toISOString().split('T')[0],
+      orderDate: currentProject.orderDate || getLocalDate(),
       deliveryDate: currentProject.deliveryDate || '',
       theme: currentProject.theme || '',
       celebrantName: currentProject.celebrantName || '',

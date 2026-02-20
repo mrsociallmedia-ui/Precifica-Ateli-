@@ -140,7 +140,14 @@ export const Schedule: React.FC<ScheduleProps> = ({
                         <Clock size={12} className="text-blue-400" /> {project.items?.reduce((acc, i) => acc + (i.hoursToMake * i.quantity), 0).toFixed(1)}h prod.
                       </div>
                       <div className="bg-gray-50/50 p-2 rounded-xl flex items-center gap-2 text-[10px] font-bold text-gray-500">
-                        <CalendarIcon size={12} className="text-pink-400" /> {new Date(project.deliveryDate).toLocaleDateString('pt-BR')}
+                        <CalendarIcon size={12} className="text-gray-400" /> 
+                        <span className="text-[9px] uppercase tracking-widest text-gray-400">Pedido:</span>
+                        {project.orderDate ? new Date(project.orderDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : new Date(project.createdAt).toLocaleDateString('pt-BR')}
+                      </div>
+                      <div className="bg-gray-50/50 p-2 rounded-xl flex items-center gap-2 text-[10px] font-bold text-gray-500">
+                        <CalendarIcon size={12} className="text-pink-400" /> 
+                        <span className="text-[9px] uppercase tracking-widest text-gray-400">Entrega:</span>
+                        {project.deliveryDate ? new Date(project.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'A combinar'}
                       </div>
                     </div>
 

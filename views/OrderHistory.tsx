@@ -33,9 +33,34 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  
+  // Initialize with URL params or current week (Monday to Friday)
+  const [startDate, setStartDate] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const start = params.get('start_date');
+    if (start) return start;
 
+    const curr = new Date();
+    const day = curr.getDay();
+    const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(curr.setDate(diff));
+    return monday.toISOString().split('T')[0];
+  });
+  
+  const [endDate, setEndDate] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const end = params.get('end_date');
+    if (end) return end;
+
+    const curr = new Date();
+    const day = curr.getDay();
+    const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
+    const friday = new Date(curr.setDate(diff + 4));
+    return friday.toISOString().split('T')[0];
+  });
+
+  const [dateFilterType, setDateFilterType] = useState<'delivery' | 'created'>('delivery');
+  
   const getCustomerName = (id: string) => customers.find(c => c.id === id)?.name || 'Cliente Avulso';
 
   const statusLabels: Record<string, string> = {
@@ -61,10 +86,18 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
       const search = searchTerm.toLowerCase();
       const matchesSearch = theme.includes(search) || customerName.includes(search);
       const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
-      const matchesDate = (!startDate || p.deliveryDate >= startDate) && (!endDate || p.deliveryDate <= endDate);
+      
+      let dateToCompare = p.deliveryDate;
+      if (dateFilterType === 'created') {
+        const timestamp = p.id.startsWith('quote_') ? parseInt(p.id.split('_')[1]) : parseInt(p.id);
+        dateToCompare = new Date(timestamp).toISOString().split('T')[0];
+      }
+
+      const matchesDate = (!startDate || dateToCompare >= startDate) && (!endDate || dateToCompare <= endDate);
+
       return matchesSearch && matchesStatus && matchesDate;
     }).sort((a, b) => new Date(b.deliveryDate).getTime() - new Date(a.deliveryDate).getTime());
-  }, [projects, searchTerm, statusFilter, customers, startDate, endDate]);
+  }, [projects, searchTerm, statusFilter, customers, startDate, endDate, dateFilterType]);
 
   const stats = useMemo(() => {
     const total = projects.length;
@@ -122,6 +155,14 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
         </div>
         <div className="flex items-center gap-2 bg-gray-50 px-4 rounded-2xl border border-transparent">
           <Calendar className="text-gray-400" size={18} />
+          <select 
+            className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500 mr-2 border-r border-gray-200 pr-2"
+            value={dateFilterType}
+            onChange={(e) => setDateFilterType(e.target.value as 'delivery' | 'created')}
+          >
+            <option value="delivery">Data de Entrega</option>
+            <option value="created">Data do Pedido</option>
+          </select>
           <input 
             type="date" 
             className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500"
@@ -183,7 +224,9 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                             )}
                             <p className="font-black text-gray-800 text-sm">{project.theme}</p>
                           </div>
-                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Criado em {new Date(project.id.startsWith('quote_') ? parseInt(project.id.split('_')[1]) : parseInt(project.id)).toLocaleDateString('pt-BR')}</p>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
+                            Criado em {project.orderDate ? new Date(project.orderDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : new Date(project.createdAt).toLocaleDateString('pt-BR')}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -196,7 +239,9 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-2">
                         <Calendar size={14} className="text-gray-300" />
-                        <span className="text-xs font-bold text-gray-600">{new Date(project.deliveryDate).toLocaleDateString('pt-BR')}</span>
+                        <span className="text-xs font-bold text-gray-600">
+                          {project.deliveryDate ? new Date(project.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'A combinar'}
+                        </span>
                       </div>
                     </td>
                     <td className="px-8 py-6">
