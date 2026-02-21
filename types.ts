@@ -120,6 +120,7 @@ export interface Transaction {
   paymentMethod: string;
   date: string;
   closed?: boolean;
+  status?: 'pending' | 'paid';
 }
 
 export interface CashClosure {

@@ -17,7 +17,7 @@ import {
   Hash,
   ShoppingBag
 } from 'lucide-react';
-import { Project, Customer, Material, Platform, CompanyData } from '../types';
+import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
 interface OrderHistoryProps {
@@ -26,10 +26,11 @@ interface OrderHistoryProps {
   materials: Material[];
   platforms: Platform[];
   companyData: CompanyData;
+  transactions: Transaction[];
 }
 
 export const OrderHistory: React.FC<OrderHistoryProps> = ({ 
-  projects, customers, materials, platforms, companyData 
+  projects, customers, materials, platforms, companyData, transactions
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -100,16 +101,16 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
   }, [projects, searchTerm, statusFilter, customers, startDate, endDate, dateFilterType]);
 
   const stats = useMemo(() => {
-    const total = projects.length;
-    const completed = projects.filter(p => p.status === 'completed').length;
-    const inProgress = projects.filter(p => p.status !== 'completed').length;
-    const totalRevenue = projects.reduce((acc, p) => {
-      const { finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData);
+    const total = filteredProjects.length;
+    const completed = filteredProjects.filter(p => p.status === 'completed').length;
+    const inProgress = filteredProjects.filter(p => p.status !== 'completed').length;
+    const totalRevenue = filteredProjects.reduce((acc, p) => {
+      const { finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
       return acc + finalPrice;
     }, 0);
 
     return { total, completed, inProgress, totalRevenue };
-  }, [projects, materials, platforms, companyData]);
+  }, [filteredProjects, materials, platforms, companyData]);
 
   return (
     <div className="space-y-10 animate-fadeIn pb-20">
@@ -142,55 +143,105 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
       </div>
 
       {/* Filtros e Busca */}
-      <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-          <input 
-            type="text" 
-            placeholder="Buscar por tema ou cliente..." 
-            className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-transparent rounded-2xl outline-none focus:bg-white focus:border-pink-200 transition-all font-medium"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      <div className="space-y-4">
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+            <input 
+              type="text" 
+              placeholder="Buscar por tema ou cliente..." 
+              className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-transparent rounded-2xl outline-none focus:bg-white focus:border-pink-200 transition-all font-medium"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2 bg-gray-50 px-4 rounded-2xl border border-transparent">
+            <Calendar className="text-gray-400" size={18} />
+            <select 
+              className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500 mr-2 border-r border-gray-200 pr-2"
+              value={dateFilterType}
+              onChange={(e) => setDateFilterType(e.target.value as 'delivery' | 'created')}
+            >
+              <option value="delivery">Data de Entrega</option>
+              <option value="created">Data do Pedido</option>
+            </select>
+            <input 
+              type="date" 
+              className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <span className="text-gray-300">-</span>
+            <input 
+              type="date" 
+              className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2 bg-gray-50 px-4 rounded-2xl border border-transparent">
+            <Filter className="text-gray-400" size={18} />
+            <select 
+              className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">Todos os Status</option>
+              <option value="pending">Aguardando</option>
+              <option value="approved">Aprovado</option>
+              <option value="in_progress">Produzindo</option>
+              <option value="pending_payment">Pag. Pendente</option>
+              <option value="completed">Finalizado</option>
+            </select>
+          </div>
         </div>
-        <div className="flex items-center gap-2 bg-gray-50 px-4 rounded-2xl border border-transparent">
-          <Calendar className="text-gray-400" size={18} />
-          <select 
-            className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500 mr-2 border-r border-gray-200 pr-2"
-            value={dateFilterType}
-            onChange={(e) => setDateFilterType(e.target.value as 'delivery' | 'created')}
+
+        <div className="flex flex-wrap gap-2 px-4">
+          <button 
+            onClick={() => {
+              const today = new Date().toISOString().split('T')[0];
+              setStartDate(today);
+              setEndDate(today);
+            }}
+            className="px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-pink-50 hover:text-pink-500 hover:border-pink-100 transition-all"
           >
-            <option value="delivery">Data de Entrega</option>
-            <option value="created">Data do Pedido</option>
-          </select>
-          <input 
-            type="date" 
-            className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-          <span className="text-gray-300">-</span>
-          <input 
-            type="date" 
-            className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-        </div>
-        <div className="flex items-center gap-2 bg-gray-50 px-4 rounded-2xl border border-transparent">
-          <Filter className="text-gray-400" size={18} />
-          <select 
-            className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            Hoje
+          </button>
+          <button 
+            onClick={() => {
+              const curr = new Date();
+              const day = curr.getDay();
+              const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
+              const monday = new Date(curr.setDate(diff)).toISOString().split('T')[0];
+              const friday = new Date(curr.setDate(diff + 4)).toISOString().split('T')[0];
+              setStartDate(monday);
+              setEndDate(friday);
+            }}
+            className="px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-pink-50 hover:text-pink-500 hover:border-pink-100 transition-all"
           >
-            <option value="all">Todos os Status</option>
-            <option value="pending">Aguardando</option>
-            <option value="approved">Aprovado</option>
-            <option value="in_progress">Produzindo</option>
-            <option value="pending_payment">Pag. Pendente</option>
-            <option value="completed">Finalizado</option>
-          </select>
+            Esta Semana
+          </button>
+          <button 
+            onClick={() => {
+              const date = new Date();
+              const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
+              const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
+              setStartDate(firstDay);
+              setEndDate(lastDay);
+            }}
+            className="px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-pink-50 hover:text-pink-500 hover:border-pink-100 transition-all"
+          >
+            Este Mês
+          </button>
+          <button 
+            onClick={() => {
+              setStartDate('');
+              setEndDate('');
+            }}
+            className="px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-pink-50 hover:text-pink-500 hover:border-pink-100 transition-all"
+          >
+            Todo o Período
+          </button>
         </div>
       </div>
 
@@ -209,7 +260,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filteredProjects.map(project => {
-                const { finalPrice } = calculateProjectBreakdown(project, materials, platforms, companyData);
+                const { finalPrice } = calculateProjectBreakdown(project, materials, platforms, companyData, transactions);
                 return (
                   <tr key={project.id} className="hover:bg-gray-50/50 transition-colors group cursor-default">
                     <td className="px-8 py-6">

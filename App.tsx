@@ -364,7 +364,7 @@ const App: React.FC = () => {
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;
                   case 'pricing': return <PricingCalculator {...props} products={products} setProjects={setProjects} setTransactions={setTransactions} projectToEdit={projectToEdit} onClearEditProject={() => setProjectToEdit(null)} />;
                   case 'schedule': return <Schedule {...props} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
-                  case 'order_history': return <OrderHistory {...props} />;
+                  case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
                   default: return <Dashboard {...props} />;

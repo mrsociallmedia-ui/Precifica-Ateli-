@@ -30,7 +30,8 @@ import {
   Info,
   ArrowDownUp,
   BarChart3,
-  Scale
+  Scale,
+  History as HistoryIcon
 } from 'lucide-react';
 import { Transaction, Project, Material, Platform, CompanyData, CashClosure } from '../types';
 import { calculateProjectBreakdown } from '../utils';
@@ -57,6 +58,8 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
   const [showClosure, setShowClosure] = useState(false);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [closureType, setClosureType] = useState<'daily' | 'monthly' | 'custom'>('daily');
+  const [activeTab, setActiveTab] = useState<'history' | 'pending'>('history');
+  const [pendingSubFilter, setPendingSubFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [closureDate, setClosureDate] = useState(() => {
     const now = new Date();
@@ -76,22 +79,35 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     type: 'income',
     category: 'Venda',
     paymentMethod: 'Pix',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    status: 'paid'
   });
 
   const totals = useMemo(() => {
     const openTransactions = transactions.filter(t => !t.closed);
-    const income = openTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const expense = openTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    const paidTransactions = openTransactions.filter(t => t.status !== 'pending');
+    const pendingTransactions = openTransactions.filter(t => t.status === 'pending');
+
+    const income = paidTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    const expense = paidTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
     
+    const pendingIncome = pendingTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    const pendingExpense = pendingTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+
     // Calculate total receivables from projects
-    const receivables = projects.reduce((acc, p) => {
+    const projectReceivables = projects.reduce((acc, p) => {
       if (p.status === 'completed') return acc; // Completed projects are assumed paid or handled via transactions
-      const breakdown = calculateProjectBreakdown(p, materials, platforms, companyData);
+      const breakdown = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
       return acc + breakdown.remainingBalance;
     }, 0);
 
-    return { income, expense, balance: income - expense, receivables };
+    return { 
+      income, 
+      expense, 
+      balance: income - expense, 
+      receivables: projectReceivables + pendingIncome,
+      toPay: pendingExpense
+    };
   }, [transactions, projects, materials, platforms, companyData]);
 
   // Cálculos de Fechamento de Caixa com Mão de Obra e Lucro Real
@@ -124,7 +140,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
         const project = projects.find(p => p.id === projectId);
         
         if (project) {
-          const breakdown = calculateProjectBreakdown(project, materials, platforms, companyData);
+          const breakdown = calculateProjectBreakdown(project, materials, platforms, companyData, transactions);
           
           if (breakdown.finalPrice > 0) {
             // Proporção baseada no valor recebido na transação específica (sinal ou saldo)
@@ -191,7 +207,8 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
         type: newTransaction.type as 'income' | 'expense',
         category: newTransaction.category || 'Geral',
         paymentMethod: newTransaction.paymentMethod || 'Dinheiro',
-        date: newTransaction.date || new Date().toISOString().split('T')[0]
+        date: newTransaction.date || new Date().toISOString().split('T')[0],
+        status: newTransaction.status as 'pending' | 'paid' || 'paid'
       };
       setTransactions([transaction, ...transactions]);
     }
@@ -199,7 +216,8 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     setShowForm(false);
     setNewTransaction({ 
       description: '', amount: 0, type: 'income', category: 'Venda', paymentMethod: 'Pix', 
-      date: new Date().toISOString().split('T')[0] 
+      date: new Date().toISOString().split('T')[0],
+      status: 'paid'
     });
   };
 
@@ -412,6 +430,12 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
 
   const filteredTransactions = transactions
     .filter(t => !t.closed) // Only show open transactions in the main list
+    .filter(t => {
+      if (activeTab === 'history') return t.status !== 'pending';
+      if (t.status !== 'pending') return false;
+      if (pendingSubFilter === 'all') return true;
+      return t.type === pendingSubFilter;
+    })
     .filter(t => 
       t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.category.toLowerCase().includes(searchTerm.toLowerCase())
@@ -451,11 +475,50 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       </div>
 
       {/* CARDS DE RESUMO FINANCEIRO */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+        <div 
+          onClick={() => setActiveTab('history')}
+          className={`bg-white p-8 rounded-[2.5rem] shadow-sm border flex flex-col gap-4 group hover:shadow-xl transition-all cursor-pointer ${activeTab === 'history' ? 'border-blue-200 ring-2 ring-blue-50' : 'border-gray-50'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl shadow-sm"><ArrowDownUp size={28} /></div>
+            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Ver Histórico</span>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Saldo em Caixa</p>
+            <p className="text-3xl font-black text-gray-900 mt-1">R$ {totals.balance.toFixed(2)}</p>
+          </div>
+        </div>
+
+        <div 
+          onClick={() => setActiveTab('pending')}
+          className={`bg-white p-8 rounded-[2.5rem] shadow-sm border flex flex-col gap-4 group hover:shadow-xl transition-all cursor-pointer ${activeTab === 'pending' ? 'border-purple-200 ring-2 ring-purple-50' : 'border-purple-50'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-3 bg-purple-100 text-purple-600 rounded-2xl shadow-sm"><Scale size={28} /></div>
+            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Contas a Pagar</span>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Boletos/Contas</p>
+            <p className="text-3xl font-black text-purple-600 mt-1">R$ {totals.toPay.toFixed(2)}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-orange-50 flex flex-col gap-4 group hover:shadow-xl transition-all">
+          <div className="flex items-center justify-between">
+            <div className="p-3 bg-orange-100 text-orange-600 rounded-2xl shadow-sm"><Clock size={28} /></div>
+            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Total a Receber</span>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Pendente</p>
+            <p className="text-3xl font-black text-orange-600 mt-1">R$ {totals.receivables.toFixed(2)}</p>
+          </div>
+        </div>
+
         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-green-50 flex flex-col gap-4 group hover:shadow-xl transition-all">
           <div className="flex items-center justify-between">
             <div className="p-3 bg-green-100 text-green-600 rounded-2xl shadow-sm"><ArrowUpCircle size={28} /></div>
-            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Total Entradas</span>
+            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Entradas Pagas</span>
           </div>
           <div>
             <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Faturamento</p>
@@ -466,22 +529,11 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-red-50 flex flex-col gap-4 group hover:shadow-xl transition-all">
           <div className="flex items-center justify-between">
             <div className="p-3 bg-red-100 text-red-600 rounded-2xl shadow-sm"><ArrowDownCircle size={28} /></div>
-            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Total Saídas</span>
+            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Saídas Pagas</span>
           </div>
           <div>
             <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Despesas</p>
             <p className="text-3xl font-black text-red-600 mt-1">R$ {totals.expense.toFixed(2)}</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-orange-50 flex flex-col gap-4 group hover:shadow-xl transition-all">
-          <div className="flex items-center justify-between">
-            <div className="p-3 bg-orange-100 text-orange-600 rounded-2xl shadow-sm"><Clock size={28} /></div>
-            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">A Receber</span>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Pendente</p>
-            <p className="text-3xl font-black text-orange-600 mt-1">R$ {totals.receivables.toFixed(2)}</p>
           </div>
         </div>
 
@@ -499,16 +551,51 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
 
       {/* LISTA DE FLUXO DE CAIXA */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-8 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h3 className="font-black text-gray-700 uppercase text-xs tracking-widest flex items-center gap-2">
-            <ArrowDownUp size={18} className="text-blue-500" /> Histórico de Movimentações
-          </h3>
-          <div className="relative">
+        <div className="p-8 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
+            <button 
+              onClick={() => setActiveTab('history')}
+              className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'history' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <HistoryIcon size={14} /> Histórico
+            </button>
+            <button 
+              onClick={() => setActiveTab('pending')}
+              className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'pending' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <Clock size={14} /> Boletos / Contas a Vencer
+            </button>
+          </div>
+
+          {activeTab === 'pending' && (
+            <div className="flex items-center gap-2 bg-purple-50 p-1 rounded-xl border border-purple-100">
+              <button 
+                onClick={() => setPendingSubFilter('all')}
+                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pendingSubFilter === 'all' ? 'bg-white text-purple-600 shadow-sm' : 'text-purple-400 hover:text-purple-600'}`}
+              >
+                Todas
+              </button>
+              <button 
+                onClick={() => setPendingSubFilter('expense')}
+                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pendingSubFilter === 'expense' ? 'bg-red-500 text-white shadow-sm' : 'text-purple-400 hover:text-purple-600'}`}
+              >
+                A Pagar
+              </button>
+              <button 
+                onClick={() => setPendingSubFilter('income')}
+                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pendingSubFilter === 'income' ? 'bg-green-500 text-white shadow-sm' : 'text-purple-400 hover:text-purple-600'}`}
+              >
+                A Receber
+              </button>
+            </div>
+          )}
+          
+          <div className="relative flex-1 md:max-w-xs">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
             <input 
               type="text" 
               placeholder="Filtrar lançamentos..." 
-              className="pl-11 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm font-medium w-full md:w-64"
+              className="pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm font-medium w-full"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
@@ -535,8 +622,13 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                         {t.type === 'income' ? <ArrowUpCircle size={18} /> : <ArrowDownCircle size={18} />}
                       </div>
                       <div>
-                        <p className="font-black text-gray-700 text-sm">{t.description}</p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase">{new Date(t.date).toLocaleDateString('pt-BR')}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-black text-gray-700 text-sm">{t.description}</p>
+                          {t.status === 'pending' && (
+                            <span className="px-2 py-0.5 bg-purple-100 text-purple-600 text-[8px] font-black uppercase rounded-md">Pendente</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase">{new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
                       </div>
                     </div>
                   </td>
@@ -549,6 +641,21 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                   </td>
                   <td className="px-8 py-5 text-right">
                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {t.status === 'pending' && (
+                        <button 
+                          onClick={() => {
+                            if (confirm('Marcar este lançamento como PAGO?')) {
+                              setTransactions(prev => prev.map(item => 
+                                item.id === t.id ? { ...item, status: 'paid' } : item
+                              ));
+                            }
+                          }}
+                          className="p-2 text-gray-400 hover:text-green-500 transition-colors"
+                          title="Marcar como Pago"
+                        >
+                          <CheckCircle2 size={16} />
+                        </button>
+                      )}
                       <button 
                         onClick={() => {
                           setEditingTransactionId(t.id);
@@ -872,6 +979,26 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                     <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700" value={newTransaction.paymentMethod} onChange={e => setNewTransaction({...newTransaction, paymentMethod: e.target.value})}>
                        {paymentMethods.map(pm => <option key={pm} value={pm}>{pm}</option>)}
                     </select>
+                  </div>
+               </div>
+
+               <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Status do Pagamento</label>
+                  <div className="grid grid-cols-2 gap-4 bg-gray-50 p-2 rounded-2xl border border-gray-100">
+                    <button 
+                      type="button" 
+                      onClick={() => setNewTransaction({...newTransaction, status: 'paid'})} 
+                      className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newTransaction.status !== 'pending' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      Pago / Recebido
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setNewTransaction({...newTransaction, status: 'pending'})} 
+                      className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newTransaction.status === 'pending' ? 'bg-purple-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      Pendente (Boleto/Conta)
+                    </button>
                   </div>
                </div>
 
