@@ -1,45 +1,118 @@
 
 import React, { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3 } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
 interface ScheduleProps {
   projects: Project[];
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
+  transactions: Transaction[];
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
   customers: Customer[];
   materials: Material[];
   platforms: Platform[];
   companyData: CompanyData;
+  onEditProject: (project: Project) => void;
 }
 
 export const Schedule: React.FC<ScheduleProps> = ({ 
-  projects, setProjects, setTransactions, customers, materials, platforms, companyData 
+  projects, setProjects, transactions, setTransactions, customers, materials, platforms, companyData, onEditProject
 }) => {
   const [showBirthdaysModal, setShowBirthdaysModal] = useState(false);
+  const [paymentModal, setPaymentModal] = useState<{ isOpen: boolean; projectId: string; amount: number; maxAmount: number; theme: string } | null>(null);
+
+  const handleOpenPaymentModal = (project: Project) => {
+    const breakdown = calculateProjectBreakdown(project, materials, platforms, companyData, transactions);
+    if (breakdown.remainingBalance <= 0) {
+      alert('Este pedido já está totalmente pago!');
+      return;
+    }
+    setPaymentModal({
+      isOpen: true,
+      projectId: project.id,
+      amount: breakdown.remainingBalance,
+      maxAmount: breakdown.remainingBalance,
+      theme: project.theme
+    });
+  };
+
+  const handleConfirmPayment = () => {
+    if (!paymentModal || paymentModal.amount <= 0) return;
+
+    const newTransaction: Transaction = {
+      id: `payment_${Date.now()}_${paymentModal.projectId}`,
+      description: `Pagamento: ${paymentModal.theme}`,
+      amount: paymentModal.amount,
+      type: 'income',
+      category: 'Venda',
+      paymentMethod: 'Pix',
+      date: new Date().toISOString().split('T')[0]
+    };
+
+    setTransactions(prev => [newTransaction, ...prev]);
+    
+    const isFullyPaid = Math.abs(paymentModal.amount - paymentModal.maxAmount) < 0.01;
+
+    if (isFullyPaid) {
+       const project = projects.find(p => p.id === paymentModal.projectId);
+       const paidDate = new Date().toISOString();
+       
+       if (project) {
+           const shouldComplete = project.status !== 'completed' && confirm('Pagamento total recebido. Deseja finalizar (dar baixa) neste pedido agora?');
+           
+           setProjects(prev => prev.map(p => {
+               if (p.id === paymentModal.projectId) {
+                   return {
+                       ...p,
+                       status: shouldComplete ? 'completed' : p.status,
+                       paidAt: paidDate
+                   };
+               }
+               return p;
+           }));
+
+           if (shouldComplete) {
+               alert('Pagamento registrado e pedido finalizado!');
+           } else {
+               alert('Pagamento registrado com sucesso!');
+           }
+       }
+    } else {
+        alert('Pagamento registrado com sucesso!');
+    }
+    
+    setPaymentModal(null);
+  };
 
   const updateStatus = (id: string, newStatus: Project['status']) => {
     const projectToUpdate = projects.find(p => p.id === id);
+    let paidAt = projectToUpdate?.paidAt;
     
     // Se o status mudar para 'completed', gera automaticamente a transação do SALDO RESTANTE
     if (projectToUpdate && newStatus === 'completed' && projectToUpdate.status !== 'completed') {
-      const breakdown = calculateProjectBreakdown(projectToUpdate, materials, platforms, companyData);
+      const breakdown = calculateProjectBreakdown(projectToUpdate, materials, platforms, companyData, transactions);
       
-      const newTransaction: Transaction = {
-        id: `auto_final_${Date.now()}_${id}`,
-        description: `Saldo Final: ${projectToUpdate.theme}${projectToUpdate.quoteNumber ? ` (#${projectToUpdate.quoteNumber})` : ''}`,
-        amount: breakdown.remainingBalance, // Agora lança apenas o que falta (venda - sinal)
-        type: 'income',
-        category: 'Venda',
-        paymentMethod: 'Pix',
-        date: new Date().toISOString().split('T')[0]
-      };
-
-      setTransactions(prev => [newTransaction, ...prev]);
+      if (breakdown.remainingBalance > 0) {
+        const newTransaction: Transaction = {
+          id: `auto_final_${Date.now()}_${id}`,
+          description: `Saldo Final: ${projectToUpdate.theme}${projectToUpdate.quoteNumber ? ` (#${projectToUpdate.quoteNumber})` : ''}`,
+          amount: breakdown.remainingBalance, // Agora lança apenas o que falta (venda - sinal)
+          type: 'income',
+          category: 'Venda',
+          paymentMethod: 'Pix',
+          date: new Date().toISOString().split('T')[0]
+        };
+  
+        setTransactions(prev => [newTransaction, ...prev]);
+        paidAt = new Date().toISOString();
+      } else if (!paidAt) {
+        // Se já estava pago mas não tinha data, assume hoje ao finalizar
+        paidAt = new Date().toISOString();
+      }
     }
 
-    setProjects(projects.map(p => p.id === id ? { ...p, status: newStatus } : p));
+    setProjects(projects.map(p => p.id === id ? { ...p, status: newStatus, paidAt: paidAt || p.paidAt } : p));
   };
 
   const getCustomerName = (id: string) => customers.find(c => c.id === id)?.name || 'Cliente Avulso';
@@ -122,7 +195,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
             
             <div className="space-y-6 min-h-[400px]">
               {projects.filter(p => p.status === status).map(project => {
-                const { finalPrice } = calculateProjectBreakdown(project, materials, platforms, companyData);
+                const { finalPrice, remainingBalance } = calculateProjectBreakdown(project, materials, platforms, companyData, transactions);
                 return (
                   <div key={project.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group relative overflow-hidden flex flex-col">
                     <div className="flex items-center gap-2 mb-1">
@@ -151,12 +224,48 @@ export const Schedule: React.FC<ScheduleProps> = ({
                       </div>
                     </div>
 
+                    <div className="flex items-center justify-between mb-2 pb-2 border-b border-dashed border-gray-100">
+                       <span className="text-[9px] font-black text-gray-300 uppercase">Valor Total</span>
+                       <span className="text-sm font-black text-blue-600">R$ {finalPrice.toFixed(2)}</span>
+                    </div>
+
                     <div className="flex items-center justify-between mb-6 pb-4 border-b border-dashed border-gray-100">
-                       <span className="text-[9px] font-black text-gray-300 uppercase">Valor</span>
-                       <span className="text-base font-black text-blue-600">R$ {finalPrice.toFixed(2)}</span>
+                       <span className="text-[9px] font-black text-gray-300 uppercase">
+                         {remainingBalance > 0 ? 'A Receber' : 'Status Pagamento'}
+                       </span>
+                       {remainingBalance > 0 ? (
+                         <span className="text-sm font-black text-red-500">
+                           R$ {remainingBalance.toFixed(2)}
+                         </span>
+                       ) : (
+                         <div className="text-right leading-tight">
+                           <span className="text-sm font-black text-green-500 block">PAGO</span>
+                           {project.paidAt && (
+                             <span className="text-[9px] font-bold text-gray-400 uppercase block">
+                               em {new Date(project.paidAt).toLocaleDateString('pt-BR')}
+                             </span>
+                           )}
+                         </div>
+                       )}
                     </div>
 
                     <div className="flex gap-2 mt-auto">
+                      <button 
+                        onClick={() => onEditProject(project)}
+                        className="p-3 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-2xl transition-all"
+                        title="Editar Pedido"
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                      {remainingBalance > 0 && (
+                        <button 
+                          onClick={() => handleOpenPaymentModal(project)}
+                          className="p-3 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-2xl transition-all"
+                          title="Receber Pagamento"
+                        >
+                          <DollarSign size={14} />
+                        </button>
+                      )}
                       {status !== 'completed' && (
                         <button 
                           onClick={() => {
@@ -222,6 +331,47 @@ export const Schedule: React.FC<ScheduleProps> = ({
             </div>
             <div className="p-8 border-t border-gray-100 bg-white">
                <button onClick={() => setShowBirthdaysModal(false)} className="w-full py-4 bg-gray-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-gray-900 transition-all">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Pagamento */}
+      {paymentModal && paymentModal.isOpen && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+            <div className="bg-green-500 p-8 text-white flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl font-black">Receber Pagamento</h3>
+                <p className="text-green-100 font-bold text-xs uppercase tracking-widest truncate max-w-[200px]">{paymentModal.theme}</p>
+              </div>
+              <button onClick={() => setPaymentModal(null)} className="p-2 bg-white/20 hover:bg-white/40 rounded-full transition-all">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Valor a Receber</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-green-500 font-black">R$</span>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-xl text-gray-700 focus:ring-2 focus:ring-green-200 transition-all"
+                    value={paymentModal.amount}
+                    onChange={(e) => setPaymentModal({ ...paymentModal, amount: parseFloat(e.target.value) || 0 })}
+                    max={paymentModal.maxAmount}
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400 font-bold text-right">Máximo Pendente: R$ {paymentModal.maxAmount.toFixed(2)}</p>
+              </div>
+              
+              <button 
+                onClick={handleConfirmPayment}
+                className="w-full py-4 bg-green-500 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-lg shadow-green-100 flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 size={18} /> Confirmar Recebimento
+              </button>
             </div>
           </div>
         </div>

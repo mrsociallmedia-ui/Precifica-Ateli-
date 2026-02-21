@@ -45,6 +45,7 @@ const App: React.FC = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'local'>('synced');
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
+  const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
   
   const initializedRef = useRef(false);
   const syncTimeoutRef = useRef<any>(null);
@@ -361,8 +362,8 @@ const App: React.FC = () => {
                   case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} />;
                   case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} />;
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;
-                  case 'pricing': return <PricingCalculator {...props} products={products} setProjects={setProjects} setTransactions={setTransactions} />;
-                  case 'schedule': return <Schedule {...props} setProjects={setProjects} setTransactions={setTransactions} />;
+                  case 'pricing': return <PricingCalculator {...props} products={products} setProjects={setProjects} setTransactions={setTransactions} projectToEdit={projectToEdit} onClearEditProject={() => setProjectToEdit(null)} />;
+                  case 'schedule': return <Schedule {...props} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'order_history': return <OrderHistory {...props} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;

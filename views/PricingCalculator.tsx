@@ -83,6 +83,8 @@ interface PricingCalculatorProps {
   products: Product[];
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
+  projectToEdit?: Project | null;
+  onClearEditProject?: () => void;
 }
 
 export const PricingCalculator: React.FC<PricingCalculatorProps> = ({ 
@@ -93,7 +95,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   projects,
   products,
   setProjects,
-  setTransactions
+  setTransactions,
+  projectToEdit,
+  onClearEditProject
 }) => {
   // Lógica para gerar número sequencial simples (1, 2, 3, 4...)
   const generateAutoQuoteNumber = () => {
@@ -148,6 +152,29 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'completed'>('ongoing');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  // Carregar projeto para edição
+  useEffect(() => {
+    if (projectToEdit) {
+      setCurrentProject({
+        ...projectToEdit,
+        // Ensure dates are formatted correctly for input type="date"
+        orderDate: projectToEdit.orderDate ? projectToEdit.orderDate.split('T')[0] : '',
+        deliveryDate: projectToEdit.deliveryDate ? projectToEdit.deliveryDate.split('T')[0] : '',
+      });
+      // Scroll to form
+      const formEl = document.getElementById('calc-form');
+      if (formEl) formEl.scrollIntoView({ behavior: 'smooth' });
+      
+      // Clear the edit state in parent so we don't re-trigger this on every render
+      if (onClearEditProject) {
+        // We need to wait a bit or just clear it. 
+        // Actually, if we clear it immediately, App re-renders and passes null, 
+        // but we already set local state, so it's fine.
+        onClearEditProject();
+      }
+    }
+  }, [projectToEdit, onClearEditProject]);
 
   // Efeito para preencher o número inicial
   useEffect(() => {

@@ -83,8 +83,16 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     const openTransactions = transactions.filter(t => !t.closed);
     const income = openTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
     const expense = openTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
-    return { income, expense, balance: income - expense };
-  }, [transactions]);
+    
+    // Calculate total receivables from projects
+    const receivables = projects.reduce((acc, p) => {
+      if (p.status === 'completed') return acc; // Completed projects are assumed paid or handled via transactions
+      const breakdown = calculateProjectBreakdown(p, materials, platforms, companyData);
+      return acc + breakdown.remainingBalance;
+    }, 0);
+
+    return { income, expense, balance: income - expense, receivables };
+  }, [transactions, projects, materials, platforms, companyData]);
 
   // Cálculos de Fechamento de Caixa com Mão de Obra e Lucro Real
   const closureStats = useMemo(() => {
@@ -443,7 +451,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       </div>
 
       {/* CARDS DE RESUMO FINANCEIRO */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-green-50 flex flex-col gap-4 group hover:shadow-xl transition-all">
           <div className="flex items-center justify-between">
             <div className="p-3 bg-green-100 text-green-600 rounded-2xl shadow-sm"><ArrowUpCircle size={28} /></div>
@@ -463,6 +471,17 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
           <div>
             <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Despesas</p>
             <p className="text-3xl font-black text-red-600 mt-1">R$ {totals.expense.toFixed(2)}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-orange-50 flex flex-col gap-4 group hover:shadow-xl transition-all">
+          <div className="flex items-center justify-between">
+            <div className="p-3 bg-orange-100 text-orange-600 rounded-2xl shadow-sm"><Clock size={28} /></div>
+            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">A Receber</span>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Pendente</p>
+            <p className="text-3xl font-black text-orange-600 mt-1">R$ {totals.receivables.toFixed(2)}</p>
           </div>
         </div>
 

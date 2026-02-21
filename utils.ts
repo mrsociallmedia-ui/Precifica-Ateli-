@@ -1,10 +1,11 @@
-import { Project, Material, Platform, CompanyData, PricingBreakdown } from './types';
+import { Project, Material, Platform, CompanyData, PricingBreakdown, Transaction } from './types';
 
 export const calculateProjectBreakdown = (
   project: Partial<Project>,
   materials: Material[],
   platforms: Platform[],
-  companyData: CompanyData
+  companyData: CompanyData,
+  transactions?: Transaction[]
 ): PricingBreakdown => {
   let totalVariableCosts = 0;
   let totalLaborCosts = 0;
@@ -95,8 +96,38 @@ export const calculateProjectBreakdown = (
   const shipping = project.shipping || 0;
   const finalPrice = priceWithFees + shipping;
 
-  const downPayment = project.downPayment || 0;
-  const remainingBalance = Math.max(0, finalPrice - downPayment);
+  // Calcular pagamentos já realizados
+  let totalPaid = project.downPayment || 0;
+  
+  if (transactions && project.id) {
+    const projectTransactions = transactions.filter(t => 
+      t.type === 'income' && 
+      (t.id.endsWith(`_${project.id}`) || t.description.includes(project.theme || ''))
+    );
+    
+    // Se houver transações vinculadas, usamos elas para somar ao downPayment inicial
+    // Mas cuidado para não somar o sinal duas vezes se ele já estiver nas transações
+    // O ideal é: se tem transações, confia nelas. Se não, usa o downPayment do projeto.
+    // Ou melhor: downPayment do projeto é o valor INICIAL. Transações são pagamentos POSTERIORES ou o próprio sinal.
+    // Vamos assumir que transactions contém TUDO se estiver disponível.
+    
+    // Para simplificar e evitar duplicação complexa:
+    // Vamos somar as transações que parecem ser deste projeto.
+    // O ID da transação geralmente é `signal_${timestamp}_${projectId}` ou `payment_${timestamp}_${projectId}`
+    
+    const paidViaTransactions = projectTransactions.reduce((acc, t) => acc + t.amount, 0);
+    
+    // Se paidViaTransactions for maior que 0, usamos ele. 
+    // Caso contrário, mantemos o downPayment legado.
+    // Mas o downPayment legado pode ter gerado uma transação 'signal_...'.
+    // Se a transação existe, ela está em paidViaTransactions.
+    
+    if (paidViaTransactions > 0) {
+      totalPaid = paidViaTransactions;
+    }
+  }
+
+  const remainingBalance = Math.max(0, finalPrice - totalPaid);
 
   return {
     variableCosts: totalVariableCosts,
@@ -108,7 +139,7 @@ export const calculateProjectBreakdown = (
     bonus: 0,
     shipping,
     totalDiscount,
-    downPayment,
+    downPayment: totalPaid,
     remainingBalance: Math.ceil(remainingBalance * 100) / 100,
     finalPrice: Math.ceil(finalPrice * 100) / 100,
     basePieceValue
