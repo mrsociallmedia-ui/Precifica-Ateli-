@@ -59,7 +59,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [closureType, setClosureType] = useState<'daily' | 'monthly' | 'custom'>('daily');
   const [activeTab, setActiveTab] = useState<'history' | 'pending'>('history');
-  const [pendingSubFilter, setPendingSubFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [pendingSubFilter, setPendingSubFilter] = useState<'all' | 'income' | 'expense'>('expense');
   const [searchTerm, setSearchTerm] = useState('');
   const [closureDate, setClosureDate] = useState(() => {
     const now = new Date();
@@ -563,30 +563,38 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
               onClick={() => setActiveTab('pending')}
               className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'pending' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
             >
-              <Clock size={14} /> Boletos / Contas a Vencer
+              <Clock size={14} /> Contas a Pagar (Boletos)
             </button>
           </div>
 
           {activeTab === 'pending' && (
-            <div className="flex items-center gap-2 bg-purple-50 p-1 rounded-xl border border-purple-100">
-              <button 
-                onClick={() => setPendingSubFilter('all')}
-                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pendingSubFilter === 'all' ? 'bg-white text-purple-600 shadow-sm' : 'text-purple-400 hover:text-purple-600'}`}
-              >
-                Todas
-              </button>
-              <button 
-                onClick={() => setPendingSubFilter('expense')}
-                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pendingSubFilter === 'expense' ? 'bg-red-500 text-white shadow-sm' : 'text-purple-400 hover:text-purple-600'}`}
-              >
-                A Pagar
-              </button>
-              <button 
-                onClick={() => setPendingSubFilter('income')}
-                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pendingSubFilter === 'income' ? 'bg-green-500 text-white shadow-sm' : 'text-purple-400 hover:text-purple-600'}`}
-              >
-                A Receber
-              </button>
+            <div className="flex flex-col md:flex-row items-center gap-4">
+              <div className="flex items-center gap-2 bg-purple-50 p-1 rounded-xl border border-purple-100">
+                <button 
+                  onClick={() => setPendingSubFilter('all')}
+                  className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pendingSubFilter === 'all' ? 'bg-white text-purple-600 shadow-sm' : 'text-purple-400 hover:text-purple-600'}`}
+                >
+                  Todas
+                </button>
+                <button 
+                  onClick={() => setPendingSubFilter('expense')}
+                  className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pendingSubFilter === 'expense' ? 'bg-red-500 text-white shadow-sm' : 'text-purple-400 hover:text-purple-600'}`}
+                >
+                  A Pagar
+                </button>
+                <button 
+                  onClick={() => setPendingSubFilter('income')}
+                  className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pendingSubFilter === 'income' ? 'bg-green-500 text-white shadow-sm' : 'text-purple-400 hover:text-purple-600'}`}
+                >
+                  A Receber
+                </button>
+              </div>
+              <div className="px-6 py-2 bg-purple-600 text-white rounded-xl shadow-lg shadow-purple-100 flex flex-col items-center justify-center">
+                <span className="text-[8px] font-black uppercase tracking-widest opacity-60">Total {pendingSubFilter === 'all' ? 'Pendente' : pendingSubFilter === 'expense' ? 'A Pagar' : 'A Receber'}</span>
+                <span className="text-sm font-black">
+                  R$ {filteredTransactions.reduce((acc, t) => acc + t.amount, 0).toFixed(2)}
+                </span>
+              </div>
             </div>
           )}
           
@@ -650,10 +658,10 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                               ));
                             }
                           }}
-                          className="p-2 text-gray-400 hover:text-green-500 transition-colors"
+                          className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-sm"
                           title="Marcar como Pago"
                         >
-                          <CheckCircle2 size={16} />
+                          <CheckCircle2 size={12} /> PAGO
                         </button>
                       )}
                       <button 
@@ -663,10 +671,15 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                           setShowForm(true);
                         }} 
                         className="p-2 text-gray-400 hover:text-blue-500 transition-colors"
+                        title="Editar"
                       >
                         <Edit3 size={16} />
                       </button>
-                      <button onClick={() => deleteTransaction(t.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
+                      <button 
+                        onClick={() => deleteTransaction(t.id)} 
+                        className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                        title="Excluir"
+                      >
                         <Trash2 size={16} />
                       </button>
                     </div>

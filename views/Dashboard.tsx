@@ -33,11 +33,12 @@ interface DashboardProps {
   platforms: Platform[];
   transactions: Transaction[];
   products: Product[];
+  setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
 }
 
 type DashboardFilter = 'all' | 'today' | 'active' | 'pending';
 
-export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, materials, companyData, platforms, transactions, products }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, materials, companyData, platforms, transactions, products, setTransactions }) => {
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>('all');
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -49,8 +50,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
     });
 
     const openTransactions = transactions.filter(t => !t.closed);
-    const income = openTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const expense = openTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    const paidTransactions = openTransactions.filter(t => t.status !== 'pending');
+    const income = paidTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    const expense = paidTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
     const actualBalance = income - expense;
 
     const dueToday = projects.filter(p => p.status !== 'completed' && p.deliveryDate === todayStr);
@@ -317,9 +319,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                           {new Date(transaction.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                         </p>
                       </div>
-                      <div className="p-3 rounded-2xl shadow-sm bg-white text-purple-300">
-                        <Clock size={20} />
-                      </div>
+                      <button 
+                        onClick={() => {
+                          if (confirm('Marcar este boleto como PAGO?')) {
+                            setTransactions(prev => prev.map(t => 
+                              t.id === transaction.id ? { ...t, status: 'paid' } : t
+                            ));
+                          }
+                        }}
+                        className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-sm"
+                      >
+                        <CheckCircle2 size={14} /> Dar Baixa
+                      </button>
                     </div>
                   </div>
                 ))
