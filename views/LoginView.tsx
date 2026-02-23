@@ -149,7 +149,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 {mode === 'access' ? <Sparkles size={32} /> : <KeyRound size={32} />}
               </div>
               <h1 className="text-2xl font-black text-gray-800 tracking-tight text-center">
-                Precifica <span className="text-pink-500">Ateliê</span>
+                Calculiê
               </h1>
               <p className="text-gray-400 font-bold text-[9px] mt-2 uppercase tracking-[0.3em] text-center">
                 {mode === 'access' ? 'Gestão Profissional para Artesãos' : 'Redefinição de Senha Interna'}

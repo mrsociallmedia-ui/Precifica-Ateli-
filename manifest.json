@@ -1,8 +1,8 @@
 
 {
-  "name": "Precifica Ateliê",
-  "short_name": "Precifica",
-  "description": "Gestão e Precificação para Artesanato",
+  "name": "Calculiê",
+  "short_name": "Calculiê",
+  "description": "Criar é arte. Precificar é estratégia.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fffaf0",

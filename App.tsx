@@ -298,7 +298,7 @@ const App: React.FC = () => {
             <div className="w-10 h-10 bg-pink-500 rounded-xl flex items-center justify-center shadow-lg shrink-0 overflow-hidden">
               <img src="https://cdn-icons-png.flaticon.com/512/4230/4230588.png" alt="Logo" className="w-7 h-7 filter brightness-0 invert" />
             </div>
-            {isSidebarOpen && <h1 className="text-pink-600 font-black text-lg tracking-tight truncate">Precifica Ateliê</h1>}
+            {isSidebarOpen && <h1 className="text-pink-600 font-black text-lg tracking-tight truncate">Calculiê</h1>}
           </div>
           <button className="lg:hidden text-gray-400 p-1" onClick={() => setSidebarOpen(false)}><X size={20}/></button>
         </div>
