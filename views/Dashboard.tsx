@@ -20,7 +20,8 @@ import {
   Sparkles,
   ArrowRight,
   AlertTriangle,
-  Scale
+  Scale,
+  Calculator
 } from 'lucide-react';
 import { Project, Customer, Material, CompanyData, Platform, Transaction, Product } from '../types';
 import { calculateProjectBreakdown } from '../utils';
@@ -36,7 +37,7 @@ interface DashboardProps {
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
 }
 
-type DashboardFilter = 'all' | 'today' | 'active' | 'pending' | 'receivable';
+type DashboardFilter = 'all' | 'today' | 'active' | 'pending' | 'receivable' | 'quotes_pending';
 
 export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, materials, companyData, platforms, transactions, products, setTransactions }) => {
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>('all');
@@ -56,12 +57,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
     const actualBalance = income - expense;
 
     const dueToday = projects.filter(p => p.status !== 'completed' && p.deliveryDate === todayStr);
-    const active = projects.filter(p => p.status !== 'completed');
+    const active = projects.filter(p => p.status !== 'completed' && p.status !== 'pending');
     
+    let activeProjectsValue = 0;
+    active.forEach(p => {
+      const { finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
+      activeProjectsValue += finalPrice;
+    });
+
     // Boletos / Contas a Vencer: Transações pendentes
     const pendingTransactions = transactions.filter(t => !t.closed && t.status === 'pending');
     const pendingToPay = pendingTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
     const pendingToReceive = pendingTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+
+    const pendingQuotes = projects.filter(p => p.status === 'pending');
+    let pendingQuotesValue = 0;
+    pendingQuotes.forEach(p => {
+      const { finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
+      pendingQuotesValue += finalPrice;
+    });
 
     // Cálculo de Produtos Mais Vendidos
     const productSales: Record<string, number> = {};
@@ -91,6 +105,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       pendingTransactions,
       pendingToPay,
       pendingToReceive,
+      pendingQuotes,
+      pendingQuotesValue,
+      activeProjectsValue,
       bestSellers,
       all: projects
     };
@@ -117,6 +134,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       case 'active': return { type: 'project', items: statsCalculations.active };
       case 'pending': return { type: 'transaction', items: statsCalculations.pendingTransactions.filter(t => t.type === 'expense') };
       case 'receivable': return { type: 'transaction', items: statsCalculations.pendingTransactions.filter(t => t.type === 'income') };
+      case 'quotes_pending': return { type: 'project', items: statsCalculations.pendingQuotes };
       default: return { type: 'project', items: [] };
     }
   }, [activeFilter, statsCalculations]);
@@ -221,9 +239,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
               <ShoppingBag size={28} />
             </div>
             <div>
-              <p className={`text-[10px] font-black uppercase tracking-widest ${activeFilter === 'active' ? 'text-white/60' : 'text-gray-400'}`}>Projetos Ativos</p>
-              <p className="text-3xl font-black mt-1">{statsCalculations.active.length}</p>
-              <p className={`text-[10px] font-bold mt-2 ${activeFilter === 'active' ? 'text-white/40' : 'text-gray-300'}`}>Em produção no ateliê</p>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${activeFilter === 'active' ? 'text-white/60' : 'text-gray-400'}`}>Valor em Produção</p>
+              <p className="text-3xl font-black mt-1">R$ {statsCalculations.activeProjectsValue.toFixed(2)}</p>
+              <p className={`text-[10px] font-bold mt-2 ${activeFilter === 'active' ? 'text-white/40' : 'text-gray-300'}`}>{statsCalculations.active.length} projetos em andamento</p>
+            </div>
+          </button>
+
+          <button 
+            onClick={() => setActiveFilter('quotes_pending')}
+            className={`p-8 rounded-[3rem] border transition-all flex flex-col justify-between text-left group min-h-[220px] ${activeFilter === 'quotes_pending' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white border-blue-50 hover:shadow-xl'}`}
+          >
+            <div className={`p-4 rounded-2xl shadow-sm w-fit ${activeFilter === 'quotes_pending' ? 'bg-white/10' : 'bg-blue-100 text-blue-500'}`}>
+              <Calculator size={28} />
+            </div>
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${activeFilter === 'quotes_pending' ? 'text-white/60' : 'text-gray-400'}`}>Orçamentos Pendentes</p>
+              <p className="text-3xl font-black mt-1">R$ {statsCalculations.pendingQuotesValue.toFixed(2)}</p>
+              <p className={`text-[10px] font-bold mt-2 ${activeFilter === 'quotes_pending' ? 'text-white/40' : 'text-gray-300'}`}>{statsCalculations.pendingQuotes.length} aguardando aprovação</p>
             </div>
           </button>
         </div>
@@ -255,12 +287,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
         <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-pink-50 animate-slideUp">
            <div className="flex items-center justify-between mb-10">
               <div className="flex items-center gap-4">
-                 <div className={`p-4 text-white rounded-3xl shadow-xl ${activeFilter === 'pending' ? 'bg-purple-600' : activeFilter === 'receivable' ? 'bg-emerald-600' : 'bg-gray-900'}`}>
-                    {activeFilter === 'today' ? <CalendarCheck size={28} /> : activeFilter === 'pending' ? <Scale size={28} /> : activeFilter === 'receivable' ? <TrendingUp size={28} /> : <ShoppingBag size={28} />}
+                 <div className={`p-4 text-white rounded-3xl shadow-xl ${activeFilter === 'pending' ? 'bg-purple-600' : activeFilter === 'receivable' ? 'bg-emerald-600' : activeFilter === 'quotes_pending' ? 'bg-blue-500' : 'bg-gray-900'}`}>
+                    {activeFilter === 'today' ? <CalendarCheck size={28} /> : activeFilter === 'pending' ? <Scale size={28} /> : activeFilter === 'receivable' ? <TrendingUp size={28} /> : activeFilter === 'quotes_pending' ? <Calculator size={28} /> : <ShoppingBag size={28} />}
                  </div>
                  <div>
                     <h3 className="text-2xl font-black text-gray-800 tracking-tight">
-                      {activeFilter === 'today' ? 'Vencimentos de Hoje' : activeFilter === 'pending' ? 'Contas a Pagar (Boletos)' : activeFilter === 'receivable' ? 'Contas a Receber' : 'Projetos em Produção'}
+                      {activeFilter === 'today' ? 'Vencimentos de Hoje' : activeFilter === 'pending' ? 'Contas a Pagar (Boletos)' : activeFilter === 'receivable' ? 'Contas a Receber' : activeFilter === 'quotes_pending' ? 'Orçamentos Pendentes' : 'Projetos em Produção'}
                     </h3>
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">
                       {filteredData.items.length} {filteredData.items.length === 1 ? 'item identificado' : 'itens identificados'}
