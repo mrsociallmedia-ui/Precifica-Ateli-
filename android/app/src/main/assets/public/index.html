@@ -3,7 +3,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Calculiê - Criar é arte. Precificar é estratégia.</title>
     
     <!-- Meta tags para PWA e Mobile -->
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-title" content="Calculiê">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/4230/4230588.png">
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/4230/4230588.png">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="/assets/manifest-DgJAWtSl.json">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -30,10 +30,6 @@
             color: #4b5563;
             -webkit-tap-highlight-color: transparent;
             overscroll-behavior-y: contain;
-            padding-top: env(safe-area-inset-top);
-            padding-bottom: env(safe-area-inset-bottom);
-            padding-left: env(safe-area-inset-left);
-            padding-right: env(safe-area-inset-right);
         }
         ::-webkit-scrollbar {
             width: 8px;
@@ -72,6 +68,7 @@
             animation: pulse-soft 2s infinite;
         }
     </style>
+
 <script type="importmap">
 {
   "imports": {
@@ -88,10 +85,10 @@
   }
 }
 </script>
+  <script type="module" crossorigin src="/assets/index-DBni8SGc.js"></script>
 </head>
 <body>
     <div id="root"></div>
     <div id="pdf-container"></div>
-    <script type="module" src="/index.tsx"></script>
 </body>
 </html>

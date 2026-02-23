@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Calculiê</string>
+    <string name="title_activity_main">Calculiê</string>
+    <string name="package_name">com.calculie.app</string>
+    <string name="custom_url_scheme">com.calculie.app</string>
+</resources>

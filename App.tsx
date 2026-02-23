@@ -32,6 +32,7 @@ import { Products } from './views/Products';
 import { FinancialControl } from './views/FinancialControl';
 import { OrderHistory } from './views/OrderHistory';
 import { LoginView } from './views/LoginView';
+import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 import { supabase } from './supabaseClient';
@@ -104,6 +105,21 @@ const App: React.FC = () => {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // Handle Android Back Button
+  useEffect(() => {
+    const backListener = CapApp.addListener('backButton', ({ canGoBack }) => {
+      if (!canGoBack) {
+        CapApp.exitApp();
+      } else {
+        window.history.back();
+      }
+    });
+
+    return () => {
+      backListener.then(l => l.remove());
+    };
   }, []);
 
   const loadLocalCache = useCallback((email: string) => {
