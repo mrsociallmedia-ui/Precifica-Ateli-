@@ -36,7 +36,7 @@ interface DashboardProps {
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
 }
 
-type DashboardFilter = 'all' | 'today' | 'active' | 'pending';
+type DashboardFilter = 'all' | 'today' | 'active' | 'pending' | 'receivable';
 
 export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, materials, companyData, platforms, transactions, products, setTransactions }) => {
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>('all');
@@ -115,7 +115,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
     switch (activeFilter) {
       case 'today': return { type: 'project', items: statsCalculations.dueToday };
       case 'active': return { type: 'project', items: statsCalculations.active };
-      case 'pending': return { type: 'transaction', items: statsCalculations.pendingTransactions };
+      case 'pending': return { type: 'transaction', items: statsCalculations.pendingTransactions.filter(t => t.type === 'expense') };
+      case 'receivable': return { type: 'transaction', items: statsCalculations.pendingTransactions.filter(t => t.type === 'income') };
       default: return { type: 'project', items: [] };
     }
   }, [activeFilter, statsCalculations]);
@@ -199,6 +200,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
           </button>
 
           <button 
+            onClick={() => setActiveFilter('receivable')}
+            className={`p-8 rounded-[3rem] border transition-all flex flex-col justify-between text-left group min-h-[220px] ${activeFilter === 'receivable' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-emerald-50 hover:shadow-xl'}`}
+          >
+            <div className={`p-4 rounded-2xl shadow-sm w-fit ${activeFilter === 'receivable' ? 'bg-white/10' : 'bg-emerald-100 text-emerald-600'}`}>
+              <TrendingUp size={28} />
+            </div>
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${activeFilter === 'receivable' ? 'text-white/60' : 'text-gray-400'}`}>Contas a Receber</p>
+              <p className="text-3xl font-black mt-1">R$ {statsCalculations.pendingToReceive.toFixed(2)}</p>
+              <p className={`text-[10px] font-bold mt-2 ${activeFilter === 'receivable' ? 'text-white/40' : 'text-gray-300'}`}>Sinais e saldos pendentes</p>
+            </div>
+          </button>
+
+          <button 
             onClick={() => setActiveFilter('active')}
             className={`p-8 rounded-[3rem] border transition-all flex flex-col justify-between text-left group min-h-[220px] ${activeFilter === 'active' ? 'bg-yellow-500 text-white border-yellow-500' : 'bg-white border-yellow-50 hover:shadow-xl'}`}
           >
@@ -240,12 +255,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
         <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-pink-50 animate-slideUp">
            <div className="flex items-center justify-between mb-10">
               <div className="flex items-center gap-4">
-                 <div className={`p-4 text-white rounded-3xl shadow-xl ${activeFilter === 'pending' ? 'bg-purple-600' : 'bg-gray-900'}`}>
-                    {activeFilter === 'today' ? <CalendarCheck size={28} /> : activeFilter === 'pending' ? <Scale size={28} /> : <ShoppingBag size={28} />}
+                 <div className={`p-4 text-white rounded-3xl shadow-xl ${activeFilter === 'pending' ? 'bg-purple-600' : activeFilter === 'receivable' ? 'bg-emerald-600' : 'bg-gray-900'}`}>
+                    {activeFilter === 'today' ? <CalendarCheck size={28} /> : activeFilter === 'pending' ? <Scale size={28} /> : activeFilter === 'receivable' ? <TrendingUp size={28} /> : <ShoppingBag size={28} />}
                  </div>
                  <div>
                     <h3 className="text-2xl font-black text-gray-800 tracking-tight">
-                      {activeFilter === 'today' ? 'Vencimentos de Hoje' : activeFilter === 'pending' ? 'Contas a Pagar (Boletos)' : 'Projetos em Produção'}
+                      {activeFilter === 'today' ? 'Vencimentos de Hoje' : activeFilter === 'pending' ? 'Contas a Pagar (Boletos)' : activeFilter === 'receivable' ? 'Contas a Receber' : 'Projetos em Produção'}
                     </h3>
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">
                       {filteredData.items.length} {filteredData.items.length === 1 ? 'item identificado' : 'itens identificados'}
@@ -295,33 +310,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                   );
                 })
               ) : (
-                (filteredData.items as Transaction[]).filter(t => t.type === 'expense').map(transaction => (
-                  <div key={transaction.id} className="p-8 rounded-[2.5rem] border hover:shadow-2xl transition-all group flex flex-col justify-between bg-purple-50/30 border-purple-100 hover:bg-white">
+                (filteredData.items as Transaction[]).map(transaction => (
+                  <div key={transaction.id} className={`p-8 rounded-[2.5rem] border hover:shadow-2xl transition-all group flex flex-col justify-between ${transaction.type === 'income' ? 'bg-emerald-50/30 border-emerald-100 hover:bg-white' : 'bg-purple-50/30 border-purple-100 hover:bg-white'}`}>
                     <div>
                       <div className="flex justify-between items-start mb-6">
                         <div className="flex flex-col gap-2">
-                          <span className="px-2 py-0.5 bg-purple-100 text-purple-600 text-[8px] font-black uppercase rounded-md w-fit">Pendente</span>
-                          <h4 className="font-black text-gray-800 text-lg group-hover:text-purple-600 transition-colors leading-tight">{transaction.description}</h4>
+                          <span className={`px-2 py-0.5 text-[8px] font-black uppercase rounded-md w-fit ${transaction.type === 'income' ? 'bg-emerald-100 text-emerald-600' : 'bg-purple-100 text-purple-600'}`}>Pendente</span>
+                          <h4 className={`font-black text-gray-800 text-lg transition-colors leading-tight ${transaction.type === 'income' ? 'group-hover:text-emerald-600' : 'group-hover:text-purple-600'}`}>{transaction.description}</h4>
                           <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1 italic">{transaction.category}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-black text-red-500">
-                            - R$ {transaction.amount.toFixed(2)}
+                          <p className={`text-lg font-black ${transaction.type === 'income' ? 'text-emerald-600' : 'text-red-500'}`}>
+                            {transaction.type === 'income' ? '+' : '-'} R$ {transaction.amount.toFixed(2)}
                           </p>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-4 pt-6 border-t border-purple-100 mt-6">
+                    <div className={`flex items-center gap-4 pt-6 border-t mt-6 ${transaction.type === 'income' ? 'border-emerald-100' : 'border-purple-100'}`}>
                       <div className="flex-1">
-                        <p className="text-[8px] font-black uppercase tracking-widest leading-none mb-1 text-purple-300">Data de Vencimento</p>
+                        <p className={`text-[8px] font-black uppercase tracking-widest leading-none mb-1 ${transaction.type === 'income' ? 'text-emerald-300' : 'text-purple-300'}`}>Data Esperada</p>
                         <p className="text-xs font-black leading-none text-gray-700">
                           {new Date(transaction.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                         </p>
                       </div>
                       <button 
                         onClick={() => {
-                          if (confirm('Marcar este boleto como PAGO?')) {
+                          if (confirm(`Marcar este lançamento como ${transaction.type === 'income' ? 'RECEBIDO' : 'PAGO'}?`)) {
                             setTransactions(prev => prev.map(t => 
                               t.id === transaction.id ? { ...t, status: 'paid' } : t
                             ));
@@ -329,7 +344,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                         }}
                         className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-sm"
                       >
-                        <CheckCircle2 size={14} /> Dar Baixa
+                        <CheckCircle2 size={14} /> {transaction.type === 'income' ? 'Receber' : 'Dar Baixa'}
                       </button>
                     </div>
                   </div>
@@ -400,7 +415,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                 </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-10">
                 <div className="space-y-6">
                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50 pb-4 flex items-center gap-2">
                        <ArrowRight size={12} /> Próximas Entregas
@@ -450,6 +465,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                     ))}
                     {transactions.filter(t => !t.closed && t.status === 'pending' && t.type === 'expense').length === 0 && (
                       <p className="text-[10px] text-gray-300 font-bold uppercase italic text-center py-4">Nenhuma conta pendente</p>
+                    )}
+                </div>
+
+                <div className="space-y-6">
+                    <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em] border-b border-emerald-50 pb-4 flex items-center gap-2">
+                       <ArrowRight size={12} /> Contas a Receber
+                    </h4>
+                    {transactions.filter(t => !t.closed && t.status === 'pending' && t.type === 'income').slice(0, 4).map(t => (
+                        <div key={t.id} className="flex items-center justify-between p-4 rounded-2xl border bg-emerald-50/50 border-emerald-100 hover:bg-white transition-all cursor-default">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-white rounded-xl shadow-sm text-emerald-500">
+                                  <TrendingUp size={14} />
+                                </div>
+                                <div className="max-w-[100px]">
+                                    <p className="text-xs font-black text-gray-700 truncate">{t.description}</p>
+                                    <p className="text-[8px] text-emerald-400 font-bold uppercase">{new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-xs font-black text-emerald-600">
+                                  R$ {t.amount.toFixed(2)}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                    {transactions.filter(t => !t.closed && t.status === 'pending' && t.type === 'income').length === 0 && (
+                      <p className="text-[10px] text-gray-300 font-bold uppercase italic text-center py-4">Nenhum valor a receber</p>
                     )}
                 </div>
 
