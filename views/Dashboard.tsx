@@ -253,7 +253,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
               <Calculator size={28} />
             </div>
             <div>
-              <p className={`text-[10px] font-black uppercase tracking-widest ${activeFilter === 'quotes_pending' ? 'text-white/60' : 'text-gray-400'}`}>Orçamentos Pendentes</p>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${activeFilter === 'quotes_pending' ? 'text-white/60' : 'text-gray-400'}`}>Projetos Aguardando Aprovação</p>
               <p className="text-3xl font-black mt-1">R$ {statsCalculations.pendingQuotesValue.toFixed(2)}</p>
               <p className={`text-[10px] font-bold mt-2 ${activeFilter === 'quotes_pending' ? 'text-white/40' : 'text-gray-300'}`}>{statsCalculations.pendingQuotes.length} aguardando aprovação</p>
             </div>
@@ -292,7 +292,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                  </div>
                  <div>
                     <h3 className="text-2xl font-black text-gray-800 tracking-tight">
-                      {activeFilter === 'today' ? 'Vencimentos de Hoje' : activeFilter === 'pending' ? 'Contas a Pagar (Boletos)' : activeFilter === 'receivable' ? 'Contas a Receber' : activeFilter === 'quotes_pending' ? 'Orçamentos Pendentes' : 'Projetos em Produção'}
+                      {activeFilter === 'today' ? 'Vencimentos de Hoje' : activeFilter === 'pending' ? 'Contas a Pagar (Boletos)' : activeFilter === 'receivable' ? 'Contas a Receber' : activeFilter === 'quotes_pending' ? 'Projetos Aguardando Aprovação' : 'Projetos em Produção'}
                     </h3>
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">
                       {filteredData.items.length} {filteredData.items.length === 1 ? 'item identificado' : 'itens identificados'}

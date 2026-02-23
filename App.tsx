@@ -71,8 +71,15 @@ const App: React.FC = () => {
     }
 
     // Verificar sessão atual ao carregar
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
-      if (session?.user) {
+    supabase.auth.getSession().then(({ data: { session }, error }: { data: { session: Session | null }, error: any }) => {
+      if (error) {
+        console.error("Erro de sessão Supabase:", error);
+        // Se o token de atualização for inválido, forçamos o logout para limpar o cache local
+        if (error.message?.includes('Refresh Token Not Found') || error.message?.includes('refresh_token_not_found')) {
+          supabase.auth.signOut();
+        }
+        setIsAuthenticated(false);
+      } else if (session?.user) {
         const email = session.user.email!.toLowerCase();
         setCurrentUser(email);
         setIsAuthenticated(true);
