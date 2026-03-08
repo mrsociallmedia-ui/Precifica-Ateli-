@@ -128,6 +128,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
 
   const tipOfTheDay = tips[new Date().getDate() % tips.length];
 
+  const seasonalDates = [
+    { name: 'Páscoa', date: '2026-04-05', month: 3, strategy: 'Foque em embalagens para ovos e mimos de chocolate. Comece a divulgar 45 dias antes.' },
+    { name: 'Dia das Mães', date: '2026-05-10', month: 4, strategy: 'A data mais forte do ano! Crie kits personalizados. Planejamento deve começar em Março.' },
+    { name: 'Dia dos Namorados', date: '2026-06-12', month: 5, strategy: 'Presentes românticos e álbuns de fotos. Inicie as vendas na segunda quinzena de Maio.' },
+    { name: 'Festa Junina', date: '2026-06-24', month: 5, strategy: 'Topo de bolo e personalizados caipiras. Ótima época para itens de papelaria temática.' },
+    { name: 'Dia dos Pais', date: '2026-08-09', month: 7, strategy: 'Kits de escritório e mimos úteis. Divulgação forte a partir de Julho.' },
+    { name: 'Dia das Crianças', date: '2026-10-12', month: 9, strategy: 'Brinquedos de papel e kits de colorir. Planeje o estoque de papel colorido em Agosto.' },
+    { name: 'Dia dos Professores', date: '2026-10-15', month: 9, strategy: 'Lembrancinhas de baixo custo e alta escala. Ideal para vender em grandes quantidades.' },
+    { name: 'Black Friday', date: '2026-11-27', month: 10, strategy: 'Limpeza de estoque! Prepare descontos reais para materiais parados.' },
+    { name: 'Natal', date: '2026-12-25', month: 11, strategy: 'Segunda maior data. Foque em cartões, tags e embalagens de presente. Comece em Outubro.' },
+  ];
+
+  const upcomingSeasonal = useMemo(() => {
+    const now = new Date();
+    return seasonalDates
+      .filter(d => new Date(d.date) >= now)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(0, 3);
+  }, []);
+
   const filteredData = useMemo(() => {
     switch (activeFilter) {
       case 'today': return { type: 'project', items: statsCalculations.dueToday };
@@ -394,6 +414,93 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
 
       {/* Grid Secundário: Ranking e Atividades */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        {/* Calendário Sazonal e Planejamento */}
+        <div className="lg:col-span-12 bg-white p-10 rounded-[3rem] shadow-sm border border-pink-50">
+           <div className="flex items-center justify-between mb-10">
+              <div className="flex items-center gap-3">
+                 <div className="p-4 bg-pink-500 text-white rounded-3xl shadow-lg shadow-pink-100">
+                    <CalendarDays size={24} />
+                 </div>
+                 <div>
+                    <h4 className="text-xl font-black text-gray-800">Calendário Sazonal</h4>
+                    <p className="text-[10px] font-bold text-pink-400 uppercase tracking-widest">Planejamento Estratégico de Vendas</p>
+                 </div>
+              </div>
+              <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-pink-50 rounded-full">
+                 <Sparkles size={14} className="text-pink-500" />
+                 <span className="text-[10px] font-black text-pink-600 uppercase tracking-widest">Dicas da Calculiê</span>
+              </div>
+           </div>
+
+           <div className="max-w-2xl mx-auto">
+              {upcomingSeasonal.length > 0 ? (
+                (() => {
+                  const event = upcomingSeasonal[0];
+                  const eventDate = new Date(event.date);
+                  const now = new Date();
+                  const diffTime = eventDate.getTime() - now.getTime();
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                  const isUpcoming = diffDays > 0 && diffDays <= 60;
+
+                  return (
+                    <div className={`p-10 rounded-[3rem] border transition-all flex flex-col gap-6 relative overflow-hidden bg-pink-50/30 border-pink-100 shadow-xl scale-[1.02]`}>
+                       <div className="absolute top-0 right-0 bg-pink-500 text-white px-6 py-2 rounded-bl-3xl text-[10px] font-black uppercase tracking-widest animate-pulse">
+                          Próxima Data Sazonal
+                       </div>
+                       
+                       <div className="flex items-center justify-between">
+                          <div className="flex flex-col">
+                             <span className="text-xs font-black text-gray-400 uppercase tracking-widest">{eventDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</span>
+                             <h5 className="text-3xl font-black text-gray-800 mt-1">{event.name}</h5>
+                          </div>
+                          <div className="w-20 h-20 bg-pink-500 text-white rounded-[2rem] flex items-center justify-center font-black text-3xl shadow-lg shadow-pink-200">
+                             {eventDate.getDate()}
+                          </div>
+                       </div>
+                       
+                       <div className="space-y-6">
+                          <div className="flex items-start gap-4 p-6 bg-white rounded-[2rem] border border-pink-50">
+                             <div className="mt-1 p-2 bg-pink-100 text-pink-600 rounded-xl">
+                                <Lightbulb size={20} />
+                             </div>
+                             <div>
+                                <h6 className="text-[10px] font-black text-pink-500 uppercase tracking-widest mb-1">Estratégia de Venda</h6>
+                                <p className="text-sm font-medium text-gray-600 leading-relaxed">
+                                   {event.strategy}
+                                </p>
+                             </div>
+                          </div>
+                          
+                          <div className="pt-4">
+                             <div className="flex justify-between items-center mb-3">
+                                <span className="text-[10px] font-black text-pink-400 uppercase tracking-widest">Status do Planejamento</span>
+                                <span className="text-xs font-black text-pink-600 uppercase tracking-widest">{diffDays} dias restantes</span>
+                             </div>
+                             <div className="h-3 bg-pink-100 rounded-full overflow-hidden">
+                                <div 
+                                   className="h-full bg-pink-500 rounded-full transition-all duration-1000" 
+                                   style={{ width: `${Math.max(0, Math.min(100, (60 - diffDays) / 60 * 100))}%` }}
+                                />
+                             </div>
+                             <div className="flex items-center gap-2 mt-4 bg-white/50 p-3 rounded-2xl border border-pink-50/50">
+                                <AlertTriangle size={14} className="text-pink-500" />
+                                <p className="text-[10px] font-bold text-pink-400 italic">
+                                   {diffDays > 45 ? 'Tempo de criar protótipos e fotos.' : diffDays > 30 ? 'Hora de abrir a agenda de encomendas!' : 'Últimos dias para aceitar pedidos.'}
+                                </p>
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="py-10 text-center text-gray-300 italic text-xs font-bold uppercase tracking-widest">
+                  Nenhuma data sazonal próxima...
+                </div>
+              )}
+           </div>
+        </div>
+
         {/* Produtos Mais Vendidos */}
         <div className="lg:col-span-5 bg-white p-10 rounded-[3rem] shadow-sm border border-yellow-50">
            <div className="flex items-center gap-3 mb-10">

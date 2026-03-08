@@ -2,10 +2,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack, Repeat, FileText as FileIcon, Layers3, Share2, ExternalLink, QrCode, MessageSquare,
-  ShoppingCart, ShoppingBag, Minus, RefreshCw, MessageCircle
+  ShoppingCart, ShoppingBag, Minus, RefreshCw, MessageCircle, Wand2, Eye, EyeOff
 } from 'lucide-react';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
 import { calculateProjectBreakdown } from '../utils';
+import { GoogleGenAI } from "@google/genai";
 
 declare const html2canvas: any;
 
@@ -32,7 +33,37 @@ export const Products: React.FC<ProductsProps> = ({
   const [selectedProductPreview, setSelectedProductPreview] = useState<Product | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingAIDescription, setIsGeneratingAIDescription] = useState(false);
   const orderSummaryRef = useRef<HTMLDivElement>(null);
+
+  const generateAIDescription = async () => {
+    if (!newProduct.name) {
+      alert("Por favor, digite o nome da peça primeiro.");
+      return;
+    }
+
+    setIsGeneratingAIDescription(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Gere uma descrição curta, criativa e profissional para um produto artesanal de ateliê.
+        Nome do Produto: ${newProduct.name}
+        Categoria: ${newProduct.category}
+        A descrição deve ser atraente para clientes, destacando o cuidado artesanal e a exclusividade. 
+        Máximo de 3 parágrafos curtos. Use emojis se apropriado.`,
+      });
+
+      if (response.text) {
+        setNewProduct(prev => ({ ...prev, description: response.text }));
+      }
+    } catch (error) {
+      console.error("Erro ao gerar descrição com IA:", error);
+      alert("Houve um erro ao gerar a descrição. Tente novamente.");
+    } finally {
+      setIsGeneratingAIDescription(false);
+    }
+  };
 
   const addToCart = (product: Product, price: number) => {
     setCart(prev => {
@@ -103,7 +134,8 @@ export const Products: React.FC<ProductsProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: '', category: productCategories[0] || 'Geral', description: '', minutesToMake: 60, materials: [],
-    profitMargin: companyData.defaultProfitMargin, marketPrice: 0, image: '', images: [], packagingCost: 0, minOrderQuantity: 1
+    profitMargin: companyData.defaultProfitMargin, marketPrice: 0, image: '', images: [], packagingCost: 0, minOrderQuantity: 1,
+    showInCatalog: true
   });
   
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -233,7 +265,8 @@ export const Products: React.FC<ProductsProps> = ({
         profitMargin: Number(newProduct.profitMargin) || 30,
         marketPrice: Number(newProduct.marketPrice) || 0,
         packagingCost: Number(newProduct.packagingCost) || 0,
-        minOrderQuantity: Number(newProduct.minOrderQuantity) || 1
+        minOrderQuantity: Number(newProduct.minOrderQuantity) || 1,
+        showInCatalog: newProduct.showInCatalog !== false
       };
       setProducts(prev => [product, ...prev]);
     }
@@ -310,8 +343,13 @@ export const Products: React.FC<ProductsProps> = ({
                     <Package size={48} />
                   </div>
                 )}
-                <div className="absolute top-4 left-4">
+                <div className="absolute top-4 left-4 flex gap-2">
                   <span className="text-[10px] font-black text-pink-500 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-pink-50">{p.category}</span>
+                  {p.showInCatalog === false && (
+                    <span className="text-[10px] font-black text-gray-400 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-gray-100 flex items-center gap-1">
+                      <EyeOff size={10} /> Oculto
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="p-8 flex flex-col flex-1">
@@ -438,7 +476,27 @@ export const Products: React.FC<ProductsProps> = ({
                      </div>
 
                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Descrição do Produto</label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Descrição do Produto</label>
+                          <button 
+                            type="button"
+                            onClick={generateAIDescription}
+                            disabled={isGeneratingAIDescription || !newProduct.name}
+                            className="flex items-center gap-1.5 text-[9px] font-black text-pink-500 uppercase tracking-widest hover:text-pink-600 disabled:opacity-50 transition-colors"
+                          >
+                            {isGeneratingAIDescription ? (
+                              <>
+                                <RefreshCw size={10} className="animate-spin" />
+                                Criando...
+                              </>
+                            ) : (
+                              <>
+                                <Wand2 size={10} />
+                                Criar com IA
+                              </>
+                            )}
+                          </button>
+                        </div>
                         <textarea 
                           className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-medium text-gray-700 text-sm min-h-[100px] resize-none" 
                           placeholder="Descreva os detalhes da peça, materiais especiais, acabamentos..."
@@ -492,6 +550,25 @@ export const Products: React.FC<ProductsProps> = ({
                         <p className="text-[9px] text-gray-400 font-bold italic px-1">
                            Se definido, este valor será usado como preço fixo no catálogo.
                         </p>
+                     </div>
+
+                     <div className="pt-4 border-t border-gray-100">
+                        <button 
+                          type="button"
+                          onClick={() => setNewProduct({...newProduct, showInCatalog: !newProduct.showInCatalog})}
+                          className={`w-full p-4 rounded-2xl border flex items-center justify-between transition-all ${newProduct.showInCatalog !== false ? 'bg-pink-50 border-pink-200 text-pink-600' : 'bg-gray-50 border-gray-100 text-gray-400'}`}
+                        >
+                           <div className="flex items-center gap-3">
+                              {newProduct.showInCatalog !== false ? <Eye size={20} /> : <EyeOff size={20} />}
+                              <div className="text-left">
+                                 <p className="text-xs font-black uppercase tracking-widest">Exibir no Catálogo Online</p>
+                                 <p className="text-[9px] font-bold opacity-70">Controla se esta peça aparece para seus clientes.</p>
+                              </div>
+                           </div>
+                           <div className={`w-10 h-6 rounded-full relative transition-all ${newProduct.showInCatalog !== false ? 'bg-pink-500' : 'bg-gray-300'}`}>
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${newProduct.showInCatalog !== false ? 'right-1' : 'left-1'}`} />
+                           </div>
+                        </button>
                      </div>
                   </div>
 

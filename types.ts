@@ -117,6 +117,7 @@ export interface Product {
   manualBaseCost?: number;
   packagingCost?: number;
   minOrderQuantity?: number;
+  showInCatalog?: boolean;
 }
 
 export interface Transaction {

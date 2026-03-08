@@ -83,9 +83,10 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
     if (userEmail) fetchData();
   }, [userEmail]);
 
-  const categories = ['Todas', ...Array.from(new Set(products.map(p => p.category)))];
+  const visibleProducts = products.filter(p => p.showInCatalog !== false);
+  const categories = ['Todas', ...Array.from(new Set(visibleProducts.map(p => p.category)))];
 
-  const filteredProducts = products.filter(p => {
+  const filteredProducts = visibleProducts.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          p.description?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'Todas' || p.category === selectedCategory;
