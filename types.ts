@@ -103,6 +103,7 @@ export interface Product {
   id: string;
   name: string;
   description: string;
+  image?: string; // Nova opção de foto
   category: string;
   minutesToMake: number;
   materials: ProjectItem[];

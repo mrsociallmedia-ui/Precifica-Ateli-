@@ -101,8 +101,7 @@ export const calculateProjectBreakdown = (
   
   if (transactions && project.id) {
     const projectTransactions = transactions.filter(t => 
-      t.type === 'income' && 
-      (t.id.endsWith(`_${project.id}`) || t.description.includes(project.theme || ''))
+      t.type === 'income' && t.id.endsWith(`_${project.id}`)
     );
     
     // Se houver transações vinculadas, usamos elas para somar ao downPayment inicial

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3, ChevronDown, ChevronUp } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -20,7 +20,28 @@ export const Schedule: React.FC<ScheduleProps> = ({
   projects, setProjects, transactions, setTransactions, customers, materials, platforms, companyData, onEditProject
 }) => {
   const [showBirthdaysModal, setShowBirthdaysModal] = useState(false);
-  const [paymentModal, setPaymentModal] = useState<{ isOpen: boolean; projectId: string; amount: number; maxAmount: number; theme: string } | null>(null);
+  const [minimizedProjects, setMinimizedProjects] = useState<Set<string>>(new Set());
+  const [paymentModal, setPaymentModal] = useState<{ 
+    isOpen: boolean; 
+    projectId: string; 
+    amount: number; 
+    maxAmount: number; 
+    theme: string;
+    paymentMethod: string;
+    date: string;
+  } | null>(null);
+
+  const toggleMinimize = (projectId: string) => {
+    setMinimizedProjects(prev => {
+      const next = new Set(prev);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  };
 
   const handleOpenPaymentModal = (project: Project) => {
     const breakdown = calculateProjectBreakdown(project, materials, platforms, companyData, transactions);
@@ -33,7 +54,9 @@ export const Schedule: React.FC<ScheduleProps> = ({
       projectId: project.id,
       amount: breakdown.remainingBalance,
       maxAmount: breakdown.remainingBalance,
-      theme: project.theme
+      theme: project.theme,
+      paymentMethod: 'Pix',
+      date: new Date().toISOString().split('T')[0]
     });
   };
 
@@ -46,8 +69,8 @@ export const Schedule: React.FC<ScheduleProps> = ({
       amount: paymentModal.amount,
       type: 'income',
       category: 'Venda',
-      paymentMethod: 'Pix',
-      date: new Date().toISOString().split('T')[0]
+      paymentMethod: paymentModal.paymentMethod,
+      date: paymentModal.date
     };
 
     setTransactions(prev => [newTransaction, ...prev]);
@@ -196,17 +219,51 @@ export const Schedule: React.FC<ScheduleProps> = ({
             <div className="space-y-6 min-h-[400px]">
               {projects.filter(p => p.status === status).map(project => {
                 const { finalPrice, remainingBalance } = calculateProjectBreakdown(project, materials, platforms, companyData, transactions);
+                const isMinimized = minimizedProjects.has(project.id);
+                
                 return (
-                  <div key={project.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group relative overflow-hidden flex flex-col">
-                    <div className="flex items-center gap-2 mb-1">
-                      {project.quoteNumber && (
-                        <span className="flex items-center gap-0.5 text-[8px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md">
-                           <Hash size={8} /> {project.quoteNumber}
-                        </span>
-                      )}
+                  <div key={project.id} className={`bg-white rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group relative overflow-hidden flex flex-col ${isMinimized ? 'p-4' : 'p-6'}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        {project.quoteNumber && (
+                          <span className="flex items-center gap-0.5 text-[8px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md">
+                             <Hash size={8} /> {project.quoteNumber}
+                          </span>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => toggleMinimize(project.id)}
+                        className="text-gray-400 hover:text-blue-500 transition-colors p-1"
+                      >
+                        {isMinimized ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                      </button>
                     </div>
                     <h4 className="font-black text-gray-800 text-base mb-1 truncate">{project.theme}</h4>
-                    <p className="text-[10px] text-pink-500 font-black uppercase tracking-widest mb-4 truncate">{getCustomerName(project.customerId)}</p>
+                    <p className="text-[10px] text-pink-500 font-black uppercase tracking-widest mb-2 truncate">{getCustomerName(project.customerId)}</p>
+                    
+                    {!isMinimized && (
+                      <>
+                        {project.isCakeTopper && (project.celebrantName || project.celebrantAge) && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[10px] font-black bg-pink-100 text-pink-600 px-2 py-0.5 rounded-lg uppercase tracking-widest flex items-center gap-1">
+                          🎂 {project.celebrantName} {project.celebrantAge && `(${project.celebrantAge})`}
+                        </span>
+                      </div>
+                    )}
+
+                    {project.observations && (
+                      <p className="text-[10px] text-gray-400 font-medium mb-2 line-clamp-2 italic bg-gray-50/50 p-2 rounded-xl border border-gray-100/50">
+                        {project.observations}
+                      </p>
+                    )}
+
+                    <div className="mb-4 flex flex-wrap gap-1">
+                      {project.items?.map((item, idx) => (
+                        <span key={idx} className="text-[8px] font-black bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded-md border border-blue-100/50">
+                          {item.quantity}x {item.name}
+                        </span>
+                      ))}
+                    </div>
                     
                     <div className="grid grid-cols-1 gap-2 mb-6">
                       <div className="bg-gray-50/50 p-2 rounded-xl flex items-center gap-2 text-[10px] font-bold text-gray-500">
@@ -223,6 +280,8 @@ export const Schedule: React.FC<ScheduleProps> = ({
                         {project.deliveryDate ? new Date(project.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'A combinar'}
                       </div>
                     </div>
+                    </>
+                    )}
 
                     <div className="flex items-center justify-between mb-2 pb-2 border-b border-dashed border-gray-100">
                        <span className="text-[9px] font-black text-gray-300 uppercase">Valor Total</span>
@@ -350,6 +409,30 @@ export const Schedule: React.FC<ScheduleProps> = ({
               </button>
             </div>
             <div className="p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Data do Recebimento</label>
+                  <input 
+                    type="date" 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700"
+                    value={paymentModal.date}
+                    onChange={(e) => setPaymentModal({ ...paymentModal, date: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Meio de Pagamento</label>
+                  <select 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700"
+                    value={paymentModal.paymentMethod}
+                    onChange={(e) => setPaymentModal({ ...paymentModal, paymentMethod: e.target.value })}
+                  >
+                    {['Pix', 'Dinheiro', 'Cartão de Crédito', 'Cartão de Débito', 'Boleto', 'Transferência'].map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Valor a Receber</label>
                 <div className="relative">

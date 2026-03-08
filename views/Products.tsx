@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack, Repeat, FileText as FileIcon, Layers3 } from 'lucide-react';
+import { Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack, Repeat, FileText as FileIcon, Layers3, Share2, ExternalLink, QrCode } from 'lucide-react';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -18,12 +18,24 @@ export const Products: React.FC<ProductsProps> = ({
   products, setProducts, materials, companyData, platforms, productCategories, setProductCategories 
 }) => {
   const [showForm, setShowForm] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: '', category: productCategories[0] || 'Geral', description: '', minutesToMake: 60, materials: [],
-    profitMargin: companyData.defaultProfitMargin, marketPrice: 0
+    profitMargin: companyData.defaultProfitMargin, marketPrice: 0, image: ''
   });
+  
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewProduct(prev => ({ ...prev, image: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
   
   const [selectedMatId, setSelectedMatId] = useState('');
   const [usageValue, setUsageValue] = useState(1);
@@ -65,7 +77,7 @@ export const Products: React.FC<ProductsProps> = ({
     setEditingProductId(null);
     setNewProduct({
       name: '', category: productCategories[0] || 'Geral', description: '', minutesToMake: 60, materials: [],
-      profitMargin: companyData.defaultProfitMargin, marketPrice: 0
+      profitMargin: companyData.defaultProfitMargin, marketPrice: 0, image: ''
     });
     setShowForm(true);
   };
@@ -110,6 +122,7 @@ export const Products: React.FC<ProductsProps> = ({
         id: Date.now().toString(),
         name: newProduct.name!,
         description: newProduct.description || '',
+        image: newProduct.image || '',
         category: newProduct.category || 'Geral',
         minutesToMake: Number(newProduct.minutesToMake) || 0,
         materials: newProduct.materials || [],
@@ -158,9 +171,18 @@ export const Products: React.FC<ProductsProps> = ({
           <h2 className="text-4xl font-black text-gray-800 tracking-tight">Catálogo de <span className="text-pink-500">Produtos</span></h2>
           <p className="text-gray-400 font-medium">Cadastre suas peças com cálculos precisos de folhas.</p>
         </div>
-        <button onClick={handleOpenAdd} className="bg-pink-500 hover:bg-pink-600 text-white font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg active:scale-95">
-          <Plus size={20} /> Cadastrar Nova Peça
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setShowShareModal(true)} 
+            className="bg-white border border-gray-100 text-gray-600 hover:text-pink-500 font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-sm active:scale-95"
+            title="Gerar Catálogo Online"
+          >
+            <Share2 size={20} /> <span className="hidden sm:inline">Catálogo Online</span>
+          </button>
+          <button onClick={handleOpenAdd} className="bg-pink-500 hover:bg-pink-600 text-white font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg active:scale-95">
+            <Plus size={20} /> Cadastrar Nova Peça
+          </button>
+        </div>
       </div>
 
       <div className="relative group">
@@ -173,27 +195,43 @@ export const Products: React.FC<ProductsProps> = ({
           const mockProject = { items: [{ productId: p.id, name: p.name, quantity: 1, hoursToMake: p.minutesToMake / 60, materials: p.materials, profitMargin: p.profitMargin }], platformId: platforms[0]?.id || '', excedente: companyData.defaultExcedente };
           const breakdown = calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
           return (
-            <div key={p.id} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group flex flex-col">
-              <div className="flex justify-between items-start mb-6">
-                 <div>
-                    <span className="text-[10px] font-black text-pink-500 bg-pink-50 px-3 py-1 rounded-full uppercase tracking-widest">{p.category}</span>
-                    <h3 className="text-xl font-black text-gray-800 mt-2">{p.name}</h3>
-                 </div>
-                 <div className="flex gap-2">
-                    <button onClick={() => { setEditingProductId(p.id); setNewProduct({...p}); setShowForm(true); }} className="p-2 text-pink-400 hover:bg-pink-50 rounded-xl transition-all"><Edit3 size={20} /></button>
-                    <button onClick={() => handleDeleteProduct(p.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
-                 </div>
+            <div key={p.id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group flex flex-col overflow-hidden">
+              <div className="aspect-video bg-gray-50 relative overflow-hidden">
+                {p.image ? (
+                  <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-200">
+                    <Package size={48} />
+                  </div>
+                )}
+                <div className="absolute top-4 left-4">
+                  <span className="text-[10px] font-black text-pink-500 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-pink-50">{p.category}</span>
+                </div>
               </div>
-              <div className="pt-6 border-t border-gray-50 flex items-center justify-between mt-auto">
-                 <div>
+              <div className="p-8 flex flex-col flex-1">
+                <div className="flex justify-between items-start mb-6">
+                   <div>
+                      <h3 className="text-xl font-black text-gray-800">{p.name}</h3>
+                   </div>
+                   <div className="flex gap-2">
+                      <button onClick={() => { setEditingProductId(p.id); setNewProduct({...p}); setShowForm(true); }} className="p-2 text-pink-400 hover:bg-pink-50 rounded-xl transition-all"><Edit3 size={20} /></button>
+                      <button onClick={() => handleDeleteProduct(p.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
+                   </div>
+                </div>
+                <div className="pt-6 border-t border-gray-50 flex items-center justify-between mt-auto">
+                  <div>
                     <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">
                        {p.marketPrice > 0 ? 'Preço Definido' : 'Preço Sugerido'}
                     </p>
                     <p className="text-2xl font-black text-gray-800">
                        R$ {(p.marketPrice > 0 ? p.marketPrice : breakdown.finalPrice).toFixed(2)}
                     </p>
-                 </div>
-                 <div className="text-right"><p className="text-[9px] font-black text-green-500 uppercase tracking-widest mb-1">Lucro</p><p className="text-sm font-black text-gray-700">{p.profitMargin}%</p></div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-black text-green-500 uppercase tracking-widest mb-1">Lucro</p>
+                    <p className="text-sm font-black text-gray-700">{p.profitMargin}%</p>
+                  </div>
+                </div>
               </div>
             </div>
           );
@@ -212,9 +250,43 @@ export const Products: React.FC<ProductsProps> = ({
             <form onSubmit={handleSaveProduct} className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                <div className="lg:col-span-7 space-y-8">
                   <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 space-y-6">
-                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome da Peça</label>
-                        <input type="text" required className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Foto do Produto</label>
+                           <div className="relative group/photo aspect-video bg-white rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center overflow-hidden hover:border-pink-300 transition-all cursor-pointer">
+                              {newProduct.image ? (
+                                <>
+                                  <img src={newProduct.image} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center">
+                                    <p className="text-white text-[10px] font-black uppercase">Trocar Foto</p>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="text-center p-4">
+                                   <Package size={32} className="text-gray-200 mx-auto mb-2" />
+                                   <p className="text-[9px] font-black text-gray-400 uppercase">Clique para enviar</p>
+                                </div>
+                              )}
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                className="absolute inset-0 opacity-0 cursor-pointer" 
+                                onChange={handleImageUpload}
+                              />
+                           </div>
+                        </div>
+                        <div className="space-y-6">
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome da Peça</label>
+                              <input type="text" required className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Categoria</label>
+                              <select className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" value={newProduct.category} onChange={e => setNewProduct({...newProduct, category: e.target.value})}>
+                                {productCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                              </select>
+                           </div>
+                        </div>
                      </div>
                      <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
@@ -408,6 +480,94 @@ export const Products: React.FC<ProductsProps> = ({
                   </div>
                </div>
             </form>
+          </div>
+        </div>
+      )}
+      {showShareModal && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white w-[90vw] h-[90vh] rounded-[3rem] p-10 shadow-2xl relative overflow-hidden flex flex-col">
+            <button onClick={() => setShowShareModal(false)} className="absolute top-8 right-8 text-gray-300 hover:text-gray-500 z-10"><X size={28} /></button>
+            
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+              <div>
+                <h3 className="text-3xl font-black text-gray-800 flex items-center gap-3">
+                  <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl"><Share2 size={28} /></div>
+                  Catálogo Online
+                </h3>
+                <p className="text-gray-400 font-medium mt-2">Esta é a visão que seus clientes terão do seu catálogo.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(window.location.href);
+                    alert('Link do catálogo copiado para a área de transferência!');
+                  }}
+                  className="bg-pink-50 text-pink-600 font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-pink-100 transition-all"
+                >
+                  <Copy size={18} /> Copiar Link
+                </button>
+                <button className="bg-gray-900 text-white font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-gray-800 transition-all">
+                  <QrCode size={18} /> Gerar QR Code
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="bg-gray-50 rounded-[3rem] p-10 border border-gray-100">
+                {/* Header do Catálogo Público */}
+                <div className="text-center mb-16">
+                  <div className="w-24 h-24 bg-white rounded-full mx-auto mb-6 shadow-sm border border-gray-100 flex items-center justify-center overflow-hidden">
+                    {companyData.logo ? (
+                      <img src={companyData.logo} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <Package size={40} className="text-pink-300" />
+                    )}
+                  </div>
+                  <h2 className="text-4xl font-black text-gray-800 mb-2">{companyData.name || 'Meu Ateliê'}</h2>
+                  <p className="text-gray-400 font-medium max-w-md mx-auto">Confira nossas peças exclusivas e faça seu orçamento pelo WhatsApp.</p>
+                </div>
+
+                {/* Grid de Produtos Público */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {products.map(p => {
+                    const mockProject = { items: [{ productId: p.id, name: p.name, quantity: 1, hoursToMake: p.minutesToMake / 60, materials: p.materials, profitMargin: p.profitMargin }], platformId: platforms[0]?.id || '', excedente: companyData.defaultExcedente };
+                    const breakdown = calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
+                    const price = p.marketPrice > 0 ? p.marketPrice : breakdown.finalPrice;
+                    
+                    return (
+                      <div key={p.id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all group">
+                        <div className="aspect-square bg-gray-100 flex items-center justify-center relative overflow-hidden">
+                           {p.image ? (
+                             <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                           ) : (
+                             <Package size={60} className="text-gray-200 group-hover:scale-110 transition-transform duration-500" />
+                           )}
+                           <div className="absolute top-4 right-4">
+                              <span className="text-[9px] font-black text-pink-500 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-pink-50">
+                                {p.category}
+                              </span>
+                           </div>
+                        </div>
+                        <div className="p-8">
+                          <h4 className="text-lg font-black text-gray-800 mb-2">{p.name}</h4>
+                          <p className="text-xs text-gray-400 font-medium line-clamp-2 mb-6">{p.description || 'Peça personalizada feita com carinho para o seu evento.'}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-2xl font-black text-gray-800">R$ {price.toFixed(2)}</span>
+                            <button className="bg-green-500 text-white p-3 rounded-2xl hover:bg-green-600 transition-all shadow-lg shadow-green-100">
+                              <ExternalLink size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-20 text-center border-t border-gray-100 pt-10">
+                  <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Catálogo Online Gerado por Precifica Ateliê</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

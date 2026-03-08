@@ -149,6 +149,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
   const [currentProject, setCurrentProject] = useState<Partial<Project>>(initialProjectState);
   const [showCatalog, setShowCatalog] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'completed'>('ongoing');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -162,6 +163,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         orderDate: projectToEdit.orderDate ? projectToEdit.orderDate.split('T')[0] : '',
         deliveryDate: projectToEdit.deliveryDate ? projectToEdit.deliveryDate.split('T')[0] : '',
       });
+      setIsFormOpen(true);
       // Scroll to form
       const formEl = document.getElementById('calc-form');
       if (formEl) formEl.scrollIntoView({ behavior: 'smooth' });
@@ -193,6 +195,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       quoteNumber: generateAutoQuoteNumber()
     });
     setShowCatalog(false);
+    setIsFormOpen(false);
     const formEl = document.getElementById('calc-form');
     if (formEl) formEl.scrollIntoView({ behavior: 'smooth' });
   };
@@ -549,21 +552,42 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
   return (
     <div className="space-y-12 pb-24">
+      {/* BOTÃO PARA ABRIR NOVO ORÇAMENTO */}
+      {!isFormOpen && !currentProject.id && (
+        <div className="flex justify-center py-10 animate-fadeIn">
+          <button 
+            onClick={() => setIsFormOpen(true)}
+            className="bg-pink-500 hover:bg-pink-600 text-white font-black px-12 py-8 rounded-[3rem] flex items-center gap-6 transition-all shadow-2xl hover:scale-105 active:scale-95 group border-4 border-pink-400/20"
+          >
+            <div className="p-4 bg-white/20 rounded-[1.5rem] group-hover:rotate-90 transition-transform">
+              <Plus size={40} />
+            </div>
+            <div className="text-left">
+              <span className="block text-3xl tracking-tight">Novo Orçamento</span>
+              <span className="block text-sm font-medium opacity-80 mt-1">Clique para iniciar uma nova proposta comercial</span>
+            </div>
+          </button>
+        </div>
+      )}
+
       {/* SEÇÃO NOVO ORÇAMENTO (FORMULÁRIO) - AGORA NO TOPO */}
-      <div id="calc-form" className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start pt-4">
-        <div className="xl:col-span-8 space-y-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl shadow-sm"><Calculator size={28} /></div>
-              <div>
-                <h2 className="text-3xl font-black text-gray-800 tracking-tight">{currentProject.id ? 'Editando Orçamento' : 'Novo Orçamento'}</h2>
-                <p className="text-gray-400 font-medium text-sm">Monte o pedido e visualize os lucros em tempo real.</p>
+      {(isFormOpen || currentProject.id) && (
+        <div id="calc-form" className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start pt-4 animate-slideUp">
+          <div className="xl:col-span-8 space-y-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl shadow-sm"><Calculator size={28} /></div>
+                <div>
+                  <h2 className="text-3xl font-black text-gray-800 tracking-tight">{currentProject.id ? 'Editando Orçamento' : 'Novo Orçamento'}</h2>
+                  <p className="text-gray-400 font-medium text-sm">Monte o pedido e visualize os lucros em tempo real.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={resetForm} className="flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-pink-500 hover:text-white transition-all shadow-sm"><RefreshCcw size={16} /> {currentProject.id ? 'Cancelar Edição' : 'Limpar / Fechar'}</button>
               </div>
             </div>
-            <button onClick={resetForm} className="flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-pink-500 hover:text-white transition-all shadow-sm"><RefreshCcw size={16} /> Limpar Tudo</button>
-          </div>
-
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-6">
+            
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
@@ -584,7 +608,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
               <div className="space-y-2 md:col-span-3">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Tema / Título do Pedido</label>
                 <input type="text" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="Ex: Safari Baby para João" value={currentProject.theme} onChange={e => setCurrentProject({...currentProject, theme: e.target.value})} />
@@ -605,6 +629,18 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                       </div>
                     )}
                   </div>
+              </div>
+              <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1"><Zap size={12} className="text-orange-500" /> Situação</label>
+                  <select 
+                    className="w-full p-4 bg-white border border-gray-200 rounded-2xl outline-none font-black text-gray-700"
+                    value={currentProject.status}
+                    onChange={e => setCurrentProject({...currentProject, status: e.target.value as Project['status']})}
+                  >
+                    {Object.entries(statusLabels).map(([val, label]) => (
+                      <option key={val} value={val}>{label}</option>
+                    ))}
+                  </select>
               </div>
             </div>
             
@@ -752,11 +788,11 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             {/* CAMPO DE OBSERVAÇÕES */}
             <div className="space-y-2 pt-8 border-t border-gray-50">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                   <MessageSquare size={14} className="text-pink-500" /> Observações do Pedido
+                   <MessageSquare size={14} className="text-pink-500" /> Descrição / Observações do Pedido
                 </label>
                 <textarea 
                   className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-600 min-h-[100px] resize-none focus:ring-4 focus:ring-pink-50 transition-all"
-                  placeholder="Insira aqui observações importantes sobre o pedido, materiais específicos ou personalizações..."
+                  placeholder="Insira aqui a descrição do pedido, observações importantes, materiais específicos ou personalizações..."
                   value={currentProject.observations}
                   onChange={e => setCurrentProject({...currentProject, observations: e.target.value})}
                 ></textarea>
@@ -947,6 +983,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* HISTÓRICO DE ORÇAMENTOS - MOVIDO PARA BAIXO DO FORMULÁRIO */}
       <div className="space-y-8 animate-fadeIn border-t border-gray-100 pt-16">
@@ -970,53 +1007,68 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="space-y-4">
           {filteredHistory.map(proj => {
             const histBreakdown = calculateProjectBreakdown(proj, materials, platforms, companyData);
+            const customer = customers.find(c => c.id === proj.customerId);
             return (
-              <div key={proj.id} className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group flex flex-col relative overflow-hidden">
-                <div className="flex justify-between items-start mb-6">
-                   <div className="flex-1 overflow-hidden">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase border ${statusColors[proj.status] || 'bg-gray-50'}`}>
-                           {statusLabels[proj.status] || proj.status}
-                        </span>
-                        {proj.quoteNumber && (
-                           <span className="bg-pink-50 text-pink-500 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase">
-                              #{proj.quoteNumber}
-                           </span>
-                        )}
-                      </div>
-                      <h3 className="font-black text-gray-800 text-lg group-hover:text-pink-600 transition-colors truncate">{proj.theme}</h3>
-                   </div>
-                   <div className="flex items-center gap-1">
-                     <button onClick={() => handleGeneratePDF(proj)} className="p-2.5 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"><FileDown size={20} /></button>
-                     <button onClick={() => setProjects(prev => prev.filter(p => p.id !== proj.id))} className="p-2.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
-                   </div>
+              <div key={proj.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group flex flex-col md:flex-row md:items-center gap-6 relative overflow-hidden">
+                {/* STATUS E NÚMERO */}
+                <div className="flex flex-row md:flex-col gap-2 min-w-[120px]">
+                   <span className={`px-3 py-1 rounded-xl text-[9px] font-black uppercase border text-center flex-1 md:flex-none ${statusColors[proj.status] || 'bg-gray-50'}`}>
+                      {statusLabels[proj.status] || proj.status}
+                   </span>
+                   {proj.quoteNumber && (
+                      <span className="bg-pink-50 text-pink-500 px-3 py-1 rounded-xl text-[9px] font-black uppercase text-center flex-1 md:flex-none">
+                         #{proj.quoteNumber}
+                      </span>
+                   )}
                 </div>
-                
-                {/* DETALHES FINANCEIROS NO HISTÓRICO */}
-                <div className="grid grid-cols-2 gap-3 mb-6 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                   <div className="flex flex-col">
-                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Truck size={8} /> Frete</span>
-                      <span className="text-xs font-black text-gray-700">R$ {histBreakdown.shipping.toFixed(2)}</span>
-                   </div>
-                   <div className="flex flex-col">
-                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Wallet2 size={8} /> Entrada</span>
-                      <span className="text-xs font-black text-blue-600">R$ {histBreakdown.downPayment.toFixed(2)}</span>
-                   </div>
-                   <div className="flex flex-col col-span-2 pt-2 border-t border-gray-200">
-                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Falta Pagar (Restante)</span>
-                      <span className="text-sm font-black text-pink-600">R$ {histBreakdown.remainingBalance.toFixed(2)}</span>
+
+                {/* TEMA E CLIENTE */}
+                <div className="flex-1 min-w-0">
+                   <h3 className="font-black text-gray-800 text-lg group-hover:text-pink-600 transition-colors truncate">{proj.theme}</h3>
+                   <div className="flex items-center gap-2 text-gray-400 mt-1">
+                      <User size={12} className="text-pink-300" />
+                      <span className="text-xs font-medium">{customer?.name || 'Cliente não selecionado'}</span>
                    </div>
                 </div>
 
-                <div className="mt-auto flex items-center justify-between pt-6 border-t border-gray-50">
-                   <div>
-                      <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Valor Total</p>
-                      <p className="text-xl font-black text-gray-800">R$ {histBreakdown.finalPrice.toFixed(2)}</p>
+                {/* RESUMO FINANCEIRO (VISÍVEL EM TELAS MAIORES) */}
+                <div className="hidden lg:flex items-center gap-8 px-8 border-x border-gray-50">
+                   <div className="text-right">
+                      <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Total</p>
+                      <p className="text-base font-black text-gray-800">R$ {histBreakdown.finalPrice.toFixed(2)}</p>
                    </div>
-                   <button onClick={() => { setCurrentProject({...proj}); document.getElementById('calc-form')?.scrollIntoView({ behavior: 'smooth' }); }} className="p-3 bg-pink-50 text-pink-500 rounded-2xl hover:bg-pink-600 hover:text-white transition-all shadow-sm"><Edit3 size={18} /></button>
+                   <div className="text-right">
+                      <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Falta Pagar</p>
+                      <p className="text-base font-black text-pink-600">R$ {histBreakdown.remainingBalance.toFixed(2)}</p>
+                   </div>
+                </div>
+
+                {/* VALOR TOTAL MOBILE */}
+                <div className="lg:hidden flex justify-between items-center bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                   <div>
+                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Total</p>
+                      <p className="text-sm font-black text-gray-800">R$ {histBreakdown.finalPrice.toFixed(2)}</p>
+                   </div>
+                   <div className="text-right">
+                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Restante</p>
+                      <p className="text-sm font-black text-pink-600">R$ {histBreakdown.remainingBalance.toFixed(2)}</p>
+                   </div>
+                </div>
+
+                {/* AÇÕES */}
+                <div className="flex items-center justify-end gap-2">
+                   <button 
+                     onClick={() => { setCurrentProject({...proj}); setIsFormOpen(true); document.getElementById('calc-form')?.scrollIntoView({ behavior: 'smooth' }); }} 
+                     className="p-3 bg-pink-50 text-pink-500 rounded-2xl hover:bg-pink-600 hover:text-white transition-all shadow-sm flex items-center gap-2 text-[10px] font-black uppercase px-5"
+                   >
+                      <Edit3 size={18} />
+                      <span className="hidden sm:inline">Editar</span>
+                   </button>
+                   <button onClick={() => handleGeneratePDF(proj)} className="p-3 text-blue-400 hover:bg-blue-50 rounded-2xl transition-all border border-transparent hover:border-blue-100" title="Gerar PDF"><FileDown size={20} /></button>
+                   <button onClick={() => setProjects(prev => prev.filter(p => p.id !== proj.id))} className="p-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all border border-transparent hover:border-red-100" title="Excluir"><Trash2 size={20} /></button>
                 </div>
               </div>
             );
