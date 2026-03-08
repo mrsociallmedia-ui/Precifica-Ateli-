@@ -12,10 +12,11 @@ interface ProductsProps {
   platforms: Platform[];
   productCategories: string[];
   setProductCategories: React.Dispatch<React.SetStateAction<string[]>>;
+  currentUser: string;
 }
 
 export const Products: React.FC<ProductsProps> = ({ 
-  products, setProducts, materials, companyData, platforms, productCategories, setProductCategories 
+  products, setProducts, materials, companyData, platforms, productCategories, setProductCategories, currentUser
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -499,15 +500,24 @@ export const Products: React.FC<ProductsProps> = ({
               <div className="flex items-center gap-3">
                 <button 
                   onClick={() => {
-                    navigator.clipboard.writeText(window.location.href);
-                    alert('Link do catálogo copiado para a área de transferência!');
+                    const baseUrl = window.location.origin + window.location.pathname;
+                    const catalogUrl = `${baseUrl}?catalog=${encodeURIComponent(currentUser)}`;
+                    navigator.clipboard.writeText(catalogUrl);
+                    alert('Link do seu catálogo online copiado!\n\nEnvie para seus clientes: ' + catalogUrl);
                   }}
                   className="bg-pink-50 text-pink-600 font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-pink-100 transition-all"
                 >
                   <Copy size={18} /> Copiar Link
                 </button>
-                <button className="bg-gray-900 text-white font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-gray-800 transition-all">
-                  <QrCode size={18} /> Gerar QR Code
+                <button 
+                  onClick={() => {
+                    const baseUrl = window.location.origin + window.location.pathname;
+                    const catalogUrl = `${baseUrl}?catalog=${encodeURIComponent(currentUser)}`;
+                    window.open(catalogUrl, '_blank');
+                  }}
+                  className="bg-gray-900 text-white font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-gray-800 transition-all"
+                >
+                  <ExternalLink size={18} /> Ver Online
                 </button>
               </div>
             </div>

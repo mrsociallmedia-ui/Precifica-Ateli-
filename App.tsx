@@ -32,6 +32,7 @@ import { Products } from './views/Products';
 import { FinancialControl } from './views/FinancialControl';
 import { OrderHistory } from './views/OrderHistory';
 import { LoginView } from './views/LoginView';
+import { PublicCatalog } from './views/PublicCatalog';
 import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
@@ -44,6 +45,7 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
+  const [publicCatalogEmail, setPublicCatalogEmail] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'local'>('synced');
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
@@ -66,6 +68,15 @@ const App: React.FC = () => {
 
   // Monitorar Sessão Supabase (Única fonte de verdade para Auth)
   useEffect(() => {
+    // Verificar se é uma rota de catálogo público
+    const params = new URLSearchParams(window.location.search);
+    const catalogEmail = params.get('catalog');
+    if (catalogEmail) {
+      setPublicCatalogEmail(catalogEmail);
+      setIsAuthChecking(false);
+      return;
+    }
+
     if (!supabase) {
       setIsAuthChecking(false);
       return;
@@ -302,6 +313,10 @@ const App: React.FC = () => {
     );
   }
 
+  if (publicCatalogEmail) {
+    return <PublicCatalog userEmail={publicCatalogEmail} />;
+  }
+
   if (!isAuthenticated) return <LoginView onLogin={handleLogin} />;
 
   return (
@@ -383,7 +398,7 @@ const App: React.FC = () => {
                 switch (activeTab) {
                   case 'dashboard': return <Dashboard {...props} setTransactions={setTransactions} />;
                   case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} />;
-                  case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} />;
+                  case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} currentUser={currentUser || ''} />;
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;
                   case 'pricing': return <PricingCalculator {...props} products={products} setProjects={setProjects} setTransactions={setTransactions} projectToEdit={projectToEdit} onClearEditProject={() => setProjectToEdit(null)} />;
                   case 'schedule': return <Schedule {...props} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
