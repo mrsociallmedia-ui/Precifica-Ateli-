@@ -40,7 +40,8 @@ export const INITIAL_COMPANY_DATA = {
   workHoursDaily: 8,
   workDaysMonthly: 22,
   defaultProfitMargin: 30,
-  defaultExcedente: 10
+  defaultExcedente: 10,
+  shopeeSellerType: 'cnpj' as 'cnpj' | 'cpf_no_fee' | 'cpf_with_fee'
 };
 
 export const PLATFORMS_DEFAULT = [

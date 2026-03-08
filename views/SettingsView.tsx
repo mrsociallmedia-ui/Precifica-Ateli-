@@ -23,7 +23,8 @@ import {
   EyeOff,
   RefreshCw,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Users
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 import { supabase } from '../supabaseClient';
@@ -317,6 +318,117 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </div>
                  </div>
                ))}
+            </div>
+
+            {/* Configuração Específica Shopee */}
+            <div className="mt-10 pt-10 border-t border-gray-100 space-y-8">
+               <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                    <img src="https://cdn-icons-png.flaticon.com/512/5968/5968944.png" alt="Shopee" className="w-6 h-6 filter brightness-0 invert" />
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-black text-gray-800 uppercase tracking-tight">Configuração da sua Loja Shopee</h5>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Defina seu regime tributário para cálculos automáticos</p>
+                  </div>
+               </div>
+
+               <div className="space-y-4">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tipo de Cadastro na Shopee</label>
+                  <div className="grid grid-cols-1 gap-3">
+                    <button 
+                      onClick={() => setCompanyData({...companyData, shopeeSellerType: 'cnpj'})}
+                      className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${companyData.shopeeSellerType === 'cnpj' ? 'bg-orange-50 border-orange-500 ring-2 ring-orange-100' : 'bg-white border-gray-100 hover:border-orange-200'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${companyData.shopeeSellerType === 'cnpj' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                          <Building2 size={16} />
+                        </div>
+                        <div className="text-left">
+                          <p className={`text-xs font-black uppercase tracking-widest ${companyData.shopeeSellerType === 'cnpj' ? 'text-orange-600' : 'text-gray-600'}`}>CNPJ</p>
+                          <p className="text-[10px] font-medium text-gray-400">Vendedor Profissional / Empresa</p>
+                        </div>
+                      </div>
+                      {companyData.shopeeSellerType === 'cnpj' && <CheckCircle2 size={18} className="text-orange-500" />}
+                    </button>
+
+                    <button 
+                      onClick={() => setCompanyData({...companyData, shopeeSellerType: 'cpf_no_fee'})}
+                      className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${companyData.shopeeSellerType === 'cpf_no_fee' ? 'bg-orange-50 border-orange-500 ring-2 ring-orange-100' : 'bg-white border-gray-100 hover:border-orange-200'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${companyData.shopeeSellerType === 'cpf_no_fee' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                          <Users size={16} />
+                        </div>
+                        <div className="text-left">
+                          <p className={`text-xs font-black uppercase tracking-widest ${companyData.shopeeSellerType === 'cpf_no_fee' ? 'text-orange-600' : 'text-gray-600'}`}>CPF — Sem Taxa Extra</p>
+                          <p className="text-[10px] font-medium text-gray-400">Até 450 pedidos nos últimos 90 dias</p>
+                        </div>
+                      </div>
+                      {companyData.shopeeSellerType === 'cpf_no_fee' && <CheckCircle2 size={18} className="text-orange-500" />}
+                    </button>
+
+                    <button 
+                      onClick={() => setCompanyData({...companyData, shopeeSellerType: 'cpf_with_fee'})}
+                      className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${companyData.shopeeSellerType === 'cpf_with_fee' ? 'bg-orange-50 border-orange-500 ring-2 ring-orange-100' : 'bg-white border-gray-100 hover:border-orange-200'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${companyData.shopeeSellerType === 'cpf_with_fee' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                          <AlertCircle size={16} />
+                        </div>
+                        <div className="text-left">
+                          <p className={`text-xs font-black uppercase tracking-widest ${companyData.shopeeSellerType === 'cpf_with_fee' ? 'text-orange-600' : 'text-gray-600'}`}>CPF — +R$3,00 por pedido</p>
+                          <p className="text-[10px] font-medium text-gray-400">Mais de 450 pedidos nos últimos 90 dias</p>
+                        </div>
+                      </div>
+                      {companyData.shopeeSellerType === 'cpf_with_fee' && <CheckCircle2 size={18} className="text-orange-500" />}
+                    </button>
+                  </div>
+               </div>
+
+               <div className="space-y-4">
+                  <h6 className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tabela de Comissão e Subsídio (Shopee)</h6>
+                  <div className="overflow-hidden rounded-3xl border border-gray-100 shadow-sm bg-white">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-gray-50 text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                        <tr>
+                          <th className="px-4 py-3">Valor do item</th>
+                          <th className="px-4 py-3">Comissão</th>
+                          <th className="px-4 py-3">Subsídio Pix</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 font-bold text-gray-600">
+                        <tr className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-4 py-3">Até R$79,99</td>
+                          <td className="px-4 py-3">20% + R$4 + R$3 de taxa vendedor CPF</td>
+                          <td className="px-4 py-3">-</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-4 py-3">Acima de R$80 até R$99,99</td>
+                          <td className="px-4 py-3">14% + R$16 + R$3 de taxa vendedor CPF</td>
+                          <td className="px-4 py-3">5%</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-4 py-3">Acima de R$100 até R$199,99</td>
+                          <td className="px-4 py-3">14% + R$20 + R$3 de taxa vendedor CPF</td>
+                          <td className="px-4 py-3">5%</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-4 py-3">Acima de R$200 até R$499,99</td>
+                          <td className="px-4 py-3">14% + R$26 + R$3 de taxa vendedor CPF</td>
+                          <td className="px-4 py-3">5%</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-4 py-3">Acima de R$500</td>
+                          <td className="px-4 py-3">14% + R$26 + R$3 de taxa vendedor CPF</td>
+                          <td className="px-4 py-3">8%</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-[9px] text-gray-400 font-medium italic px-1">
+                    * A taxa de R$3 para vendedor CPF é aplicada apenas se o vendedor atingir o limite de pedidos conforme política da Shopee.
+                  </p>
+               </div>
             </div>
           </div>
 

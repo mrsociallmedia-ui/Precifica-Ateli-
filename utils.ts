@@ -82,14 +82,56 @@ export const calculateProjectBreakdown = (
 
   // Taxas de Plataforma
   const selectedPlatform = platforms.find(p => p.id === project.platformId);
-  const platformFeePercent = selectedPlatform ? selectedPlatform.feePercentage / 100 : 0;
+  const isShopee = selectedPlatform?.name.toLowerCase().includes('shopee');
   
   let priceWithFees = valueAfterDiscount;
   let actualPlatformFees = 0;
 
-  if (platformFeePercent > 0 && platformFeePercent < 1) {
-    priceWithFees = valueAfterDiscount / (1 - platformFeePercent);
-    actualPlatformFees = priceWithFees - valueAfterDiscount;
+  if (isShopee) {
+    // Cálculo específico Shopee baseado na tabela fornecida
+    // Valor base para cálculo é o valor após desconto
+    const baseVal = valueAfterDiscount;
+    let commissionPercent = 0;
+    let fixedFee = 0;
+    let subsidyPercent = 0;
+    const cpfExtraFee = companyData.shopeeSellerType === 'cpf_with_fee' ? 3 : 0;
+
+    if (baseVal <= 79.99) {
+      commissionPercent = 20;
+      fixedFee = 4;
+      subsidyPercent = 0;
+    } else if (baseVal <= 99.99) {
+      commissionPercent = 14;
+      fixedFee = 16;
+      subsidyPercent = 5;
+    } else if (baseVal <= 199.99) {
+      commissionPercent = 14;
+      fixedFee = 20;
+      subsidyPercent = 5;
+    } else if (baseVal <= 499.99) {
+      commissionPercent = 14;
+      fixedFee = 26;
+      subsidyPercent = 5;
+    } else {
+      commissionPercent = 14;
+      fixedFee = 26;
+      subsidyPercent = 8;
+    }
+
+    const totalFeePercent = (commissionPercent + subsidyPercent) / 100;
+    const totalFixedFees = fixedFee + cpfExtraFee;
+
+    // Preço Final = (Valor Desejado + Taxas Fixas) / (1 - Taxa Percentual)
+    if (totalFeePercent < 1) {
+      priceWithFees = (valueAfterDiscount + totalFixedFees) / (1 - totalFeePercent);
+      actualPlatformFees = priceWithFees - valueAfterDiscount;
+    }
+  } else {
+    const platformFeePercent = selectedPlatform ? selectedPlatform.feePercentage / 100 : 0;
+    if (platformFeePercent > 0 && platformFeePercent < 1) {
+      priceWithFees = valueAfterDiscount / (1 - platformFeePercent);
+      actualPlatformFees = priceWithFees - valueAfterDiscount;
+    }
   }
 
   // Preço Final = Valor com taxas + Frete

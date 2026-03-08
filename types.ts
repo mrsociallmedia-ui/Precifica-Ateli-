@@ -40,6 +40,7 @@ export interface CompanyData {
   workDaysMonthly: number;
   defaultProfitMargin: number;
   defaultExcedente: number;
+  shopeeSellerType?: 'cnpj' | 'cpf_no_fee' | 'cpf_with_fee';
 }
 
 export interface ProjectItemEntry {
