@@ -24,7 +24,9 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  Users
+  Users,
+  Settings,
+  Info
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 import { supabase } from '../supabaseClient';
@@ -44,6 +46,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [editingPlatform, setEditingPlatform] = useState<Platform | null>(null);
   const [platformName, setPlatformName] = useState('');
   const [platformFee, setPlatformFee] = useState('');
+  const [platformFixedFee, setPlatformFixedFee] = useState('');
+  const [platformShippingSubsidy, setPlatformShippingSubsidy] = useState('');
 
   // Estados para Redefinição de Senha
   const [newPassword, setNewPassword] = useState('');
@@ -112,6 +116,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setEditingPlatform(null);
     setPlatformName('');
     setPlatformFee('');
+    setPlatformFixedFee('');
+    setPlatformShippingSubsidy('');
     setShowPlatformForm(true);
   };
 
@@ -119,6 +125,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setEditingPlatform(p);
     setPlatformName(p.name);
     setPlatformFee(p.feePercentage.toString());
+    setPlatformFixedFee(p.fixedFee?.toString() || '');
+    setPlatformShippingSubsidy(p.shippingSubsidy?.toString() || '');
     setShowPlatformForm(true);
   };
 
@@ -126,10 +134,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     e.preventDefault();
     if (!platformName || platformFee === '') return;
     const fee = parseFloat(platformFee);
+    const fixed = platformFixedFee ? parseFloat(platformFixedFee) : 0;
+    const subsidy = platformShippingSubsidy ? parseFloat(platformShippingSubsidy) : 0;
+
+    const platformData = {
+      name: platformName,
+      feePercentage: fee,
+      fixedFee: fixed,
+      shippingSubsidy: subsidy
+    };
+
     if (editingPlatform) {
-      setPlatforms(platforms.map(p => p.id === editingPlatform.id ? { ...p, name: platformName, feePercentage: fee } : p));
+      setPlatforms(platforms.map(p => p.id === editingPlatform.id ? { ...p, ...platformData } : p));
     } else {
-      setPlatforms([...platforms, { id: Date.now().toString(), name: platformName, feePercentage: fee }]);
+      setPlatforms([...platforms, { id: Date.now().toString(), ...platformData }]);
     }
     setShowPlatformForm(false);
   };
@@ -306,7 +324,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                  <div key={p.id} className="p-5 bg-gray-50 rounded-[1.5rem] border border-gray-100 flex items-center justify-between group">
                     <div>
                        <p className="text-sm font-black text-gray-700">{p.name}</p>
-                       <p className="text-xs font-black text-blue-500">{p.feePercentage}% de taxa</p>
+                       <p className="text-xs font-black text-blue-500">{p.feePercentage}% de comissão</p>
+                       {(p.fixedFee || 0) > 0 && <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">+ R$ {p.fixedFee?.toFixed(2)} taxa fixa</p>}
+                       {(p.shippingSubsidy || 0) > 0 && <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest">- R$ {p.shippingSubsidy?.toFixed(2)} subsídio frete</p>}
+                       {p.name.toLowerCase().includes('shopee') && (
+                         <button 
+                           onClick={() => document.getElementById('shopee-config')?.scrollIntoView({ behavior: 'smooth' })}
+                           className="text-[9px] font-black text-orange-500 uppercase tracking-widest mt-1 hover:underline flex items-center gap-1"
+                         >
+                           <Settings size={10} /> Configuração da sua Loja Shopee
+                         </button>
+                       )}
+                       {p.name.toLowerCase().includes('elo7') && (
+                         <div className="mt-2 flex items-center gap-2 px-2 py-1 bg-orange-50 rounded-lg border border-orange-100 w-fit">
+                            <Info size={10} className="text-orange-500" />
+                            <span className="text-[8px] font-black text-orange-600 uppercase tracking-widest">Configurado para Elo7</span>
+                         </div>
+                       )}
                     </div>
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                        <button onClick={() => openEditPlatform(p)} className="p-2 text-gray-300 hover:text-blue-500 transition-colors">
@@ -321,7 +355,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             {/* Configuração Específica Shopee */}
-            <div className="mt-10 pt-10 border-t border-gray-100 space-y-8">
+            <div id="shopee-config" className="mt-10 pt-10 border-t border-gray-100 space-y-8">
                <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg">
                     <img src="https://cdn-icons-png.flaticon.com/512/5968/5968944.png" alt="Shopee" className="w-6 h-6 filter brightness-0 invert" />
@@ -510,9 +544,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <input type="text" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold" placeholder="Ex: Shopee, Instagram, etc" value={platformName} onChange={e => setPlatformName(e.target.value)} />
                </div>
                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Porcentagem de Taxa (%)</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Comissão (%)</label>
                   <input type="number" step="0.01" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-blue-600" placeholder="0.00" value={platformFee} onChange={e => setPlatformFee(e.target.value)} />
                </div>
+
+               <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Taxa Fixa (R$)</label>
+                    <input type="number" step="0.01" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="0.00" value={platformFixedFee} onChange={e => setPlatformFixedFee(e.target.value)} />
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Subsídio Frete (R$)</label>
+                    <input type="number" step="0.01" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-700" placeholder="0.00" value={platformShippingSubsidy} onChange={e => setPlatformShippingSubsidy(e.target.value)} />
+                 </div>
+               </div>
+
+               {platformName.toLowerCase().includes('shopee') && (
+                 <div className="p-6 bg-orange-50 rounded-3xl border border-orange-100 space-y-4 animate-fadeIn">
+                   <div className="flex items-center gap-2 mb-2">
+                     <div className="w-6 h-6 bg-orange-500 rounded-lg flex items-center justify-center">
+                       <Settings size={12} className="text-white" />
+                     </div>
+                     <span className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Configuração da sua Loja Shopee</span>
+                   </div>
+                   
+                   <div className="grid grid-cols-1 gap-2">
+                     {[
+                       { id: 'cnpj', label: 'CNPJ', sub: 'Empresa' },
+                       { id: 'cpf_no_fee', label: 'CPF', sub: 'Até 450 ped.' },
+                       { id: 'cpf_with_fee', label: 'CPF + R$3', sub: '> 450 ped.' }
+                     ].map(type => (
+                       <button
+                         key={type.id}
+                         type="button"
+                         onClick={() => setCompanyData({...companyData, shopeeSellerType: type.id as any})}
+                         className={`p-3 rounded-xl border flex items-center justify-between transition-all ${companyData.shopeeSellerType === type.id ? 'bg-white border-orange-500 shadow-sm' : 'bg-white/50 border-gray-100'}`}
+                       >
+                         <div className="text-left">
+                           <p className="text-[10px] font-black text-gray-700 uppercase">{type.label}</p>
+                           <p className="text-[8px] font-bold text-gray-400 uppercase">{type.sub}</p>
+                         </div>
+                         {companyData.shopeeSellerType === type.id && <CheckCircle2 size={14} className="text-orange-500" />}
+                       </button>
+                     ))}
+                   </div>
+                   <p className="text-[8px] text-orange-400 font-bold uppercase text-center">Isso afetará todos os cálculos da Shopee</p>
+                 </div>
+               )}
+
                <div className="flex gap-4 pt-4">
                   <button type="button" onClick={() => setShowPlatformForm(false)} className="flex-1 px-6 py-4 border-2 border-gray-50 text-gray-400 rounded-2xl font-black uppercase tracking-widest hover:bg-gray-50 transition-all">Cancelar</button>
                   <button type="submit" className="flex-1 px-6 py-4 bg-yellow-400 text-yellow-900 font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg">Salvar Canal</button>

@@ -185,6 +185,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     }
   }, [currentProject.id, projects]);
 
+  const selectedPlatform = platforms.find(p => p.id === currentProject.platformId);
+
   const breakdown = useMemo(() => {
     return calculateProjectBreakdown(currentProject, materials, platforms, companyData);
   }, [currentProject, materials, companyData, platforms]);
@@ -202,32 +204,35 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
   const addItemFromCatalog = (product: Product) => {
     let priceToUse = product.marketPrice;
+    const initialQty = product.minOrderQuantity || 1;
 
     if (!priceToUse || priceToUse <= 0) {
       const mockProj = {
         items: [{
           name: product.name,
-          quantity: 1,
+          quantity: initialQty,
           hoursToMake: (product.minutesToMake || 0) / 60,
           materials: product.materials,
           profitMargin: product.profitMargin || companyData.defaultProfitMargin,
-          manualBaseCost: product.manualBaseCost
+          manualBaseCost: product.manualBaseCost,
+          packagingCost: product.packagingCost
         }],
         platformId: currentProject.platformId || platforms[0]?.id || '',
         excedente: companyData.defaultExcedente
       };
       const breakdownResult = calculateProjectBreakdown(mockProj as any, materials, platforms, companyData);
-      priceToUse = breakdownResult.basePieceValue;
+      priceToUse = breakdownResult.basePieceValue / initialQty;
     }
 
     const newItem: ProjectItemEntry = {
       productId: product.id,
       name: product.name,
-      quantity: 1,
+      quantity: initialQty,
       hoursToMake: (product.minutesToMake || 0) / 60,
       materials: [...product.materials],
       profitMargin: product.profitMargin || companyData.defaultProfitMargin,
-      unitPrice: priceToUse
+      unitPrice: priceToUse,
+      packagingCost: product.packagingCost
     };
 
     setCurrentProject({
@@ -605,6 +610,26 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-gray-700" value={currentProject.platformId} onChange={e => setCurrentProject({...currentProject, platformId: e.target.value})}>
                   {platforms.map(p => <option key={p.id} value={p.id}>{p.name} ({p.feePercentage}%)</option>)}
                 </select>
+                {platforms.find(p => p.id === currentProject.platformId)?.name.toLowerCase().includes('shopee') && (
+                  <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-orange-50 rounded-xl border border-orange-100 animate-fadeIn">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                    <span className="text-[10px] font-black text-orange-600 uppercase tracking-widest">
+                      Configuração Shopee: {
+                        companyData.shopeeSellerType === 'cnpj' ? 'CNPJ' : 
+                        companyData.shopeeSellerType === 'cpf_no_fee' ? 'CPF (Sem Taxa)' : 
+                        'CPF (+R$3,00)'
+                      }
+                    </span>
+                  </div>
+                )}
+                {platforms.find(p => p.id === currentProject.platformId)?.name.toLowerCase().includes('elo7') && (
+                  <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-orange-50 rounded-xl border border-orange-100 animate-fadeIn">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                    <span className="text-[10px] font-black text-orange-600 uppercase tracking-widest">
+                      Taxas Elo7 Ativas
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -862,7 +887,22 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                             <tr className="hover:bg-gray-50/50 transition-colors">
                                 <td className="px-6 py-4 flex items-center gap-3">
                                     <div className="p-2 bg-orange-50 text-orange-500 rounded-xl"><Store size={14} /></div>
-                                    <span>Custo Meio de Venda (Taxas)</span>
+                                    <div>
+                                      <span>Custo Meio de Venda (Taxas)</span>
+                                      {breakdown.platformFeeDetails && (
+                                        <div className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1 flex flex-wrap gap-x-2">
+                                          {breakdown.platformFeeDetails.commission > 0 && (
+                                            <span>Comissão: R$ {breakdown.platformFeeDetails.commission.toFixed(2)}</span>
+                                          )}
+                                          {breakdown.platformFeeDetails.fixedFee > 0 && (
+                                            <span>Fixa: R$ {breakdown.platformFeeDetails.fixedFee.toFixed(2)}</span>
+                                          )}
+                                          {breakdown.platformFeeDetails.shippingSubsidy > 0 && (
+                                            <span>Subsídio: R$ {breakdown.platformFeeDetails.shippingSubsidy.toFixed(2)}</span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
                                 </td>
                                 <td className="px-6 py-4 text-right">R$ {breakdown.platformFees.toFixed(2)}</td>
                                 <td className="px-6 py-4 text-right text-[10px] opacity-60">

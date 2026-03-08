@@ -1,12 +1,37 @@
 
-import React, { useState, useEffect } from 'react';
-import { Package, ExternalLink, MessageCircle, ShoppingCart, Info, Search, LayoutGrid, List } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Package, 
+  ExternalLink, 
+  MessageCircle, 
+  ShoppingCart, 
+  Info, 
+  Search, 
+  LayoutGrid, 
+  List, 
+  Plus, 
+  Minus, 
+  Trash2, 
+  X, 
+  CheckCircle2,
+  ShoppingBag,
+  ArrowRight,
+  RefreshCw
+} from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Product, CompanyData, Material, Platform } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
+declare const html2canvas: any;
+
 interface PublicCatalogProps {
   userEmail: string;
+}
+
+interface CartItem {
+  product: Product;
+  quantity: number;
+  price: number;
 }
 
 export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
@@ -18,6 +43,14 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
+  
+  // Estados do Carrinho
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const orderSummaryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -64,6 +97,79 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
     const phone = companyData.phone.replace(/\D/g, '');
     const message = encodeURIComponent(`Olá! Vi o produto *${productName}* (R$ ${price.toFixed(2)}) no seu catálogo online e gostaria de saber mais informações.`);
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+  };
+
+  const addToCart = (product: Product, price: number) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.product.id === product.id);
+      if (existing) {
+        return prev.map(item => 
+          item.product.id === product.id 
+            ? { ...item, quantity: item.quantity + (product.minOrderQuantity || 1) } 
+            : item
+        );
+      }
+      return [...prev, { product, quantity: product.minOrderQuantity || 1, price }];
+    });
+  };
+
+  const updateQuantity = (productId: string, delta: number) => {
+    setCart(prev => prev.map(item => {
+      if (item.product.id === productId) {
+        const min = item.product.minOrderQuantity || 1;
+        const newQty = Math.max(min, item.quantity + delta);
+        return { ...item, quantity: newQty };
+      }
+      return item;
+    }));
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart(prev => prev.filter(item => item.product.id !== productId));
+  };
+
+  const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+
+  const handleFinishOrder = async () => {
+    if (!companyData?.phone || cart.length === 0) return;
+    
+    setIsGeneratingImage(true);
+    try {
+      // Gerar imagem do resumo do pedido
+      const canvas = await html2canvas(orderSummaryRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        useCORS: true
+      });
+      
+      const imageData = canvas.toDataURL('image/png');
+      
+      // Como não podemos enviar o arquivo diretamente via link wa.me,
+      // vamos oferecer o download da imagem e enviar o texto detalhado.
+      // Em dispositivos móveis, poderíamos tentar usar a Web Share API se suportada.
+      
+      const link = document.createElement('a');
+      link.download = `pedido-${companyData.name || 'atelie'}.png`;
+      link.href = imageData;
+      link.click();
+
+      const phone = companyData.phone.replace(/\D/g, '');
+      let message = `*NOVO PEDIDO - ${companyData.name}*\n\n`;
+      cart.forEach(item => {
+        message += `• ${item.quantity}x *${item.product.name}* - R$ ${(item.price * item.quantity).toFixed(2)}\n`;
+      });
+      message += `\n*TOTAL: R$ ${cartTotal.toFixed(2)}*\n\n_Acabei de baixar a imagem do resumo do meu pedido e vou anexar aqui._`;
+      
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+      setCart([]);
+      setIsCartOpen(false);
+    } catch (err) {
+      console.error("Erro ao finalizar pedido:", err);
+      alert("Houve um erro ao gerar o resumo do pedido. Mas você ainda pode enviar o texto!");
+    } finally {
+      setIsGeneratingImage(false);
+    }
   };
 
   if (loading) {
@@ -161,7 +267,14 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
               const finalPrice = p.marketPrice > 0 ? p.marketPrice : breakdown.finalPrice;
 
               return (
-                <div key={p.id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col">
+                <div 
+                  key={p.id} 
+                  className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col cursor-pointer"
+                  onClick={() => {
+                    setSelectedProduct(p);
+                    setActiveImageIdx(0);
+                  }}
+                >
                   <div className="aspect-square bg-gray-50 relative overflow-hidden">
                     {p.image ? (
                       <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
@@ -181,19 +294,28 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
                     <p className="text-xs text-gray-400 font-medium line-clamp-2 mb-6 flex-1">
                       {p.description || 'Peça personalizada produzida com materiais de alta qualidade e acabamento impecável.'}
                     </p>
-                    <div className="flex items-center justify-between mt-auto pt-6 border-t border-gray-50">
-                      <div>
-                        <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Valor Unitário</p>
-                        <p className="text-2xl font-black text-gray-800">R$ {finalPrice.toFixed(2)}</p>
+                      <div className="flex items-center justify-between mt-auto pt-6 border-t border-gray-50">
+                        <div>
+                          <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Valor Unitário</p>
+                          <p className="text-2xl font-black text-gray-800">R$ {finalPrice.toFixed(2)}</p>
+                        </div>
+                        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                          <button 
+                            onClick={() => handleWhatsAppContact(p.name, finalPrice)}
+                            className="bg-green-500 text-white p-4 rounded-2xl hover:bg-green-600 transition-all shadow-lg shadow-green-100"
+                            title="Conversar no WhatsApp"
+                          >
+                            <MessageCircle size={20} />
+                          </button>
+                          <button 
+                            onClick={() => addToCart(p, finalPrice)}
+                            className="bg-pink-500 text-white p-4 rounded-2xl hover:bg-pink-600 transition-all shadow-lg shadow-pink-100 group-hover:scale-110"
+                            title="Adicionar ao Carrinho"
+                          >
+                            <ShoppingCart size={20} />
+                          </button>
+                        </div>
                       </div>
-                      <button 
-                        onClick={() => handleWhatsAppContact(p.name, finalPrice)}
-                        className="bg-pink-500 text-white p-4 rounded-2xl hover:bg-pink-600 transition-all shadow-lg shadow-pink-100 group-hover:scale-110"
-                        title="Pedir no WhatsApp"
-                      >
-                        <ShoppingCart size={20} />
-                      </button>
-                    </div>
                   </div>
                 </div>
               );
@@ -223,6 +345,269 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
           </p>
         </div>
       </footer>
+
+      {/* BOTÃO FLUTUANTE DO CARRINHO */}
+      {cart.length > 0 && (
+        <button 
+          onClick={() => setIsCartOpen(true)}
+          className="fixed bottom-8 right-8 bg-pink-600 text-white p-6 rounded-full shadow-2xl z-40 animate-bounce hover:scale-110 transition-all flex items-center gap-3"
+        >
+          <div className="relative">
+            <ShoppingBag size={28} />
+            <span className="absolute -top-2 -right-2 bg-yellow-400 text-gray-900 text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">
+              {cart.reduce((acc, item) => acc + item.quantity, 0)}
+            </span>
+          </div>
+          <span className="font-black text-sm pr-2">Ver Pedido</span>
+        </button>
+      )}
+
+      {/* MODAL DE DETALHES DO PRODUTO */}
+      {selectedProduct && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-scaleIn">
+            <button 
+              onClick={() => setSelectedProduct(null)} 
+              className="absolute top-6 right-6 md:top-8 md:right-8 text-white md:text-gray-300 hover:text-white md:hover:text-gray-500 z-10 bg-black/20 md:bg-transparent p-2 rounded-full"
+            >
+              <X size={28} />
+            </button>
+
+            {/* GALERIA DE IMAGENS */}
+            <div className="w-full md:w-1/2 bg-gray-50 relative aspect-square md:aspect-auto">
+              <div className="w-full h-full">
+                {selectedProduct.images && selectedProduct.images.length > 0 ? (
+                  <img 
+                    src={selectedProduct.images[activeImageIdx]} 
+                    alt={selectedProduct.name} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : selectedProduct.image ? (
+                  <img 
+                    src={selectedProduct.image} 
+                    alt={selectedProduct.name} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-200">
+                    <Package size={80} />
+                  </div>
+                )}
+              </div>
+
+              {/* MINIATURAS */}
+              {selectedProduct.images && selectedProduct.images.length > 1 && (
+                <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2 px-4">
+                  {selectedProduct.images.map((img, idx) => (
+                    <button 
+                      key={idx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveImageIdx(idx);
+                      }}
+                      className={`w-12 h-12 rounded-xl border-2 overflow-hidden transition-all ${activeImageIdx === idx ? 'border-pink-500 scale-110 shadow-lg' : 'border-white/50 hover:border-white'}`}
+                    >
+                      <img src={img} alt={`Thumb ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* INFORMAÇÕES */}
+            <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col overflow-y-auto custom-scrollbar">
+              <div className="mb-8">
+                <span className="text-[10px] font-black text-pink-500 bg-pink-50 px-3 py-1 rounded-full uppercase tracking-widest border border-pink-100">
+                  {selectedProduct.category}
+                </span>
+                <h2 className="text-3xl font-black text-gray-800 mt-4 leading-tight">{selectedProduct.name}</h2>
+              </div>
+
+              <div className="flex-1 space-y-8">
+                <div>
+                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Descrição</h4>
+                  <p className="text-gray-600 font-medium leading-relaxed whitespace-pre-wrap">
+                    {selectedProduct.description || 'Este produto é feito sob encomenda com materiais de alta qualidade. Entre em contato para personalizar cores e detalhes.'}
+                  </p>
+                </div>
+
+                {selectedProduct.minOrderQuantity && selectedProduct.minOrderQuantity > 1 && (
+                  <div className="flex items-center gap-3 p-4 bg-yellow-50 rounded-2xl border border-yellow-100">
+                    <Info size={18} className="text-yellow-600" />
+                    <p className="text-xs font-bold text-yellow-700">Pedido mínimo de {selectedProduct.minOrderQuantity} unidades.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-12 pt-8 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Valor Unitário</p>
+                    <p className="text-4xl font-black text-gray-800">
+                      R$ {(selectedProduct.marketPrice > 0 ? selectedProduct.marketPrice : calculateProjectBreakdown({ 
+                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin }], 
+                        platformId: platforms[0]?.id || '', 
+                        excedente: companyData?.defaultExcedente || 10 
+                      } as any, materials, platforms, companyData!).finalPrice).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => {
+                      const price = selectedProduct.marketPrice > 0 ? selectedProduct.marketPrice : calculateProjectBreakdown({ 
+                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin }], 
+                        platformId: platforms[0]?.id || '', 
+                        excedente: companyData?.defaultExcedente || 10 
+                      } as any, materials, platforms, companyData!).finalPrice;
+                      handleWhatsAppContact(selectedProduct.name, price);
+                    }}
+                    className="py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-green-100 hover:bg-green-600 transition-all active:scale-95"
+                  >
+                    <MessageCircle size={24} />
+                    <span>Falar no WhatsApp</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const price = selectedProduct.marketPrice > 0 ? selectedProduct.marketPrice : calculateProjectBreakdown({ 
+                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin }], 
+                        platformId: platforms[0]?.id || '', 
+                        excedente: companyData?.defaultExcedente || 10 
+                      } as any, materials, platforms, companyData!).finalPrice;
+                      addToCart(selectedProduct, price);
+                      setSelectedProduct(null);
+                    }}
+                    className="py-5 bg-pink-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-pink-100 hover:bg-pink-600 transition-all active:scale-95"
+                  >
+                    <ShoppingCart size={24} />
+                    <span>Adicionar ao Carrinho</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DO CARRINHO */}
+      {isCartOpen && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-50 flex items-center justify-end animate-fadeIn">
+          <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-slideInRight">
+            <div className="p-8 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl"><ShoppingBag size={24} /></div>
+                <h3 className="text-xl font-black text-gray-800">Seu Pedido</h3>
+              </div>
+              <button onClick={() => setIsCartOpen(false)} className="text-gray-300 hover:text-gray-500"><X size={24} /></button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
+              {cart.map(item => (
+                <div key={item.product.id} className="flex gap-4 items-center bg-gray-50 p-4 rounded-3xl border border-gray-100">
+                  <div className="w-16 h-16 bg-white rounded-2xl overflow-hidden shadow-sm shrink-0 border border-gray-100">
+                    {item.product.image ? (
+                      <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-200"><Package size={24} /></div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-black text-gray-800 truncate text-sm">{item.product.name}</h4>
+                    <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest mt-1">R$ {item.price.toFixed(2)} / un</p>
+                    <div className="flex items-center gap-3 mt-3">
+                      <div className="flex items-center bg-white rounded-xl border border-gray-100 p-1">
+                        <button onClick={() => updateQuantity(item.product.id, -1)} className="p-1 text-gray-400 hover:text-pink-500"><Minus size={14} /></button>
+                        <span className="w-8 text-center text-xs font-black text-gray-700">{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.product.id, 1)} className="p-1 text-gray-400 hover:text-pink-500"><Plus size={14} /></button>
+                      </div>
+                      <button onClick={() => removeFromCart(item.product.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-gray-800">R$ {(item.price * item.quantity).toFixed(2)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-8 bg-gray-50 border-t border-gray-100 space-y-6">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 font-black uppercase text-[10px] tracking-widest">Total do Pedido</span>
+                <span className="text-3xl font-black text-gray-800">R$ {cartTotal.toFixed(2)}</span>
+              </div>
+              <button 
+                onClick={handleFinishOrder}
+                disabled={isGeneratingImage}
+                className="w-full py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-green-100 hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isGeneratingImage ? (
+                  <>
+                    <RefreshCw className="animate-spin" size={20} />
+                    <span>Gerando Resumo...</span>
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle size={20} />
+                    <span>Enviar Pedido pelo WhatsApp</span>
+                  </>
+                )}
+              </button>
+              <p className="text-[9px] text-gray-400 text-center font-medium italic">
+                * Ao clicar, geraremos uma imagem do seu pedido para você enviar junto com a mensagem.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TEMPLATE OCULTO PARA GERAÇÃO DA IMAGEM DO PEDIDO */}
+      <div className="fixed left-[-9999px] top-[-9999px]">
+        <div ref={orderSummaryRef} className="w-[600px] bg-white p-12 font-['Quicksand']">
+          <div className="flex items-center justify-between mb-12 border-b-4 border-pink-500 pb-8">
+            <div className="flex items-center gap-6">
+              <div className="w-20 h-20 bg-pink-500 rounded-3xl flex items-center justify-center shadow-lg overflow-hidden">
+                {companyData?.logo ? (
+                  <img src={companyData.logo} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <Package size={40} className="text-white" />
+                )}
+              </div>
+              <div>
+                <h2 className="text-3xl font-black text-gray-800">{companyData?.name || 'Meu Ateliê'}</h2>
+                <p className="text-pink-500 font-black text-xs uppercase tracking-widest mt-1">Resumo do Pedido</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-1">Data</p>
+              <p className="text-sm font-black text-gray-800">{new Date().toLocaleDateString('pt-BR')}</p>
+            </div>
+          </div>
+
+          <div className="space-y-6 mb-12">
+            {cart.map(item => (
+              <div key={item.product.id} className="flex items-center justify-between py-4 border-b border-gray-100">
+                <div className="flex items-center gap-4">
+                  <span className="w-10 h-10 bg-pink-50 text-pink-600 rounded-xl flex items-center justify-center font-black text-sm">{item.quantity}x</span>
+                  <span className="font-black text-gray-800 text-lg">{item.product.name}</span>
+                </div>
+                <span className="font-black text-gray-800 text-lg">R$ {(item.price * item.quantity).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-gray-50 p-8 rounded-[2rem] flex justify-between items-center">
+            <span className="text-gray-400 font-black uppercase text-xs tracking-widest">Total Geral</span>
+            <span className="text-4xl font-black text-pink-600">R$ {cartTotal.toFixed(2)}</span>
+          </div>
+
+          <div className="mt-12 text-center">
+            <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em]">Obrigado pela preferência!</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

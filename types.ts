@@ -23,6 +23,8 @@ export interface Platform {
   id: string;
   name: string;
   feePercentage: number;
+  fixedFee?: number;
+  shippingSubsidy?: number;
 }
 
 export interface CompanyData {
@@ -52,6 +54,7 @@ export interface ProjectItemEntry {
   profitMargin: number;
   unitPrice?: number; // Preço de venda fixado pelo artesão
   manualBaseCost?: number;
+  packagingCost?: number;
 }
 
 export interface ProjectItem {
@@ -104,13 +107,16 @@ export interface Product {
   id: string;
   name: string;
   description: string;
-  image?: string; // Nova opção de foto
+  image?: string; // Foto principal (legado)
+  images?: string[]; // Novas fotos adicionais
   category: string;
   minutesToMake: number;
   materials: ProjectItem[];
   profitMargin: number;
   marketPrice: number;
   manualBaseCost?: number;
+  packagingCost?: number;
+  minOrderQuantity?: number;
 }
 
 export interface Transaction {
@@ -156,4 +162,9 @@ export interface PricingBreakdown {
   remainingBalance: number;
   finalPrice: number;
   basePieceValue: number; // Valor total das peças sem taxas e sem frete
+  platformFeeDetails?: {
+    commission: number;
+    fixedFee: number;
+    shippingSubsidy: number;
+  };
 }

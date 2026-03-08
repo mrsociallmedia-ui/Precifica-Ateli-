@@ -1,8 +1,13 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack, Repeat, FileText as FileIcon, Layers3, Share2, ExternalLink, QrCode } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { 
+  Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack, Repeat, FileText as FileIcon, Layers3, Share2, ExternalLink, QrCode, MessageSquare,
+  ShoppingCart, ShoppingBag, Minus, RefreshCw, MessageCircle
+} from 'lucide-react';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
 import { calculateProjectBreakdown } from '../utils';
+
+declare const html2canvas: any;
 
 interface ProductsProps {
   products: Product[];
@@ -20,11 +25,85 @@ export const Products: React.FC<ProductsProps> = ({
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  
+  // Estados do Carrinho (Preview)
+  const [cart, setCart] = useState<{product: Product, quantity: number, price: number}[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [selectedProductPreview, setSelectedProductPreview] = useState<Product | null>(null);
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const orderSummaryRef = useRef<HTMLDivElement>(null);
+
+  const addToCart = (product: Product, price: number) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.product.id === product.id);
+      if (existing) {
+        return prev.map(item => 
+          item.product.id === product.id 
+            ? { ...item, quantity: item.quantity + (product.minOrderQuantity || 1) } 
+            : item
+        );
+      }
+      return [...prev, { product, quantity: product.minOrderQuantity || 1, price }];
+    });
+  };
+
+  const updateQuantity = (productId: string, delta: number) => {
+    setCart(prev => prev.map(item => {
+      if (item.product.id === productId) {
+        const min = item.product.minOrderQuantity || 1;
+        const newQty = Math.max(min, item.quantity + delta);
+        return { ...item, quantity: newQty };
+      }
+      return item;
+    }));
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart(prev => prev.filter(item => item.product.id !== productId));
+  };
+
+  const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+
+  const handleFinishOrder = async () => {
+    if (!companyData?.phone || cart.length === 0) return;
+    
+    setIsGeneratingImage(true);
+    try {
+      const canvas = await html2canvas(orderSummaryRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        useCORS: true
+      });
+      
+      const imageData = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `pedido-preview.png`;
+      link.href = imageData;
+      link.click();
+
+      const phone = companyData.phone.replace(/\D/g, '');
+      let message = `*NOVO PEDIDO (PREVIEW)*\n\n`;
+      cart.forEach(item => {
+        message += `• ${item.quantity}x *${item.product.name}* - R$ ${(item.price * item.quantity).toFixed(2)}\n`;
+      });
+      message += `\n*TOTAL: R$ ${cartTotal.toFixed(2)}*`;
+      
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+      setCart([]);
+      setIsCartOpen(false);
+    } catch (err) {
+      console.error("Erro ao finalizar pedido:", err);
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: '', category: productCategories[0] || 'Geral', description: '', minutesToMake: 60, materials: [],
-    profitMargin: companyData.defaultProfitMargin, marketPrice: 0, image: ''
+    profitMargin: companyData.defaultProfitMargin, marketPrice: 0, image: '', images: [], packagingCost: 0, minOrderQuantity: 1
   });
   
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,6 +115,29 @@ export const Products: React.FC<ProductsProps> = ({
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleMultipleImagesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setNewProduct(prev => ({ 
+            ...prev, 
+            images: [...(prev.images || []), reader.result as string] 
+          }));
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setNewProduct(prev => ({
+      ...prev,
+      images: (prev.images || []).filter((_, i) => i !== index)
+    }));
   };
   
   const [selectedMatId, setSelectedMatId] = useState('');
@@ -78,7 +180,7 @@ export const Products: React.FC<ProductsProps> = ({
     setEditingProductId(null);
     setNewProduct({
       name: '', category: productCategories[0] || 'Geral', description: '', minutesToMake: 60, materials: [],
-      profitMargin: companyData.defaultProfitMargin, marketPrice: 0, image: ''
+      profitMargin: companyData.defaultProfitMargin, marketPrice: 0, image: '', images: [], packagingCost: 0, minOrderQuantity: 1
     });
     setShowForm(true);
   };
@@ -124,11 +226,14 @@ export const Products: React.FC<ProductsProps> = ({
         name: newProduct.name!,
         description: newProduct.description || '',
         image: newProduct.image || '',
+        images: newProduct.images || [],
         category: newProduct.category || 'Geral',
         minutesToMake: Number(newProduct.minutesToMake) || 0,
         materials: newProduct.materials || [],
         profitMargin: Number(newProduct.profitMargin) || 30,
-        marketPrice: Number(newProduct.marketPrice) || 0
+        marketPrice: Number(newProduct.marketPrice) || 0,
+        packagingCost: Number(newProduct.packagingCost) || 0,
+        minOrderQuantity: Number(newProduct.minOrderQuantity) || 1
       };
       setProducts(prev => [product, ...prev]);
     }
@@ -299,6 +404,78 @@ export const Products: React.FC<ProductsProps> = ({
                            <input type="number" className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-green-600" value={newProduct.profitMargin} onChange={e => setNewProduct({...newProduct, profitMargin: parseFloat(e.target.value) || 0})} />
                         </div>
                      </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Embalagem de Envio</label>
+                           <div className="relative">
+                              <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
+                              <input 
+                                type="number" 
+                                step="0.01" 
+                                className="w-full p-4 pl-10 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 text-sm" 
+                                placeholder="digite o valor unitário da sua embalagem..." 
+                                value={newProduct.packagingCost || ''} 
+                                onChange={e => setNewProduct({...newProduct, packagingCost: parseFloat(e.target.value) || 0})} 
+                              />
+                           </div>
+                           <p className="text-[9px] text-gray-400 font-bold italic px-1">Qual é o valor unitário da sua embalagem?</p>
+                        </div>
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pedido Mínimo</label>
+                           <div className="relative">
+                              <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
+                              <input 
+                                type="number" 
+                                className="w-full p-4 pl-10 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 text-sm" 
+                                placeholder="digite a quantidade de peças para compor o seu pedido mínimo..." 
+                                value={newProduct.minOrderQuantity || ''} 
+                                onChange={e => setNewProduct({...newProduct, minOrderQuantity: parseInt(e.target.value) || 1})} 
+                              />
+                           </div>
+                           <p className="text-[9px] text-gray-400 font-bold italic px-1">Qual será o seu pedido mínimo para essa Peça?</p>
+                        </div>
+                     </div>
+
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Descrição do Produto</label>
+                        <textarea 
+                          className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-medium text-gray-700 text-sm min-h-[100px] resize-none" 
+                          placeholder="Descreva os detalhes da peça, materiais especiais, acabamentos..."
+                          value={newProduct.description} 
+                          onChange={e => setNewProduct({...newProduct, description: e.target.value})}
+                        />
+                     </div>
+
+                     <div className="space-y-4">
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Fotos Adicionais</label>
+                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                         {(newProduct.images || []).map((img, idx) => (
+                           <div key={idx} className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden group/img">
+                             <img src={img} alt={`Extra ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                             <button 
+                               type="button"
+                               onClick={() => removeImage(idx)}
+                               className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity"
+                             >
+                               <Trash2 size={12} />
+                             </button>
+                           </div>
+                         ))}
+                         <div className="relative aspect-square bg-white rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center hover:border-pink-300 transition-all cursor-pointer">
+                           <Plus size={20} className="text-gray-300" />
+                           <p className="text-[8px] font-black text-gray-400 uppercase mt-1">Adicionar</p>
+                           <input 
+                             type="file" 
+                             multiple
+                             accept="image/*" 
+                             className="absolute inset-0 opacity-0 cursor-pointer" 
+                             onChange={handleMultipleImagesUpload}
+                           />
+                         </div>
+                       </div>
+                     </div>
+
                      <div className="space-y-2">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Preço de Venda (Opcional)</label>
                         <div className="relative">
@@ -540,12 +717,32 @@ export const Products: React.FC<ProductsProps> = ({
                 {/* Grid de Produtos Público */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {products.map(p => {
-                    const mockProject = { items: [{ productId: p.id, name: p.name, quantity: 1, hoursToMake: p.minutesToMake / 60, materials: p.materials, profitMargin: p.profitMargin }], platformId: platforms[0]?.id || '', excedente: companyData.defaultExcedente };
+                    const initialQty = p.minOrderQuantity || 1;
+                    const mockProject = { 
+                      items: [{ 
+                        productId: p.id, 
+                        name: p.name, 
+                        quantity: initialQty, 
+                        hoursToMake: p.minutesToMake / 60, 
+                        materials: p.materials, 
+                        profitMargin: p.profitMargin,
+                        packagingCost: p.packagingCost
+                      }], 
+                      platformId: platforms[0]?.id || '', 
+                      excedente: companyData.defaultExcedente 
+                    };
                     const breakdown = calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
-                    const price = p.marketPrice > 0 ? p.marketPrice : breakdown.finalPrice;
+                    const price = p.marketPrice > 0 ? p.marketPrice : (breakdown.finalPrice / initialQty);
                     
                     return (
-                      <div key={p.id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all group">
+                      <div 
+                        key={p.id} 
+                        className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all group cursor-pointer"
+                        onClick={() => {
+                          setSelectedProductPreview(p);
+                          setActiveImageIdx(0);
+                        }}
+                      >
                         <div className="aspect-square bg-gray-100 flex items-center justify-center relative overflow-hidden">
                            {p.image ? (
                              <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
@@ -557,15 +754,37 @@ export const Products: React.FC<ProductsProps> = ({
                                 {p.category}
                               </span>
                            </div>
+                           {p.minOrderQuantity && p.minOrderQuantity > 1 && (
+                             <div className="absolute bottom-4 left-4 bg-gray-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg text-[9px] font-black text-white uppercase tracking-widest">
+                                Pedido Mín: {p.minOrderQuantity} un
+                             </div>
+                           )}
                         </div>
                         <div className="p-8">
                           <h4 className="text-lg font-black text-gray-800 mb-2">{p.name}</h4>
                           <p className="text-xs text-gray-400 font-medium line-clamp-2 mb-6">{p.description || 'Peça personalizada feita com carinho para o seu evento.'}</p>
                           <div className="flex items-center justify-between">
-                            <span className="text-2xl font-black text-gray-800">R$ {price.toFixed(2)}</span>
-                            <button className="bg-green-500 text-white p-3 rounded-2xl hover:bg-green-600 transition-all shadow-lg shadow-green-100">
-                              <ExternalLink size={18} />
-                            </button>
+                            <div className="flex flex-col">
+                              <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">A partir de</span>
+                              <span className="text-2xl font-black text-gray-800">R$ {price.toFixed(2)}</span>
+                            </div>
+                            <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                              <button 
+                                onClick={() => {
+                                  const message = `Olá! Tenho interesse no produto: *${p.name}* do seu catálogo.`;
+                                  window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
+                                }}
+                                className="bg-green-500 text-white p-3 rounded-2xl hover:bg-green-600 transition-all shadow-lg shadow-green-100"
+                              >
+                                <MessageSquare size={18} />
+                              </button>
+                              <button 
+                                onClick={() => addToCart(p, price)}
+                                className="bg-pink-500 text-white p-3 rounded-2xl hover:bg-pink-600 transition-all shadow-lg shadow-pink-100"
+                              >
+                                <ShoppingCart size={18} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -575,6 +794,265 @@ export const Products: React.FC<ProductsProps> = ({
 
                 <div className="mt-20 text-center border-t border-gray-100 pt-10">
                   <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Catálogo Online Gerado por Precifica Ateliê</p>
+                </div>
+              </div>
+            </div>
+
+            {/* BOTÃO FLUTUANTE DO CARRINHO (PREVIEW) */}
+            {cart.length > 0 && (
+              <button 
+                onClick={() => setIsCartOpen(true)}
+                className="absolute bottom-12 right-12 bg-pink-600 text-white p-6 rounded-full shadow-2xl z-40 animate-bounce hover:scale-110 transition-all flex items-center gap-3"
+              >
+                <div className="relative">
+                  <ShoppingBag size={28} />
+                  <span className="absolute -top-2 -right-2 bg-yellow-400 text-gray-900 text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">
+                    {cart.reduce((acc, item) => acc + item.quantity, 0)}
+                  </span>
+                </div>
+                <span className="font-black text-sm pr-2">Ver Pedido</span>
+              </button>
+            )}
+
+            {/* MODAL DE DETALHES DO PRODUTO (PREVIEW) */}
+            {selectedProductPreview && (
+              <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-4 animate-fadeIn">
+                <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-scaleIn relative">
+                  <button 
+                    onClick={() => setSelectedProductPreview(null)} 
+                    className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 z-10 p-2"
+                  >
+                    <X size={28} />
+                  </button>
+
+                  {/* GALERIA DE IMAGENS */}
+                  <div className="w-full md:w-1/2 bg-gray-50 relative aspect-square md:aspect-auto">
+                    <div className="w-full h-full">
+                      {selectedProductPreview.images && selectedProductPreview.images.length > 0 ? (
+                        <img 
+                          src={selectedProductPreview.images[activeImageIdx]} 
+                          alt={selectedProductPreview.name} 
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : selectedProductPreview.image ? (
+                        <img 
+                          src={selectedProductPreview.image} 
+                          alt={selectedProductPreview.name} 
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-200">
+                          <Package size={80} />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* MINIATURAS */}
+                    {selectedProductPreview.images && selectedProductPreview.images.length > 1 && (
+                      <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2 px-4">
+                        {selectedProductPreview.images.map((img, idx) => (
+                          <button 
+                            key={idx}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveImageIdx(idx);
+                            }}
+                            className={`w-12 h-12 rounded-xl border-2 overflow-hidden transition-all ${activeImageIdx === idx ? 'border-pink-500 scale-110 shadow-lg' : 'border-white/50 hover:border-white'}`}
+                          >
+                            <img src={img} alt={`Thumb ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* INFORMAÇÕES */}
+                  <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col overflow-y-auto custom-scrollbar">
+                    <div className="mb-8">
+                      <span className="text-[10px] font-black text-pink-500 bg-pink-50 px-3 py-1 rounded-full uppercase tracking-widest border border-pink-100">
+                        {selectedProductPreview.category}
+                      </span>
+                      <h2 className="text-3xl font-black text-gray-800 mt-4 leading-tight">{selectedProductPreview.name}</h2>
+                    </div>
+
+                    <div className="flex-1 space-y-8">
+                      <div>
+                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Descrição</h4>
+                        <p className="text-gray-600 font-medium leading-relaxed whitespace-pre-wrap">
+                          {selectedProductPreview.description || 'Este produto é feito sob encomenda com materiais de alta qualidade. Entre em contato para personalizar cores e detalhes.'}
+                        </p>
+                      </div>
+
+                      {selectedProductPreview.minOrderQuantity && selectedProductPreview.minOrderQuantity > 1 && (
+                        <div className="flex items-center gap-3 p-4 bg-yellow-50 rounded-2xl border border-yellow-100">
+                          <Info size={18} className="text-yellow-600" />
+                          <p className="text-xs font-bold text-yellow-700">Pedido mínimo de {selectedProductPreview.minOrderQuantity} unidades.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-12 pt-8 border-t border-gray-100">
+                      <div className="flex items-center justify-between mb-8">
+                        <div>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Valor Unitário</p>
+                          <p className="text-4xl font-black text-gray-800">
+                            R$ {(selectedProductPreview.marketPrice > 0 ? selectedProductPreview.marketPrice : calculateProjectBreakdown({ 
+                              items: [{ productId: selectedProductPreview.id, name: selectedProductPreview.name, quantity: 1, hoursToMake: selectedProductPreview.minutesToMake / 60, materials: selectedProductPreview.materials, profitMargin: selectedProductPreview.profitMargin }], 
+                              platformId: platforms[0]?.id || '', 
+                              excedente: companyData.defaultExcedente 
+                            } as any, materials, platforms, companyData).finalPrice).toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <button 
+                          onClick={() => {
+                            const message = `Olá! Tenho interesse no produto: *${selectedProductPreview.name}* do seu catálogo.`;
+                            window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
+                          }}
+                          className="py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-green-100 hover:bg-green-600 transition-all active:scale-95"
+                        >
+                          <MessageCircle size={24} />
+                          <span>Falar no WhatsApp</span>
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const price = selectedProductPreview.marketPrice > 0 ? selectedProductPreview.marketPrice : calculateProjectBreakdown({ 
+                              items: [{ productId: selectedProductPreview.id, name: selectedProductPreview.name, quantity: 1, hoursToMake: selectedProductPreview.minutesToMake / 60, materials: selectedProductPreview.materials, profitMargin: selectedProductPreview.profitMargin }], 
+                              platformId: platforms[0]?.id || '', 
+                              excedente: companyData.defaultExcedente 
+                            } as any, materials, platforms, companyData).finalPrice;
+                            addToCart(selectedProductPreview, price);
+                            setSelectedProductPreview(null);
+                          }}
+                          className="py-5 bg-pink-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-pink-100 hover:bg-pink-600 transition-all active:scale-95"
+                        >
+                          <ShoppingCart size={24} />
+                          <span>Adicionar ao Carrinho</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL DO CARRINHO (PREVIEW) */}
+            {isCartOpen && (
+              <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md z-50 flex items-center justify-end animate-fadeIn">
+                <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-slideInRight">
+                  <div className="p-8 border-b border-gray-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl"><ShoppingBag size={24} /></div>
+                      <h3 className="text-xl font-black text-gray-800">Seu Pedido</h3>
+                    </div>
+                    <button onClick={() => setIsCartOpen(false)} className="text-gray-300 hover:text-gray-500"><X size={24} /></button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
+                    {cart.map(item => (
+                      <div key={item.product.id} className="flex gap-4 items-center bg-gray-50 p-4 rounded-3xl border border-gray-100">
+                        <div className="w-16 h-16 bg-white rounded-2xl overflow-hidden shadow-sm shrink-0 border border-gray-100">
+                          {item.product.image ? (
+                            <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-200"><Package size={24} /></div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-black text-gray-800 truncate text-sm">{item.product.name}</h4>
+                          <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest mt-1">R$ {item.price.toFixed(2)} / un</p>
+                          <div className="flex items-center gap-3 mt-3">
+                            <div className="flex items-center bg-white rounded-xl border border-gray-100 p-1">
+                              <button onClick={() => updateQuantity(item.product.id, -1)} className="p-1 text-gray-400 hover:text-pink-500"><Minus size={14} /></button>
+                              <span className="w-8 text-center text-xs font-black text-gray-700">{item.quantity}</span>
+                              <button onClick={() => updateQuantity(item.product.id, 1)} className="p-1 text-gray-400 hover:text-pink-500"><Plus size={14} /></button>
+                            </div>
+                            <button onClick={() => removeFromCart(item.product.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-gray-800">R$ {(item.price * item.quantity).toFixed(2)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="p-8 bg-gray-50 border-t border-gray-100 space-y-6">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400 font-black uppercase text-[10px] tracking-widest">Total do Pedido</span>
+                      <span className="text-3xl font-black text-gray-800">R$ {cartTotal.toFixed(2)}</span>
+                    </div>
+                    <button 
+                      onClick={handleFinishOrder}
+                      disabled={isGeneratingImage}
+                      className="w-full py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-green-100 hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      {isGeneratingImage ? (
+                        <>
+                          <RefreshCw className="animate-spin" size={20} />
+                          <span>Gerando Resumo...</span>
+                        </>
+                      ) : (
+                        <>
+                          <MessageCircle size={20} />
+                          <span>Enviar Pedido pelo WhatsApp</span>
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[9px] text-gray-400 text-center font-medium italic">
+                      * Ao clicar, geraremos uma imagem do seu pedido para você enviar junto com a mensagem.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TEMPLATE OCULTO PARA GERAÇÃO DA IMAGEM DO PEDIDO (PREVIEW) */}
+            <div className="fixed left-[-9999px] top-[-9999px]">
+              <div ref={orderSummaryRef} className="w-[600px] bg-white p-12 font-['Quicksand']">
+                <div className="flex items-center justify-between mb-12 border-b-4 border-pink-500 pb-8">
+                  <div className="flex items-center gap-6">
+                    <div className="w-20 h-20 bg-pink-500 rounded-3xl flex items-center justify-center shadow-lg overflow-hidden">
+                      {companyData?.logo ? (
+                        <img src={companyData.logo} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <Package size={40} className="text-white" />
+                      )}
+                    </div>
+                    <div>
+                      <h2 className="text-3xl font-black text-gray-800">{companyData?.name || 'Meu Ateliê'}</h2>
+                      <p className="text-pink-500 font-black text-xs uppercase tracking-widest mt-1">Resumo do Pedido</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-1">Data</p>
+                    <p className="text-sm font-black text-gray-800">{new Date().toLocaleDateString('pt-BR')}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-6 mb-12">
+                  {cart.map(item => (
+                    <div key={item.product.id} className="flex items-center justify-between py-4 border-b border-gray-100">
+                      <div className="flex items-center gap-4">
+                        <span className="w-10 h-10 bg-pink-50 text-pink-600 rounded-xl flex items-center justify-center font-black text-sm">{item.quantity}x</span>
+                        <span className="font-black text-gray-800 text-lg">{item.product.name}</span>
+                      </div>
+                      <span className="font-black text-gray-800 text-lg">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-gray-50 p-8 rounded-[2rem] flex justify-between items-center">
+                  <span className="text-gray-400 font-black uppercase text-xs tracking-widest">Total Geral</span>
+                  <span className="text-4xl font-black text-pink-600">R$ {cartTotal.toFixed(2)}</span>
+                </div>
+
+                <div className="mt-12 text-center">
+                  <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em]">Obrigado pela preferência!</p>
                 </div>
               </div>
             </div>

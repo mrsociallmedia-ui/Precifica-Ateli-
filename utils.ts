@@ -44,11 +44,14 @@ export const calculateProjectBreakdown = (
         return acc + (baseMaterialCost + basePrintingCost);
       }, 0) * item.quantity;
 
+      const packagingTotal = (item.packagingCost || 0) * item.quantity;
+      const totalItemVariableCost = itemVariableCost + packagingTotal;
+
       // 2. Calcular Custo de Mão de Obra e Custos Fixos
       const itemLaborCost = (item.hoursToMake * companyData.hourlyRate) * item.quantity;
       const itemFixedCost = (item.hoursToMake * hourlyFixedCost) * item.quantity;
       
-      totalVariableCosts += itemVariableCost;
+      totalVariableCosts += totalItemVariableCost;
       totalLaborCosts += itemLaborCost;
       totalFixedCosts += itemFixedCost;
 
@@ -56,7 +59,7 @@ export const calculateProjectBreakdown = (
       if (item.unitPrice && item.unitPrice > 0) {
         totalManualPieceValue += item.unitPrice * item.quantity;
       } else {
-        const itemBaseCost = item.manualBaseCost !== undefined ? item.manualBaseCost : (itemVariableCost + itemLaborCost);
+        const itemBaseCost = item.manualBaseCost !== undefined ? item.manualBaseCost : (totalItemVariableCost + itemLaborCost);
         const itemSubtotalBase = itemBaseCost + itemFixedCost;
         const itemProfit = itemSubtotalBase * (item.profitMargin / 100);
         totalCalculatedProfit += itemProfit;
@@ -86,6 +89,7 @@ export const calculateProjectBreakdown = (
   
   let priceWithFees = valueAfterDiscount;
   let actualPlatformFees = 0;
+  let feeDetails = { commission: 0, fixedFee: 0, shippingSubsidy: 0 };
 
   if (isShopee) {
     // Cálculo específico Shopee baseado na tabela fornecida
@@ -125,12 +129,28 @@ export const calculateProjectBreakdown = (
     if (totalFeePercent < 1) {
       priceWithFees = (valueAfterDiscount + totalFixedFees) / (1 - totalFeePercent);
       actualPlatformFees = priceWithFees - valueAfterDiscount;
+      
+      feeDetails = {
+        commission: priceWithFees * (commissionPercent / 100),
+        fixedFee: totalFixedFees,
+        shippingSubsidy: priceWithFees * (subsidyPercent / 100)
+      };
     }
   } else {
     const platformFeePercent = selectedPlatform ? selectedPlatform.feePercentage / 100 : 0;
-    if (platformFeePercent > 0 && platformFeePercent < 1) {
-      priceWithFees = valueAfterDiscount / (1 - platformFeePercent);
+    const fixedFee = selectedPlatform?.fixedFee || 0;
+    const shippingSubsidy = selectedPlatform?.shippingSubsidy || 0;
+
+    if (platformFeePercent >= 0 && platformFeePercent < 1) {
+      // Preço Final = (Valor Desejado + Taxas Fixas + Subsídio Frete) / (1 - Taxa Percentual)
+      priceWithFees = (valueAfterDiscount + fixedFee + shippingSubsidy) / (1 - platformFeePercent);
       actualPlatformFees = priceWithFees - valueAfterDiscount;
+
+      feeDetails = {
+        commission: priceWithFees * platformFeePercent,
+        fixedFee: fixedFee,
+        shippingSubsidy: shippingSubsidy
+      };
     }
   }
 
@@ -146,22 +166,7 @@ export const calculateProjectBreakdown = (
       t.type === 'income' && t.id.endsWith(`_${project.id}`)
     );
     
-    // Se houver transações vinculadas, usamos elas para somar ao downPayment inicial
-    // Mas cuidado para não somar o sinal duas vezes se ele já estiver nas transações
-    // O ideal é: se tem transações, confia nelas. Se não, usa o downPayment do projeto.
-    // Ou melhor: downPayment do projeto é o valor INICIAL. Transações são pagamentos POSTERIORES ou o próprio sinal.
-    // Vamos assumir que transactions contém TUDO se estiver disponível.
-    
-    // Para simplificar e evitar duplicação complexa:
-    // Vamos somar as transações que parecem ser deste projeto.
-    // O ID da transação geralmente é `signal_${timestamp}_${projectId}` ou `payment_${timestamp}_${projectId}`
-    
     const paidViaTransactions = projectTransactions.reduce((acc, t) => acc + t.amount, 0);
-    
-    // Se paidViaTransactions for maior que 0, usamos ele. 
-    // Caso contrário, mantemos o downPayment legado.
-    // Mas o downPayment legado pode ter gerado uma transação 'signal_...'.
-    // Se a transação existe, ela está em paidViaTransactions.
     
     if (paidViaTransactions > 0) {
       totalPaid = paidViaTransactions;
@@ -183,6 +188,7 @@ export const calculateProjectBreakdown = (
     downPayment: totalPaid,
     remainingBalance: Math.ceil(remainingBalance * 100) / 100,
     finalPrice: Math.ceil(finalPrice * 100) / 100,
-    basePieceValue
+    basePieceValue,
+    platformFeeDetails: feeDetails
   };
 };
