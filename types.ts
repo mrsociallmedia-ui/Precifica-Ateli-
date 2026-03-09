@@ -33,6 +33,11 @@ export interface MonthlyGoal {
   year: number;
   goal: number;
   plan?: string;
+  instagramPosts?: number;
+  instagramReels?: number;
+  instagramStories?: number;
+  shopeeSalesGoal?: number;
+  elo7SalesGoal?: number;
 }
 
 export interface CompanyData {

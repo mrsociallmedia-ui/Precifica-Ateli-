@@ -73,6 +73,7 @@ import {
   Transaction
 } from '../types';
 import { calculateProjectBreakdown } from '../utils';
+import jsPDF from 'jspdf';
 
 interface PricingCalculatorProps {
   materials: Material[];
@@ -528,6 +529,95 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     }
   };
 
+  const generateReceipt = (project: Partial<Project>, finalPrice: number) => {
+    const doc = new jsPDF();
+    const customer = customers.find(c => c.id === project.customerId);
+    
+    // Configurações de fonte e cores
+    doc.setFont('helvetica');
+    const primaryColor: [number, number, number] = [236, 72, 153]; // pink-500
+    const textColor: [number, number, number] = [55, 65, 81]; // gray-700
+    
+    // Cabeçalho do Recibo
+    doc.setFontSize(24);
+    doc.setTextColor(...primaryColor);
+    doc.text('RECIBO', 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(...textColor);
+    doc.text(`Nº do Pedido: ${project.quoteNumber || (project.id ? project.id.slice(-6).toUpperCase() : 'NOVO')}`, 14, 30);
+    doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}`, 14, 36);
+
+    // Dados da Empresa (Alinhado à direita)
+    let textRightX = 196;
+    
+    if (companyData.logo) {
+      try {
+        doc.addImage(companyData.logo, 'PNG', 172, 12, 24, 24);
+        textRightX = 168;
+      } catch (e) {
+        console.error('Erro ao adicionar logo no PDF', e);
+      }
+    }
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(companyData.name || 'Minha Empresa', textRightX, 22, { align: 'right' });
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    if (companyData.cnpj) {
+      doc.text(`CNPJ: ${companyData.cnpj}`, textRightX, 28, { align: 'right' });
+    }
+    if (companyData.phone) {
+      doc.text(`Tel: ${companyData.phone}`, textRightX, 34, { align: 'right' });
+    }
+    if (companyData.email) {
+      doc.text(companyData.email, textRightX, 40, { align: 'right' });
+    }
+
+    // Dados do Cliente
+    doc.setFillColor(249, 250, 251);
+    doc.rect(14, 48, 182, 30, 'F');
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Recebemos de:', 20, 56);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text(customer?.name || 'Cliente não identificado', 20, 64);
+    if (customer?.phone) {
+      doc.text(`Telefone: ${customer.phone}`, 20, 72);
+    }
+
+    // Valor Extenso (simplificado)
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`A importância de: R$ ${finalPrice.toFixed(2)}`, 14, 90);
+
+    // Detalhes do Pedido
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Referente a: ${project.theme}`, 14, 100);
+    if (project.description) {
+      const splitDescription = doc.splitTextToSize(`Descrição: ${project.description}`, 180);
+      doc.text(splitDescription, 14, 108);
+    }
+
+    // Assinatura
+    doc.setDrawColor(200, 200, 200);
+    doc.line(60, 160, 150, 160);
+    doc.setFontSize(10);
+    doc.text(companyData.name || 'Assinatura', 105, 168, { align: 'center' });
+
+    // Rodapé
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Este documento não possui valor fiscal.', 105, 280, { align: 'center' });
+
+    doc.save(`recibo_${project.quoteNumber || (project.id ? project.id.slice(-6) : 'novo')}.pdf`);
+  };
+
   const filteredHistory = useMemo(() => {
     return projects.filter(p => {
       const matchesSearch = p.theme?.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -583,7 +673,10 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl shadow-sm"><Calculator size={28} /></div>
                 <div>
-                  <h2 className="text-3xl font-black text-gray-800 tracking-tight">{currentProject.id ? 'Editando Orçamento' : 'Novo Orçamento'}</h2>
+                  <h2 className="text-3xl font-black text-gray-800 tracking-tight">
+                    {currentProject.id ? 'Editando Orçamento' : 'Novo Orçamento'} 
+                    {currentProject.quoteNumber && <span className="text-pink-500 ml-2">#{currentProject.quoteNumber}</span>}
+                  </h2>
                   <p className="text-gray-400 font-medium text-sm">Monte o pedido e visualize os lucros em tempo real.</p>
                 </div>
               </div>
@@ -979,7 +1072,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               </div>
 
               {/* TOTAL DO ORÇAMENTO */}
-              <div className="bg-pink-600 p-8 rounded-[2.5rem] text-white text-center shadow-lg shadow-pink-100">
+              <div className="bg-pink-600 p-8 rounded-[2.5rem] text-white text-center shadow-lg shadow-pink-100 relative overflow-hidden">
+                <div className="absolute top-4 right-6 opacity-20 font-black text-2xl">#{currentProject.quoteNumber || '1'}</div>
                 <h3 className="text-xs font-black opacity-70 uppercase tracking-[0.2em] mb-2">Total do Orçamento</h3>
                 <p className="text-5xl font-black">R$ {breakdown.finalPrice.toFixed(2)}</p>
                 {breakdown.downPayment > 0 && (
@@ -1018,6 +1112,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                   {isGeneratingPdf ? <RefreshCcw className="animate-spin" /> : <File size={20} />} Gerar PDF
                 </button>
                 <button onClick={handleWhatsAppShare} className="w-full py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 hover:bg-green-600"><MessageCircle size={20} /> Enviar Zap</button>
+                <button onClick={() => generateReceipt(currentProject, breakdown.finalPrice)} className="w-full py-5 bg-green-50 text-green-600 font-black rounded-[2rem] flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 hover:bg-green-100 border border-green-200"><Download size={20} /> Gerar Recibo</button>
               </div>
             </div>
           </div>
@@ -1108,6 +1203,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                       <span className="hidden sm:inline">Editar</span>
                    </button>
                    <button onClick={() => handleGeneratePDF(proj)} className="p-3 text-blue-400 hover:bg-blue-50 rounded-2xl transition-all border border-transparent hover:border-blue-100" title="Gerar PDF"><FileDown size={20} /></button>
+                   <button onClick={() => generateReceipt(proj, histBreakdown.finalPrice)} className="p-3 text-green-500 hover:bg-green-50 rounded-2xl transition-all border border-transparent hover:border-green-100" title="Gerar Recibo"><Download size={20} /></button>
                    <button onClick={() => setProjects(prev => prev.filter(p => p.id !== proj.id))} className="p-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all border border-transparent hover:border-red-100" title="Excluir"><Trash2 size={20} /></button>
                 </div>
               </div>

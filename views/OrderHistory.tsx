@@ -15,7 +15,8 @@ import {
   History,
   ArrowUpDown,
   Hash,
-  ShoppingBag
+  ShoppingBag,
+  Download
 } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
@@ -538,9 +539,10 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                     <td className="px-8 py-6 text-center">
                       <button
                         onClick={() => generateReceipt(project, finalPrice)}
-                        className="px-3 py-1.5 bg-blue-50 text-blue-500 hover:bg-blue-100 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors"
                         title="Gerar Recibo PDF"
                       >
+                        <Download size={12} />
                         Recibo
                       </button>
                     </td>

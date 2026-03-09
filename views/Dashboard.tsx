@@ -22,9 +22,17 @@ import {
   AlertTriangle,
   Scale,
   Calculator,
-  X
+  X,
+  Instagram,
+  Store,
+  Video,
+  Image,
+  MessageSquare,
+  Send,
+  RefreshCw,
+  Layout
 } from 'lucide-react';
-import { Project, Customer, Material, CompanyData, Platform, Transaction, Product } from '../types';
+import { Project, Customer, Material, CompanyData, Platform, Transaction, Product, MonthlyGoal } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
 interface DashboardProps {
@@ -44,7 +52,20 @@ type DashboardFilter = 'all' | 'today' | 'active' | 'pending' | 'receivable' | '
 export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, materials, companyData, platforms, transactions, products, setTransactions, setCompanyData }) => {
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>('all');
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [isAIContentCreatorOpen, setIsAIContentCreatorOpen] = useState(false);
+  const [contentType, setContentType] = useState<'post' | 'story' | 'reel'>('post');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [aiGeneratedText, setAiGeneratedText] = useState('');
+  const [isGeneratingPost, setIsGeneratingPost] = useState(false);
+  const [postContext, setPostContext] = useState('');
   const [goalInput, setGoalInput] = useState('');
+  const [instagramPostsInput, setInstagramPostsInput] = useState('');
+  const [instagramReelsInput, setInstagramReelsInput] = useState('');
+  const [instagramStoriesInput, setInstagramStoriesInput] = useState('');
+  const [shopeeSalesInput, setShopeeSalesInput] = useState('');
+  const [elo7SalesInput, setElo7SalesInput] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiContent, setAiContent] = useState('');
   const todayStr = new Date().toISOString().split('T')[0];
 
   const currentMonth = new Date().getMonth() + 1;
@@ -71,16 +92,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
   const handleSaveGoal = () => {
     const goalValue = parseFloat(goalInput);
     if (isNaN(goalValue) || goalValue <= 0) {
-      alert('Insira um valor válido para a meta.');
+      alert('Insira um valor válido para a meta de faturamento.');
       return;
     }
 
-    const newGoal = {
+    const newGoal: MonthlyGoal = {
       id: `goal_${currentYear}_${currentMonth}`,
       month: currentMonth,
       year: currentYear,
       goal: goalValue,
-      plan: generateGrowthPlan(goalValue)
+      plan: generateGrowthPlan(goalValue),
+      instagramPosts: parseInt(instagramPostsInput) || 0,
+      instagramReels: parseInt(instagramReelsInput) || 0,
+      instagramStories: parseInt(instagramStoriesInput) || 0,
+      shopeeSalesGoal: parseInt(shopeeSalesInput) || 0,
+      elo7SalesGoal: parseInt(elo7SalesInput) || 0
     };
 
     const updatedGoals = companyData.monthlyGoals ? [...companyData.monthlyGoals.filter(g => g.id !== newGoal.id), newGoal] : [newGoal];
@@ -88,6 +114,98 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
     setCompanyData(prev => ({ ...prev, monthlyGoals: updatedGoals }));
     setIsGoalModalOpen(false);
     setGoalInput('');
+    setInstagramPostsInput('');
+    setInstagramReelsInput('');
+    setInstagramStoriesInput('');
+    setShopeeSalesInput('');
+    setElo7SalesInput('');
+  };
+
+  const generateAIContent = async () => {
+    setIsGeneratingAI(true);
+    try {
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      
+      const prompt = `Como uma especialista em marketing para artesãs de papelaria personalizada e topos de bolo, gere um calendário de conteúdo para o Instagram para este mês. 
+      Minhas metas são: ${instagramPostsInput} Posts, ${instagramReelsInput} Reels e ${instagramStoriesInput} Stories por dia.
+      O nome do meu ateliê é ${companyData.name}.
+      Gere ideias criativas de temas para posts, reels e stories que ajudem a atrair clientes e converter vendas.
+      Formate como uma lista curta e inspiradora.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ parts: [{ text: prompt }] }],
+      });
+
+      setAiContent(response.text || 'Não foi possível gerar conteúdo no momento.');
+    } catch (error) {
+      console.error('Erro ao gerar conteúdo com IA:', error);
+      alert('Erro ao conectar com a IA. Verifique sua chave de API.');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  const handleGeneratePost = async () => {
+    if (!selectedImage && !postContext) {
+      alert('Por favor, insira uma foto ou descreva o contexto do post.');
+      return;
+    }
+
+    setIsGeneratingPost(true);
+    try {
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      
+      const parts: any[] = [];
+      
+      if (selectedImage) {
+        parts.push({
+          inlineData: {
+            data: selectedImage.split(',')[1],
+            mimeType: "image/png"
+          }
+        });
+      }
+
+      const prompt = `Como uma especialista em marketing para artesãs de papelaria personalizada, crie um conteúdo para o Instagram do tipo ${contentType.toUpperCase()}.
+      Contexto adicional: ${postContext}
+      O nome do meu ateliê é ${companyData.name}.
+      
+      Se houver uma imagem, analise-a e crie uma legenda/roteiro que combine com o que está sendo mostrado.
+      
+      Para POST: Crie uma legenda engajadora com hashtags.
+      Para STORY: Crie uma sequência de 3 a 5 falas ou textos para sobrepor na imagem.
+      Para REEL: Crie um roteiro curto (hook, conteúdo, CTA) e sugestão de áudio/música.
+      
+      Mantenha um tom amigável, profissional e criativo.`;
+
+      parts.push({ text: prompt });
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ parts }],
+      });
+
+      setAiGeneratedText(response.text || 'Não foi possível gerar o conteúdo.');
+    } catch (error) {
+      console.error('Erro ao gerar post com IA:', error);
+      alert('Erro ao gerar conteúdo. Verifique sua conexão e chave de API.');
+    } finally {
+      setIsGeneratingPost(false);
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleDeleteGoal = () => {
@@ -352,26 +470,98 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
               <div className="p-4 rounded-2xl shadow-sm w-fit bg-blue-100 text-blue-600">
                 <Star size={28} />
               </div>
-              <button onClick={() => { setGoalInput(currentGoal?.goal.toString() || ''); setIsGoalModalOpen(true); }} className="text-[10px] font-black text-blue-500 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors">
+              <button onClick={() => { 
+                setGoalInput(currentGoal?.goal.toString() || ''); 
+                setInstagramPostsInput(currentGoal?.instagramPosts?.toString() || '');
+                setInstagramReelsInput(currentGoal?.instagramReels?.toString() || '');
+                setInstagramStoriesInput(currentGoal?.instagramStories?.toString() || '');
+                setShopeeSalesInput(currentGoal?.shopeeSalesGoal?.toString() || '');
+                setElo7SalesInput(currentGoal?.elo7SalesGoal?.toString() || '');
+                setIsGoalModalOpen(true); 
+              }} className="text-[10px] font-black text-blue-500 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors">
                 {currentGoal ? 'Editar Meta' : 'Definir Meta'}
               </button>
             </div>
             <div className="mt-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Meta do Mês</p>
               {currentGoal ? (
-                <>
-                  <p className="text-3xl font-black mt-1 text-gray-800">R$ {currentGoal.goal.toFixed(2)}</p>
-                  <div className="w-full bg-gray-100 rounded-full h-2 mt-3 overflow-hidden">
-                    <div className={`h-2 rounded-full ${goalProgress >= 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${goalProgress}%` }}></div>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-3xl font-black mt-1 text-gray-800">R$ {currentGoal.goal.toFixed(2)}</p>
+                    <div className="w-full bg-gray-100 rounded-full h-2 mt-3 overflow-hidden">
+                      <div className={`h-2 rounded-full ${goalProgress >= 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${goalProgress}%` }}></div>
+                    </div>
+                    <p className="text-[10px] font-bold mt-2 text-gray-400 flex justify-between">
+                      <span>{goalProgress.toFixed(1)}% alcançado</span>
+                      {goalProgress >= 100 && <span className="text-green-500 flex items-center gap-1"><CheckCircle2 size={10}/> Batida!</span>}
+                    </p>
                   </div>
-                  <p className="text-[10px] font-bold mt-2 text-gray-400 flex justify-between">
-                    <span>{goalProgress.toFixed(1)}% alcançado</span>
-                    {goalProgress >= 100 && <span className="text-green-500 flex items-center gap-1"><CheckCircle2 size={10}/> Batida!</span>}
-                  </p>
-                </>
+                  
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-50">
+                    <div className="text-center">
+                      <Instagram size={14} className="mx-auto text-pink-500 mb-1" />
+                      <p className="text-[8px] font-black text-gray-400 uppercase">Posts</p>
+                      <p className="text-xs font-black text-gray-700">{currentGoal.instagramPosts || 0}</p>
+                    </div>
+                    <div className="text-center">
+                      <Video size={14} className="mx-auto text-purple-500 mb-1" />
+                      <p className="text-[8px] font-black text-gray-400 uppercase">Reels</p>
+                      <p className="text-xs font-black text-gray-700">{currentGoal.instagramReels || 0}</p>
+                    </div>
+                    <div className="text-center">
+                      <Image size={14} className="mx-auto text-orange-500 mb-1" />
+                      <p className="text-[8px] font-black text-gray-400 uppercase">Stories</p>
+                      <p className="text-xs font-black text-gray-700">{currentGoal.instagramStories || 0}</p>
+                    </div>
+                  </div>
+
+                  {((currentGoal.shopeeSalesGoal || 0) > 0 || (currentGoal.elo7SalesGoal || 0) > 0) && (
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50">
+                      {(currentGoal.shopeeSalesGoal || 0) > 0 && (
+                        <div className="flex items-center gap-2 bg-orange-50 p-2 rounded-xl border border-orange-100">
+                          <Store size={12} className="text-orange-600" />
+                          <div>
+                            <p className="text-[7px] font-black text-orange-400 uppercase leading-none">Shopee</p>
+                            <p className="text-[10px] font-black text-orange-700 leading-none mt-1">{currentGoal.shopeeSalesGoal} un.</p>
+                          </div>
+                        </div>
+                      )}
+                      {(currentGoal.elo7SalesGoal || 0) > 0 && (
+                        <div className="flex items-center gap-2 bg-blue-50 p-2 rounded-xl border border-blue-100">
+                          <Store size={12} className="text-blue-600" />
+                          <div>
+                            <p className="text-[7px] font-black text-blue-400 uppercase leading-none">Elo7</p>
+                            <p className="text-[10px] font-black text-blue-700 leading-none mt-1">{currentGoal.elo7SalesGoal} un.</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               ) : (
                 <p className="text-sm font-bold mt-2 text-gray-400">Nenhuma meta definida para este mês.</p>
               )}
+            </div>
+          </div>
+
+          {/* Card de Criador de Conteúdo IA */}
+          <div className="p-8 rounded-[3rem] border bg-gradient-to-br from-pink-500 to-purple-600 text-white hover:shadow-xl transition-all flex flex-col justify-between text-left group min-h-[220px] relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 bg-white/10 w-40 h-40 rounded-full blur-2xl group-hover:scale-150 transition-transform"></div>
+            <div className="flex justify-between items-start relative z-10">
+              <div className="p-4 rounded-2xl shadow-sm w-fit bg-white/20 backdrop-blur-md">
+                <Instagram size={28} />
+              </div>
+              <button 
+                onClick={() => setIsAIContentCreatorOpen(true)}
+                className="text-[10px] font-black text-pink-600 bg-white px-4 py-2 rounded-full uppercase tracking-widest transition-all hover:scale-105 shadow-lg"
+              >
+                Criar Post IA
+              </button>
+            </div>
+            <div className="mt-4 relative z-10">
+              <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Marketing Digital</p>
+              <h3 className="text-2xl font-black mt-1">Criador de Conteúdo</h3>
+              <p className="text-[10px] font-medium mt-2 text-white/80">Gere legendas e ideias para Posts, Reels e Stories com IA.</p>
             </div>
           </div>
         </div>
@@ -757,41 +947,279 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
         </div>
       </div>
 
+      {/* Modal de Criador de Conteúdo IA */}
+      {isAIContentCreatorOpen && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn overflow-y-auto">
+          <div className="bg-white rounded-[3rem] p-8 max-w-3xl w-full shadow-2xl relative my-8">
+            <button 
+              onClick={() => {
+                setIsAIContentCreatorOpen(false);
+                setSelectedImage(null);
+                setAiGeneratedText('');
+                setPostContext('');
+              }} 
+              className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 hover:text-pink-500 hover:bg-pink-50 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+            
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-pink-500 text-white rounded-2xl shadow-lg shadow-pink-100">
+                <Instagram size={24} />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-gray-800 tracking-tight">Criador de Conteúdo <span className="text-pink-500">IA</span></h3>
+                <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Transforme fotos em engajamento</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                {/* Tipo de Conteúdo */}
+                <div className="flex p-1 bg-gray-100 rounded-2xl">
+                  {(['post', 'story', 'reel'] as const).map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setContentType(type)}
+                      className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${contentType === type ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      {type === 'post' ? <div className="flex items-center justify-center gap-2"><Layout size={14} /> Post</div> : 
+                       type === 'story' ? <div className="flex items-center justify-center gap-2"><Image size={14} /> Story</div> : 
+                       <div className="flex items-center justify-center gap-2"><Video size={14} /> Reel</div>}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Upload de Imagem */}
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Foto do Produto</label>
+                  <div className="relative group">
+                    {selectedImage ? (
+                      <div className="relative rounded-[2rem] overflow-hidden aspect-square border-4 border-pink-100 shadow-xl">
+                        <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
+                        <button 
+                          onClick={() => setSelectedImage(null)}
+                          className="absolute top-4 right-4 p-2 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-200 rounded-[2rem] bg-gray-50 hover:bg-pink-50 hover:border-pink-200 transition-all cursor-pointer group">
+                        <div className="p-4 bg-white rounded-2xl shadow-sm mb-3 group-hover:scale-110 transition-transform">
+                          <Image size={32} className="text-gray-300 group-hover:text-pink-500" />
+                        </div>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Clique para enviar foto</p>
+                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Contexto */}
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">O que é este post? (Opcional)</label>
+                  <textarea 
+                    value={postContext}
+                    onChange={(e) => setPostContext(e.target.value)}
+                    placeholder="Ex: Topo de bolo tema Safari para o primeiro aninho do Leo..."
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-sm text-gray-700 font-medium focus:ring-2 focus:ring-pink-500 outline-none transition-all h-24 resize-none"
+                  />
+                </div>
+
+                <button 
+                  onClick={handleGeneratePost}
+                  disabled={isGeneratingPost}
+                  className="w-full bg-pink-500 text-white font-black py-4 rounded-2xl hover:bg-pink-600 transition-all shadow-lg shadow-pink-500/30 flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  {isGeneratingPost ? (
+                    <>
+                      <RefreshCw className="animate-spin" size={20} />
+                      <span>Criando sua obra-prima...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={20} />
+                      <span>Gerar Conteúdo com IA</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex flex-col">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-2">Resultado da IA</label>
+                <div className="flex-1 bg-gray-900 rounded-[2rem] p-8 text-white relative overflow-hidden group min-h-[400px]">
+                  <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
+                    <Instagram size={120} />
+                  </div>
+                  
+                  {aiGeneratedText ? (
+                    <div className="relative z-10 h-full flex flex-col">
+                      <div className="flex justify-between items-center mb-6">
+                        <span className="px-3 py-1 bg-white/10 rounded-full text-[8px] font-black uppercase tracking-widest border border-white/10">Sugestão Pronta</span>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(aiGeneratedText);
+                            alert('Copiado para o Instagram!');
+                          }}
+                          className="flex items-center gap-2 text-[10px] font-black text-pink-400 hover:text-pink-300 transition-colors"
+                        >
+                          <Layout size={14} /> Copiar Texto
+                        </button>
+                      </div>
+                      <textarea 
+                        value={aiGeneratedText}
+                        onChange={(e) => setAiGeneratedText(e.target.value)}
+                        className="flex-1 bg-transparent border-none outline-none text-sm leading-relaxed font-medium resize-none custom-scrollbar"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-40">
+                      <div className="p-4 bg-white/5 rounded-3xl">
+                        <Sparkles size={48} />
+                      </div>
+                      <p className="text-xs font-bold uppercase tracking-widest max-w-[200px]">Aguardando você inserir os dados ao lado...</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Meta do Mês */}
       {isGoalModalOpen && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-[3rem] p-8 max-w-md w-full shadow-2xl relative">
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn overflow-y-auto">
+          <div className="bg-white rounded-[3rem] p-8 max-w-2xl w-full shadow-2xl relative my-8">
             <button onClick={() => setIsGoalModalOpen(false)} className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 hover:text-pink-500 hover:bg-pink-50 rounded-full transition-colors">
               <X size={20} />
             </button>
             <h3 className="text-2xl font-black text-gray-800 mb-2 tracking-tight">Meta do <span className="text-blue-500">Mês</span></h3>
-            <p className="text-sm font-bold text-gray-400 mb-6">Defina um objetivo de faturamento para {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}.</p>
+            <p className="text-sm font-bold text-gray-400 mb-6">Defina seus objetivos para {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}.</p>
             
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Valor da Meta (R$)</label>
-                <input 
-                  type="number" 
-                  value={goalInput}
-                  onChange={(e) => setGoalInput(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                  placeholder="Ex: 5000.00"
-                />
+            <div className="space-y-6">
+              {/* Meta Financeira */}
+              <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100">
+                <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Wallet2 size={16} /> Faturamento
+                </h4>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Valor da Meta (R$)</label>
+                  <input 
+                    type="number" 
+                    value={goalInput}
+                    onChange={(e) => setGoalInput(e.target.value)}
+                    className="w-full bg-white border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                    placeholder="Ex: 5000.00"
+                  />
+                </div>
               </div>
 
-              {currentGoal && (
-                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 mt-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-2">Plano de Crescimento Atual:</h4>
-                  <p className="text-xs font-bold text-blue-800 whitespace-pre-line leading-relaxed">{currentGoal.plan}</p>
+              {/* Metas Instagram */}
+              <div className="bg-pink-50/50 p-6 rounded-[2rem] border border-pink-100">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-xs font-black text-pink-600 uppercase tracking-widest flex items-center gap-2">
+                    <Instagram size={16} /> Instagram
+                  </h4>
+                  <button 
+                    onClick={generateAIContent}
+                    disabled={isGeneratingAI}
+                    className="flex items-center gap-2 px-4 py-2 bg-pink-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-pink-600 transition-all shadow-md disabled:opacity-50"
+                  >
+                    {isGeneratingAI ? <RefreshCw className="animate-spin" size={12} /> : <Sparkles size={12} />}
+                    Gerar Conteúdo com IA
+                  </button>
                 </div>
-              )}
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Posts</label>
+                    <input 
+                      type="number" 
+                      value={instagramPostsInput}
+                      onChange={(e) => setInstagramPostsInput(e.target.value)}
+                      className="w-full bg-white border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Reels</label>
+                    <input 
+                      type="number" 
+                      value={instagramReelsInput}
+                      onChange={(e) => setInstagramReelsInput(e.target.value)}
+                      className="w-full bg-white border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Stories/Dia</label>
+                    <input 
+                      type="number" 
+                      value={instagramStoriesInput}
+                      onChange={(e) => setInstagramStoriesInput(e.target.value)}
+                      className="w-full bg-white border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold outline-none"
+                    />
+                  </div>
+                </div>
+
+                {aiContent && (
+                  <div className="mt-6 p-6 bg-white rounded-3xl border border-pink-100 shadow-sm animate-fadeIn">
+                    <div className="flex justify-between items-center mb-3">
+                      <h5 className="text-[10px] font-black text-pink-500 uppercase tracking-widest flex items-center gap-2">
+                        <Sparkles size={12} /> Sugestões da IA:
+                      </h5>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(aiContent);
+                          alert('Conteúdo copiado!');
+                        }}
+                        className="text-[8px] font-black text-pink-400 uppercase tracking-widest hover:text-pink-600 flex items-center gap-1"
+                      >
+                        <Layout size={10} /> Copiar
+                      </button>
+                    </div>
+                    <div className="text-xs text-gray-600 leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                      {aiContent}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Metas de Vendas por Plataforma */}
+              <div className="bg-orange-50/50 p-6 rounded-[2rem] border border-orange-100">
+                <h4 className="text-xs font-black text-orange-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Store size={16} /> Vendas por Plataforma
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Meta Shopee (Un.)</label>
+                    <input 
+                      type="number" 
+                      value={shopeeSalesInput}
+                      onChange={(e) => setShopeeSalesInput(e.target.value)}
+                      className="w-full bg-white border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Meta Elo7 (Un.)</label>
+                    <input 
+                      type="number" 
+                      value={elo7SalesInput}
+                      onChange={(e) => setElo7SalesInput(e.target.value)}
+                      className="w-full bg-white border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
 
               <div className="flex gap-4 mt-8 pt-4 border-t border-gray-50">
                 <button 
-                  onClick={handleSaveGoal}
+                  onClick={() => {
+                    handleSaveGoal();
+                    setAiContent('');
+                  }}
                   className="flex-1 bg-blue-500 text-white font-black py-4 rounded-2xl hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30"
                 >
-                  Salvar Meta
+                  Salvar Metas
                 </button>
                 {currentGoal && (
                   <button 
