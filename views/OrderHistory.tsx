@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface OrderHistoryProps {
   projects: Project[];
@@ -112,6 +114,226 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
     return { total, completed, inProgress, totalRevenue };
   }, [filteredProjects, materials, platforms, companyData]);
 
+  const handleExportReport = () => {
+    if (filteredProjects.length === 0) {
+      alert('Nenhum pedido para exportar neste período.');
+      return;
+    }
+
+    const doc = new jsPDF();
+    
+    // Configurações de fonte e cores
+    doc.setFont('helvetica');
+    const primaryColor: [number, number, number] = [236, 72, 153]; // pink-500
+    const textColor: [number, number, number] = [55, 65, 81]; // gray-700
+    
+    // Cabeçalho do Relatório
+    doc.setFontSize(24);
+    doc.setTextColor(...primaryColor);
+    doc.text('Relatório de Pedidos', 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(...textColor);
+    doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 30);
+    
+    if (startDate || endDate) {
+      const periodText = `Período: ${startDate ? new Date(startDate).toLocaleDateString('pt-BR') : 'Início'} até ${endDate ? new Date(endDate).toLocaleDateString('pt-BR') : 'Hoje'}`;
+      doc.text(periodText, 14, 36);
+    }
+
+    // Dados da Empresa (Alinhado à direita)
+    let textRightX = 196;
+    
+    if (companyData.logo) {
+      try {
+        doc.addImage(companyData.logo, 172, 12, 24, 24);
+        textRightX = 168; // Move o texto para a esquerda da logo
+      } catch (e) {
+        console.error('Erro ao adicionar logo no PDF', e);
+      }
+    }
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(companyData.name || 'Minha Empresa', textRightX, 22, { align: 'right' });
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    if (companyData.phone) {
+      doc.text(`Tel: ${companyData.phone}`, textRightX, 28, { align: 'right' });
+    }
+    if (companyData.email) {
+      doc.text(companyData.email, textRightX, 34, { align: 'right' });
+    }
+    
+    // Resumo Financeiro
+    doc.setFillColor(249, 250, 251); // gray-50
+    doc.rect(14, 42, 182, 20, 'F');
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Total de Pedidos: ${stats.total}`, 20, 50);
+    doc.text(`Volume Total: R$ ${stats.totalRevenue.toFixed(2)}`, 100, 50);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`${stats.completed} concluídos | ${stats.inProgress} em andamento`, 20, 56);
+
+    // Tabela de Pedidos
+    const tableColumn = ['Data', 'Cliente', 'Tema', 'Status', 'Valor (R$)'];
+    const tableRows = filteredProjects.map(p => {
+      const customerName = getCustomerName(p.customerId);
+      const { finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
+      const status = statusLabels[p.status] || p.status;
+      
+      const timestamp = p.id.startsWith('quote_') ? parseInt(p.id.split('_')[1]) : parseInt(p.id);
+      const createdDate = new Date(timestamp).toLocaleDateString('pt-BR');
+      
+      return [
+        createdDate,
+        customerName,
+        p.theme,
+        status,
+        finalPrice.toFixed(2)
+      ];
+    });
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 70,
+      theme: 'grid',
+      styles: {
+        font: 'helvetica',
+        fontSize: 9,
+        cellPadding: 4,
+        textColor: [55, 65, 81],
+        lineColor: [229, 231, 235],
+        lineWidth: 0.1,
+      },
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251], // gray-50
+      },
+      columnStyles: {
+        0: { cellWidth: 25 }, // Data
+        1: { cellWidth: 45 }, // Cliente
+        2: { cellWidth: 'auto' }, // Tema
+        3: { cellWidth: 30 }, // Status
+        4: { cellWidth: 25, halign: 'right' }, // Valor
+      },
+    });
+
+    // Rodapé
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(156, 163, 175); // gray-400
+      doc.text(
+        `Página ${i} de ${pageCount} - Gerado por Calculiê`,
+        doc.internal.pageSize.width / 2,
+        doc.internal.pageSize.height - 10,
+        { align: 'center' }
+      );
+    }
+
+    doc.save(`relatorio_pedidos_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const generateReceipt = (project: Project, finalPrice: number) => {
+    const doc = new jsPDF();
+    const customer = customers.find(c => c.id === project.customerId);
+    
+    // Configurações de fonte e cores
+    doc.setFont('helvetica');
+    const primaryColor: [number, number, number] = [236, 72, 153]; // pink-500
+    const textColor: [number, number, number] = [55, 65, 81]; // gray-700
+    
+    // Cabeçalho do Recibo
+    doc.setFontSize(24);
+    doc.setTextColor(...primaryColor);
+    doc.text('RECIBO', 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(...textColor);
+    doc.text(`Nº do Pedido: ${project.quoteNumber || project.id.slice(-6).toUpperCase()}`, 14, 30);
+    doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}`, 14, 36);
+
+    // Dados da Empresa (Alinhado à direita)
+    let textRightX = 196;
+    
+    if (companyData.logo) {
+      try {
+        doc.addImage(companyData.logo, 'PNG', 172, 12, 24, 24);
+        textRightX = 168;
+      } catch (e) {
+        console.error('Erro ao adicionar logo no PDF', e);
+      }
+    }
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(companyData.name || 'Minha Empresa', textRightX, 22, { align: 'right' });
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    if (companyData.cnpj) {
+      doc.text(`CNPJ: ${companyData.cnpj}`, textRightX, 28, { align: 'right' });
+    }
+    if (companyData.phone) {
+      doc.text(`Tel: ${companyData.phone}`, textRightX, 34, { align: 'right' });
+    }
+    if (companyData.email) {
+      doc.text(companyData.email, textRightX, 40, { align: 'right' });
+    }
+
+    // Dados do Cliente
+    doc.setFillColor(249, 250, 251);
+    doc.rect(14, 48, 182, 30, 'F');
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Recebemos de:', 20, 56);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text(customer?.name || 'Cliente não identificado', 20, 64);
+    if (customer?.phone) {
+      doc.text(`Telefone: ${customer.phone}`, 20, 72);
+    }
+
+    // Valor Extenso (simplificado)
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`A importância de: R$ ${finalPrice.toFixed(2)}`, 14, 90);
+
+    // Detalhes do Pedido
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Referente a: ${project.theme}`, 14, 100);
+    if (project.description) {
+      const splitDescription = doc.splitTextToSize(`Descrição: ${project.description}`, 180);
+      doc.text(splitDescription, 14, 108);
+    }
+
+    // Assinatura
+    doc.setDrawColor(200, 200, 200);
+    doc.line(60, 160, 150, 160);
+    doc.setFontSize(10);
+    doc.text(companyData.name || 'Assinatura', 105, 168, { align: 'center' });
+
+    // Rodapé
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Este documento não possui valor fiscal.', 105, 280, { align: 'center' });
+
+    doc.save(`recibo_${project.quoteNumber || project.id.slice(-6)}.pdf`);
+  };
+
   return (
     <div className="space-y-10 animate-fadeIn pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -120,25 +342,34 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
           <p className="text-gray-400 font-medium">Consulte todos os orçamentos e pedidos realizados.</p>
         </div>
         
-        <div className="flex gap-4">
-           <div className="bg-white p-4 px-6 rounded-3xl border border-pink-50 shadow-sm flex items-center gap-3">
-              <div className="p-2 bg-pink-100 text-pink-600 rounded-xl">
-                 <ShoppingBag size={20} />
-              </div>
-              <div>
-                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Total de Pedidos</p>
-                 <p className="text-lg font-black text-gray-800 leading-none">{stats.total}</p>
-              </div>
+        <div className="flex flex-col sm:flex-row gap-4">
+           <div className="flex gap-4">
+             <div className="bg-white p-4 px-6 rounded-3xl border border-pink-50 shadow-sm flex items-center gap-3">
+                <div className="p-2 bg-pink-100 text-pink-600 rounded-xl">
+                   <ShoppingBag size={20} />
+                </div>
+                <div>
+                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Total de Pedidos</p>
+                   <p className="text-lg font-black text-gray-800 leading-none">{stats.total}</p>
+                </div>
+             </div>
+             <div className="bg-white p-4 px-6 rounded-3xl border border-green-50 shadow-sm flex items-center gap-3">
+                <div className="p-2 bg-green-100 text-green-600 rounded-xl">
+                   <DollarSign size={20} />
+                </div>
+                <div>
+                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Volume Total</p>
+                   <p className="text-lg font-black text-gray-800 leading-none">R$ {stats.totalRevenue.toFixed(2)}</p>
+                </div>
+             </div>
            </div>
-           <div className="bg-white p-4 px-6 rounded-3xl border border-green-50 shadow-sm flex items-center gap-3">
-              <div className="p-2 bg-green-100 text-green-600 rounded-xl">
-                 <DollarSign size={20} />
-              </div>
-              <div>
-                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Volume Total</p>
-                 <p className="text-lg font-black text-gray-800 leading-none">R$ {stats.totalRevenue.toFixed(2)}</p>
-              </div>
-           </div>
+           <button 
+             onClick={handleExportReport}
+             className="bg-gray-900 text-white px-6 py-4 rounded-3xl font-bold hover:bg-pink-600 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-gray-200"
+           >
+             <FileText size={20} />
+             Gerar Relatório
+           </button>
         </div>
       </div>
 
@@ -256,6 +487,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                 <th className="px-8 py-6">Data Entrega</th>
                 <th className="px-8 py-6">Status</th>
                 <th className="px-8 py-6 text-right">Valor Total</th>
+                <th className="px-8 py-6 text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -303,12 +535,21 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                     <td className="px-8 py-6 text-right">
                       <p className="text-sm font-black text-gray-800">R$ {finalPrice.toFixed(2)}</p>
                     </td>
+                    <td className="px-8 py-6 text-center">
+                      <button
+                        onClick={() => generateReceipt(project, finalPrice)}
+                        className="px-3 py-1.5 bg-blue-50 text-blue-500 hover:bg-blue-100 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors"
+                        title="Gerar Recibo PDF"
+                      >
+                        Recibo
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
               {filteredProjects.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-20 text-center">
+                  <td colSpan={6} className="py-20 text-center">
                     <div className="flex flex-col items-center gap-4">
                       <div className="p-6 bg-gray-50 text-gray-200 rounded-full">
                         <History size={48} />

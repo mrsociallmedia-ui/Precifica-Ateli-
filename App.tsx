@@ -396,7 +396,7 @@ const App: React.FC = () => {
              {(() => {
                 const props = { projects, customers, materials, companyData, platforms, transactions, products };
                 switch (activeTab) {
-                  case 'dashboard': return <Dashboard {...props} setTransactions={setTransactions} />;
+                  case 'dashboard': return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} />;
                   case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} />;
                   case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} currentUser={currentUser || ''} />;
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;
@@ -405,7 +405,7 @@ const App: React.FC = () => {
                   case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
-                  default: return <Dashboard {...props} setTransactions={setTransactions} />;
+                  default: return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} />;
                 }
              })()}
           </div>

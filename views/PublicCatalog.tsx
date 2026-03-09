@@ -16,7 +16,8 @@ import {
   CheckCircle2,
   ShoppingBag,
   ArrowRight,
-  RefreshCw
+  RefreshCw,
+  Eye
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Product, CompanyData, Material, Platform } from '../types';
@@ -209,49 +210,79 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
             </div>
             <div>
               <h1 className="text-xl font-black text-gray-800 tracking-tight leading-none">{companyData?.name || 'Meu Ateliê'}</h1>
-              <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest mt-1">Catálogo Online</p>
+              <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest mt-1">Loja Online</p>
             </div>
           </div>
-          {companyData?.phone && (
+          <div className="flex items-center gap-3">
+            {companyData?.phone && (
+              <button 
+                onClick={() => window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}`, '_blank')}
+                className="bg-green-50 text-green-600 p-3 rounded-2xl hover:bg-green-100 transition-all flex items-center gap-2"
+                title="Falar no WhatsApp"
+              >
+                <MessageCircle size={20} />
+                <span className="hidden sm:inline font-black text-[10px] uppercase tracking-widest">Contato</span>
+              </button>
+            )}
             <button 
-              onClick={() => window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}`, '_blank')}
-              className="bg-green-500 text-white p-3 rounded-2xl hover:bg-green-600 transition-all shadow-lg shadow-green-100 flex items-center gap-2"
+              onClick={() => setIsCartOpen(true)}
+              className="bg-pink-500 text-white p-3 rounded-2xl hover:bg-pink-600 transition-all shadow-lg shadow-pink-100 flex items-center gap-2 relative"
             >
-              <MessageCircle size={20} />
-              <span className="hidden sm:inline font-black text-xs uppercase tracking-widest">Falar no Zap</span>
+              <ShoppingCart size={20} />
+              <span className="hidden sm:inline font-black text-[10px] uppercase tracking-widest">Carrinho</span>
+              {cart.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white">
+                  {cart.reduce((acc, item) => acc + item.quantity, 0)}
+                </span>
+              )}
             </button>
-          )}
+          </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-10">
-        {/* FILTROS E BUSCA */}
-        <div className="flex flex-col md:flex-row gap-6 mb-12">
-          <div className="relative flex-1">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+      {/* HERO SECTION */}
+      <div className="bg-pink-50/50 border-b border-pink-100/50">
+        <div className="max-w-7xl mx-auto px-6 py-16 md:py-24 flex flex-col items-center text-center">
+          <span className="text-[10px] font-black text-pink-500 bg-pink-100 px-4 py-1.5 rounded-full uppercase tracking-widest mb-6">
+            Bem-vindo(a) à nossa loja
+          </span>
+          <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-6 tracking-tight max-w-2xl">
+            Produtos personalizados feitos com <span className="text-pink-500">amor e dedicação</span>
+          </h2>
+          <p className="text-gray-500 font-medium max-w-xl text-lg mb-10">
+            Explore nossa coleção exclusiva. Cada peça é única e produzida especialmente para você.
+          </p>
+          
+          {/* BUSCA NO HERO */}
+          <div className="w-full max-w-2xl relative">
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" size={24} />
             <input 
               type="text" 
-              placeholder="O que você está procurando?" 
-              className="w-full pl-14 pr-6 py-4 bg-white border border-gray-100 rounded-[2rem] shadow-sm outline-none focus:ring-2 focus:ring-pink-400 transition-all font-medium"
+              placeholder="Buscar produtos..." 
+              className="w-full pl-16 pr-6 py-5 bg-white border-2 border-transparent focus:border-pink-200 rounded-[2rem] shadow-xl shadow-pink-100/20 outline-none transition-all font-medium text-lg"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-4 overflow-x-auto pb-2 no-scrollbar">
-            {categories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
-                  selectedCategory === cat 
-                    ? 'bg-pink-500 text-white border-pink-500 shadow-lg' 
-                    : 'bg-white text-gray-400 border-gray-100 hover:border-pink-200'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
+        </div>
+      </div>
+
+      <main className="max-w-7xl mx-auto px-6 py-16">
+        {/* FILTROS DE CATEGORIA */}
+        <div className="flex items-center justify-center gap-3 overflow-x-auto pb-8 mb-8 no-scrollbar">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-8 py-4 rounded-full text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${
+                selectedCategory === cat 
+                  ? 'bg-gray-900 text-white border-gray-900 shadow-xl shadow-gray-200' 
+                  : 'bg-white text-gray-500 border-gray-100 hover:border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
 
         {/* GRID DE PRODUTOS */}
@@ -270,53 +301,72 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
               return (
                 <div 
                   key={p.id} 
-                  className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col cursor-pointer"
+                  className="bg-white rounded-[2rem] shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group flex flex-col cursor-pointer border border-gray-100/50"
                   onClick={() => {
                     setSelectedProduct(p);
                     setActiveImageIdx(0);
                   }}
                 >
-                  <div className="aspect-square bg-gray-50 relative overflow-hidden">
+                  <div className="aspect-[4/5] bg-gray-50 relative overflow-hidden rounded-t-[2rem]">
                     {p.image ? (
-                      <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                      <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-200">
                         <Package size={64} />
                       </div>
                     )}
-                    <div className="absolute top-4 right-4">
-                      <span className="text-[9px] font-black text-pink-500 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-pink-50">
+                    <div className="absolute top-4 left-4">
+                      <span className="text-[10px] font-black text-gray-800 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
                         {p.category}
                       </span>
                     </div>
+                    
+                    {/* Hover Actions */}
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedProduct(p);
+                          setActiveImageIdx(0);
+                        }}
+                        className="w-12 h-12 bg-white text-gray-900 rounded-full flex items-center justify-center hover:bg-pink-500 hover:text-white transition-colors shadow-xl translate-y-4 group-hover:translate-y-0 duration-300"
+                        title="Ver Detalhes"
+                      >
+                        <Eye size={20} />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleWhatsAppContact(p.name, finalPrice);
+                        }}
+                        className="w-12 h-12 bg-white text-green-600 rounded-full flex items-center justify-center hover:bg-green-500 hover:text-white transition-colors shadow-xl translate-y-4 group-hover:translate-y-0 duration-300 delay-75"
+                        title="Dúvidas no WhatsApp"
+                      >
+                        <MessageCircle size={20} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="p-8 flex flex-col flex-1">
-                    <h3 className="text-lg font-black text-gray-800 mb-2 group-hover:text-pink-600 transition-colors">{p.name}</h3>
-                    <p className="text-xs text-gray-400 font-medium line-clamp-2 mb-6 flex-1">
-                      {p.description || 'Peça personalizada produzida com materiais de alta qualidade e acabamento impecável.'}
+                  <div className="p-6 flex flex-col flex-1">
+                    <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-1 group-hover:text-pink-600 transition-colors">{p.name}</h3>
+                    <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">
+                      {p.description || 'Peça exclusiva produzida artesanalmente.'}
                     </p>
-                      <div className="flex items-center justify-between mt-auto pt-6 border-t border-gray-50">
-                        <div>
-                          <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1">Valor Unitário</p>
-                          <p className="text-2xl font-black text-gray-800">R$ {finalPrice.toFixed(2)}</p>
-                        </div>
-                        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                          <button 
-                            onClick={() => handleWhatsAppContact(p.name, finalPrice)}
-                            className="bg-green-500 text-white p-4 rounded-2xl hover:bg-green-600 transition-all shadow-lg shadow-green-100"
-                            title="Conversar no WhatsApp"
-                          >
-                            <MessageCircle size={20} />
-                          </button>
-                          <button 
-                            onClick={() => addToCart(p, finalPrice)}
-                            className="bg-pink-500 text-white p-4 rounded-2xl hover:bg-pink-600 transition-all shadow-lg shadow-pink-100 group-hover:scale-110"
-                            title="Adicionar ao Carrinho"
-                          >
-                            <ShoppingCart size={20} />
-                          </button>
-                        </div>
+                    <div className="flex items-end justify-between mb-6">
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Por apenas</p>
+                        <p className="text-2xl font-black text-gray-900">R$ {finalPrice.toFixed(2)}</p>
                       </div>
+                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToCart(p, finalPrice);
+                      }}
+                      className="w-full bg-gray-900 text-white py-4 rounded-xl font-bold hover:bg-pink-600 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <ShoppingCart size={18} />
+                      Adicionar ao Carrinho
+                    </button>
                   </div>
                 </div>
               );
@@ -365,60 +415,60 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
 
       {/* MODAL DE DETALHES DO PRODUTO */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-scaleIn">
+        <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4 md:p-8 animate-fadeIn">
+          <div className="bg-white w-full max-w-6xl max-h-[95vh] rounded-[2rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-scaleIn relative">
             <button 
               onClick={() => setSelectedProduct(null)} 
-              className="absolute top-6 right-6 md:top-8 md:right-8 text-white md:text-gray-300 hover:text-white md:hover:text-gray-500 z-10 bg-black/20 md:bg-transparent p-2 rounded-full"
+              className="absolute top-4 right-4 md:top-6 md:right-6 text-gray-400 hover:text-gray-900 z-20 bg-white/80 backdrop-blur-sm p-2 rounded-full shadow-sm"
             >
-              <X size={28} />
+              <X size={24} />
             </button>
 
             {/* GALERIA DE IMAGENS */}
-            <div className="w-full md:w-1/2 bg-gray-50 relative aspect-square md:aspect-auto">
-              <div className="w-full h-full">
-                {selectedProduct.images && selectedProduct.images.length > 0 ? (
-                  <img 
-                    src={selectedProduct.images[activeImageIdx]} 
-                    alt={selectedProduct.name} 
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : selectedProduct.image ? (
-                  <img 
-                    src={selectedProduct.image} 
-                    alt={selectedProduct.name} 
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-200">
-                    <Package size={80} />
-                  </div>
-                )}
-              </div>
+            <div className="w-full md:w-3/5 bg-gray-50 relative flex flex-col">
+              {(() => {
+                const allImages = [selectedProduct.image, ...(selectedProduct.images || [])].filter(Boolean) as string[];
+                return (
+                  <>
+                    <div className="w-full flex-1 relative min-h-[40vh] md:min-h-0">
+                      {allImages.length > 0 ? (
+                        <img 
+                          src={allImages[activeImageIdx] || allImages[0]} 
+                          alt={selectedProduct.name} 
+                          className="absolute inset-0 w-full h-full object-contain bg-gray-100/50"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-gray-200">
+                          <Package size={80} />
+                        </div>
+                      )}
+                    </div>
 
-              {/* MINIATURAS */}
-              {selectedProduct.images && selectedProduct.images.length > 1 && (
-                <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2 px-4">
-                  {selectedProduct.images.map((img, idx) => (
-                    <button 
-                      key={idx}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveImageIdx(idx);
-                      }}
-                      className={`w-12 h-12 rounded-xl border-2 overflow-hidden transition-all ${activeImageIdx === idx ? 'border-pink-500 scale-110 shadow-lg' : 'border-white/50 hover:border-white'}`}
-                    >
-                      <img src={img} alt={`Thumb ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    </button>
-                  ))}
-                </div>
-              )}
+                    {/* MINIATURAS */}
+                    {allImages.length > 1 && (
+                      <div className="bg-white p-4 border-t border-gray-100 flex gap-3 overflow-x-auto no-scrollbar justify-start md:justify-center">
+                        {allImages.map((img, idx) => (
+                          <button 
+                            key={idx}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveImageIdx(idx);
+                            }}
+                            className={`w-20 h-20 rounded-xl border-2 overflow-hidden transition-all shrink-0 ${activeImageIdx === idx ? 'border-pink-500 opacity-100' : 'border-transparent opacity-50 hover:opacity-100'}`}
+                          >
+                            <img src={img} alt={`Thumb ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* INFORMAÇÕES */}
-            <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col overflow-y-auto custom-scrollbar">
+            <div className="w-full md:w-2/5 p-8 md:p-10 flex flex-col overflow-y-auto custom-scrollbar bg-white">
               <div className="mb-8">
                 <span className="text-[10px] font-black text-pink-500 bg-pink-50 px-3 py-1 rounded-full uppercase tracking-widest border border-pink-100">
                   {selectedProduct.category}

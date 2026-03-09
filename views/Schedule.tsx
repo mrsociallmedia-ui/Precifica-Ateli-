@@ -243,13 +243,24 @@ export const Schedule: React.FC<ScheduleProps> = ({
                     
                     {!isMinimized && (
                       <>
-                        {project.isCakeTopper && (project.celebrantName || project.celebrantAge) && (
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-[10px] font-black bg-pink-100 text-pink-600 px-2 py-0.5 rounded-lg uppercase tracking-widest flex items-center gap-1">
-                          🎂 {project.celebrantName} {project.celebrantAge && `(${project.celebrantAge})`}
-                        </span>
-                      </div>
-                    )}
+                        {project.isCakeTopper && (
+                          <div className="flex flex-col gap-2 mb-2">
+                            {(project.celebrantName || project.celebrantAge) && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black bg-pink-100 text-pink-600 px-2 py-0.5 rounded-lg uppercase tracking-widest flex items-center gap-1">
+                                  🎂 {project.celebrantName} {project.celebrantAge && `(${project.celebrantAge})`}
+                                </span>
+                              </div>
+                            )}
+                            {project.cakeSize && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black bg-blue-100 text-blue-600 px-2 py-0.5 rounded-lg uppercase tracking-widest flex items-center gap-1">
+                                  📏 Bolo: {project.cakeSize}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                     {project.observations && (
                       <p className="text-[10px] text-gray-400 font-medium mb-2 line-clamp-2 italic bg-gray-50/50 p-2 rounded-xl border border-gray-100/50">

@@ -21,7 +21,8 @@ import {
   ArrowRight,
   AlertTriangle,
   Scale,
-  Calculator
+  Calculator,
+  X
 } from 'lucide-react';
 import { Project, Customer, Material, CompanyData, Platform, Transaction, Product } from '../types';
 import { calculateProjectBreakdown } from '../utils';
@@ -35,13 +36,65 @@ interface DashboardProps {
   transactions: Transaction[];
   products: Product[];
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
+  setCompanyData: React.Dispatch<React.SetStateAction<CompanyData>>;
 }
 
 type DashboardFilter = 'all' | 'today' | 'active' | 'pending' | 'receivable' | 'quotes_pending';
 
-export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, materials, companyData, platforms, transactions, products, setTransactions }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, materials, companyData, platforms, transactions, products, setTransactions, setCompanyData }) => {
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>('all');
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [goalInput, setGoalInput] = useState('');
   const todayStr = new Date().toISOString().split('T')[0];
+
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+  const currentGoal = companyData.monthlyGoals?.find(g => g.month === currentMonth && g.year === currentYear);
+
+  const currentMonthIncome = useMemo(() => {
+    return transactions
+      .filter(t => t.type === 'income' && !t.closed && t.status !== 'pending' && new Date(t.date).getMonth() + 1 === currentMonth && new Date(t.date).getFullYear() === currentYear)
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [transactions, currentMonth, currentYear]);
+
+  const goalProgress = currentGoal ? Math.min((currentMonthIncome / currentGoal.goal) * 100, 100) : 0;
+
+  const generateGrowthPlan = (goal: number) => {
+    return `Plano de Crescimento para atingir R$ ${goal.toFixed(2)}:
+• Meta Semanal: R$ ${(goal / 4).toFixed(2)}
+• Meta Diária (20 dias úteis): R$ ${(goal / 20).toFixed(2)}
+• Ação 1: Foque nos produtos de maior margem (ex: topos de bolo complexos).
+• Ação 2: Reative 5 clientes antigos oferecendo um mimo na próxima compra.
+• Ação 3: Poste 3 stories por dia mostrando os bastidores da produção.`;
+  };
+
+  const handleSaveGoal = () => {
+    const goalValue = parseFloat(goalInput);
+    if (isNaN(goalValue) || goalValue <= 0) {
+      alert('Insira um valor válido para a meta.');
+      return;
+    }
+
+    const newGoal = {
+      id: `goal_${currentYear}_${currentMonth}`,
+      month: currentMonth,
+      year: currentYear,
+      goal: goalValue,
+      plan: generateGrowthPlan(goalValue)
+    };
+
+    const updatedGoals = companyData.monthlyGoals ? [...companyData.monthlyGoals.filter(g => g.id !== newGoal.id), newGoal] : [newGoal];
+    
+    setCompanyData(prev => ({ ...prev, monthlyGoals: updatedGoals }));
+    setIsGoalModalOpen(false);
+    setGoalInput('');
+  };
+
+  const handleDeleteGoal = () => {
+    if (!confirm('Deseja realmente excluir a meta deste mês?')) return;
+    const updatedGoals = companyData.monthlyGoals?.filter(g => g.id !== `goal_${currentYear}_${currentMonth}`) || [];
+    setCompanyData(prev => ({ ...prev, monthlyGoals: updatedGoals }));
+  };
 
   const statsCalculations = useMemo(() => {
     let totalOrçado = 0;
@@ -185,6 +238,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
         </div>
       </div>
 
+      {currentGoal && goalProgress >= 100 && (
+        <div className="bg-gradient-to-r from-green-400 to-emerald-500 p-6 rounded-[2rem] shadow-lg shadow-green-500/20 flex items-center justify-between animate-bounce">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
+              <Sparkles className="text-white" size={28} />
+            </div>
+            <div>
+              <h3 className="text-white font-black text-xl">Parabéns! Você bateu a meta do mês! 🎉</h3>
+              <p className="text-green-50 font-medium text-sm">Seu faturamento de R$ {currentMonthIncome.toFixed(2)} ultrapassou a meta de R$ {currentGoal.goal.toFixed(2)}.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cards de Saldo e Inteligência */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Card de Saldo Principal */}
@@ -278,6 +345,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
               <p className={`text-[10px] font-bold mt-2 ${activeFilter === 'quotes_pending' ? 'text-white/40' : 'text-gray-300'}`}>{statsCalculations.pendingQuotes.length} aguardando aprovação</p>
             </div>
           </button>
+
+          {/* Card de Meta do Mês */}
+          <div className="p-8 rounded-[3rem] border bg-white border-blue-50 hover:shadow-xl transition-all flex flex-col justify-between text-left group min-h-[220px] relative">
+            <div className="flex justify-between items-start">
+              <div className="p-4 rounded-2xl shadow-sm w-fit bg-blue-100 text-blue-600">
+                <Star size={28} />
+              </div>
+              <button onClick={() => { setGoalInput(currentGoal?.goal.toString() || ''); setIsGoalModalOpen(true); }} className="text-[10px] font-black text-blue-500 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors">
+                {currentGoal ? 'Editar Meta' : 'Definir Meta'}
+              </button>
+            </div>
+            <div className="mt-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Meta do Mês</p>
+              {currentGoal ? (
+                <>
+                  <p className="text-3xl font-black mt-1 text-gray-800">R$ {currentGoal.goal.toFixed(2)}</p>
+                  <div className="w-full bg-gray-100 rounded-full h-2 mt-3 overflow-hidden">
+                    <div className={`h-2 rounded-full ${goalProgress >= 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${goalProgress}%` }}></div>
+                  </div>
+                  <p className="text-[10px] font-bold mt-2 text-gray-400 flex justify-between">
+                    <span>{goalProgress.toFixed(1)}% alcançado</span>
+                    {goalProgress >= 100 && <span className="text-green-500 flex items-center gap-1"><CheckCircle2 size={10}/> Batida!</span>}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm font-bold mt-2 text-gray-400">Nenhuma meta definida para este mês.</p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -660,6 +756,56 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
             </div>
         </div>
       </div>
+
+      {/* Modal de Meta do Mês */}
+      {isGoalModalOpen && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-[3rem] p-8 max-w-md w-full shadow-2xl relative">
+            <button onClick={() => setIsGoalModalOpen(false)} className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 hover:text-pink-500 hover:bg-pink-50 rounded-full transition-colors">
+              <X size={20} />
+            </button>
+            <h3 className="text-2xl font-black text-gray-800 mb-2 tracking-tight">Meta do <span className="text-blue-500">Mês</span></h3>
+            <p className="text-sm font-bold text-gray-400 mb-6">Defina um objetivo de faturamento para {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}.</p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Valor da Meta (R$)</label>
+                <input 
+                  type="number" 
+                  value={goalInput}
+                  onChange={(e) => setGoalInput(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                  placeholder="Ex: 5000.00"
+                />
+              </div>
+
+              {currentGoal && (
+                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 mt-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-2">Plano de Crescimento Atual:</h4>
+                  <p className="text-xs font-bold text-blue-800 whitespace-pre-line leading-relaxed">{currentGoal.plan}</p>
+                </div>
+              )}
+
+              <div className="flex gap-4 mt-8 pt-4 border-t border-gray-50">
+                <button 
+                  onClick={handleSaveGoal}
+                  className="flex-1 bg-blue-500 text-white font-black py-4 rounded-2xl hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30"
+                >
+                  Salvar Meta
+                </button>
+                {currentGoal && (
+                  <button 
+                    onClick={handleDeleteGoal}
+                    className="px-6 bg-red-50 text-red-500 font-black rounded-2xl hover:bg-red-100 transition-colors"
+                  >
+                    Excluir
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

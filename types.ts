@@ -27,6 +27,14 @@ export interface Platform {
   shippingSubsidy?: number;
 }
 
+export interface MonthlyGoal {
+  id: string;
+  month: number;
+  year: number;
+  goal: number;
+  plan?: string;
+}
+
 export interface CompanyData {
   name: string;
   logo: string;
@@ -43,6 +51,7 @@ export interface CompanyData {
   defaultProfitMargin: number;
   defaultExcedente: number;
   shopeeSellerType?: 'cnpj' | 'cpf_no_fee' | 'cpf_with_fee';
+  monthlyGoals?: MonthlyGoal[];
 }
 
 export interface ProjectItemEntry {

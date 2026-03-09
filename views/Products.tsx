@@ -279,6 +279,48 @@ export const Products: React.FC<ProductsProps> = ({
     }
   };
 
+  const handleAddCategory = () => {
+    const name = prompt("Digite o nome da nova categoria:");
+    if (name) {
+      const trimmedName = name.trim();
+      if (trimmedName && !productCategories.includes(trimmedName)) {
+        setProductCategories(prev => [...prev, trimmedName]);
+        setNewProduct(prev => ({ ...prev, category: trimmedName }));
+      } else if (productCategories.includes(trimmedName)) {
+        alert("Esta categoria já existe.");
+      }
+    }
+  };
+
+  const handleEditCategory = (oldName: string) => {
+    if (oldName === 'Geral') return alert("A categoria 'Geral' não pode ser editada.");
+    const newName = prompt("Digite o novo nome para a categoria:", oldName);
+    if (newName) {
+      const trimmedName = newName.trim();
+      if (trimmedName && trimmedName !== oldName) {
+        if (productCategories.includes(trimmedName)) {
+          return alert("Já existe uma categoria com este nome.");
+        }
+        setProductCategories(prev => prev.map(c => c === oldName ? trimmedName : c));
+        setProducts(prev => prev.map(p => p.category === oldName ? { ...p, category: trimmedName } : p));
+        if (newProduct.category === oldName) {
+          setNewProduct(prev => ({ ...prev, category: trimmedName }));
+        }
+      }
+    }
+  };
+
+  const handleDeleteCategory = (name: string) => {
+    if (name === 'Geral') return alert("A categoria 'Geral' não pode ser excluída.");
+    if (confirm(`Deseja excluir a categoria "${name}"? Os produtos desta categoria serão movidos para "Geral".`)) {
+      setProductCategories(prev => prev.filter(c => c !== name));
+      setProducts(prev => prev.map(p => p.category === name ? { ...p, category: 'Geral' } : p));
+      if (newProduct.category === name) {
+        setNewProduct(prev => ({ ...prev, category: 'Geral' }));
+      }
+    }
+  };
+
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -425,7 +467,36 @@ export const Products: React.FC<ProductsProps> = ({
                               <input type="text" required className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
                            </div>
                            <div className="space-y-2">
-                              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Categoria</label>
+                              <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Categoria</label>
+                                <div className="flex gap-2">
+                                  <button 
+                                    type="button"
+                                    onClick={handleAddCategory}
+                                    className="text-[9px] font-black text-pink-500 uppercase tracking-widest hover:text-pink-600 flex items-center gap-1"
+                                  >
+                                    <Plus size={10} /> Nova
+                                  </button>
+                                  {newProduct.category && newProduct.category !== 'Geral' && (
+                                    <>
+                                      <button 
+                                        type="button"
+                                        onClick={() => handleEditCategory(newProduct.category!)}
+                                        className="text-[9px] font-black text-blue-500 uppercase tracking-widest hover:text-blue-600 flex items-center gap-1"
+                                      >
+                                        <Edit3 size={10} /> Editar
+                                      </button>
+                                      <button 
+                                        type="button"
+                                        onClick={() => handleDeleteCategory(newProduct.category!)}
+                                        className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:text-red-600 flex items-center gap-1"
+                                      >
+                                        <Trash2 size={10} /> Excluir
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
                               <select className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" value={newProduct.category} onChange={e => setNewProduct({...newProduct, category: e.target.value})}>
                                 {productCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                               </select>
