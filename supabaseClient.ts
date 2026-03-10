@@ -1,20 +1,20 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Credenciais configuradas para o projeto scnjxuzapasdfgevegds
-const SUPABASE_URL = 'https://scnjxuzapasdfgevegds.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_AlGWoYoW7lJtePDIiWwb2w_fXwMFqkj';
+// Credenciais do Supabase - Usando variáveis de ambiente para segurança
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 // Mock do Supabase para fallback caso as chaves falhem ou para facilitar testes locais
 const createMockSupabase = () => {
   const mockAuth = {
     signInWithPassword: async ({ email, password }: any) => {
       // No modo inteligente, qualquer login bem-sucedido localmente é permitido para teste
-      return { data: { user: { email }, session: { access_token: 'mock_token' } }, error: null };
+      return { data: { user: { email }, session: { access_token: 'mock_token', user: { email } } }, error: null };
     },
     signUp: async ({ email, password }: any) => {
       // Cadastro automático local
-      return { data: { user: { email }, session: { access_token: 'mock_token' } }, error: null };
+      return { data: { user: { email }, session: { access_token: 'mock_token', user: { email } } }, error: null };
     },
     resetPasswordForEmail: async (_email: string) => ({ data: {}, error: null }),
     verifyOtp: async ({ token }: any) => {
@@ -24,21 +24,25 @@ const createMockSupabase = () => {
       return { data: {}, error: null };
     },
     signOut: async () => ({ error: null }),
-    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    onAuthStateChange: (callback: any) => {
+      // Simular evento de auth inicial se já houver algo no localStorage
+      return { data: { subscription: { unsubscribe: () => {} } } };
+    },
     getSession: async () => ({ data: { session: null } })
   };
 
   const mockFrom = (table: string) => ({
-    select: () => ({
-      eq: () => ({
+    select: (columns: string = '*') => ({
+      eq: (column: string, value: any) => ({
         maybeSingle: async () => {
-          const data = localStorage.getItem(`mock_db_${table}`);
+          const data = localStorage.getItem(`mock_db_${table}_${value}`);
           return { data: data ? JSON.parse(data) : null, error: null };
         }
       })
     }),
-    upsert: async (data: any) => {
-      localStorage.setItem(`mock_db_${table}`, JSON.stringify(data));
+    upsert: async (data: any, options?: any) => {
+      const key = data.user_email || 'default';
+      localStorage.setItem(`mock_db_${table}_${key}`, JSON.stringify(data));
       return { error: null };
     }
   });
@@ -53,11 +57,16 @@ try {
   if (SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.includes('.supabase.co') && SUPABASE_KEY.startsWith('eyJ')) {
     supabaseInstance = createClient(SUPABASE_URL, SUPABASE_KEY);
   } else {
-    console.warn("Invalid Supabase credentials detected. Falling back to mock client.");
+    if (SUPABASE_URL || SUPABASE_KEY) {
+      console.warn("Credenciais do Supabase inválidas ou incompletas. Usando modo local (Mock).");
+    }
     supabaseInstance = createMockSupabase();
   }
 } catch (e) {
+  console.error("Erro ao inicializar Supabase Client:", e);
   supabaseInstance = createMockSupabase();
 }
+
+export const supabase = supabaseInstance;
 
 export const supabase = supabaseInstance;

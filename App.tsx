@@ -377,9 +377,13 @@ const App: React.FC = () => {
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
               syncStatus === 'synced' ? 'bg-green-50 border-green-100 text-green-500' :
               syncStatus === 'syncing' ? 'bg-blue-50 border-blue-100 text-blue-500 animate-pulse' :
-              syncStatus === 'local' ? 'bg-yellow-50 border-yellow-100 text-yellow-600' :
+              syncStatus === 'local' ? 'bg-yellow-50 border-yellow-100 text-yellow-600 cursor-help' :
               'bg-red-50 border-red-100 text-red-500'
-            }`}>
+            }`} title={syncStatus === 'local' ? 'Clique para saber como sincronizar com a nuvem' : ''} onClick={() => {
+              if (syncStatus === 'local') {
+                alert('O aplicativo está em modo local (Mock).\n\nPara sincronizar com o Supabase:\n1. Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY nas configurações.\n2. Execute o script SQL fornecido no seu painel do Supabase.');
+              }
+            }}>
               {syncStatus === 'synced' ? <CheckCircle2 size={12} /> : 
                syncStatus === 'syncing' ? <RefreshCw size={12} className="animate-spin" /> : 
                syncStatus === 'local' ? <CloudDownload size={12} /> :
