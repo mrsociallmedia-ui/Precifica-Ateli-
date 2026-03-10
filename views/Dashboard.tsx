@@ -45,19 +45,14 @@ interface DashboardProps {
   products: Product[];
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
   setCompanyData: React.Dispatch<React.SetStateAction<CompanyData>>;
+  onNavigate?: (tab: string) => void;
 }
 
 type DashboardFilter = 'all' | 'today' | 'active' | 'pending' | 'receivable' | 'quotes_pending';
 
-export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, materials, companyData, platforms, transactions, products, setTransactions, setCompanyData }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, materials, companyData, platforms, transactions, products, setTransactions, setCompanyData, onNavigate }) => {
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>('all');
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
-  const [isAIContentCreatorOpen, setIsAIContentCreatorOpen] = useState(false);
-  const [contentType, setContentType] = useState<'post' | 'story' | 'reel'>('post');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [aiGeneratedText, setAiGeneratedText] = useState('');
-  const [isGeneratingPost, setIsGeneratingPost] = useState(false);
-  const [postContext, setPostContext] = useState('');
   const [goalInput, setGoalInput] = useState('');
   const [instagramPostsInput, setInstagramPostsInput] = useState('');
   const [instagramReelsInput, setInstagramReelsInput] = useState('');
@@ -144,67 +139,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       alert('Erro ao conectar com a IA. Verifique sua chave de API.');
     } finally {
       setIsGeneratingAI(false);
-    }
-  };
-
-  const handleGeneratePost = async () => {
-    if (!selectedImage && !postContext) {
-      alert('Por favor, insira uma foto ou descreva o contexto do post.');
-      return;
-    }
-
-    setIsGeneratingPost(true);
-    try {
-      const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-      
-      const parts: any[] = [];
-      
-      if (selectedImage) {
-        parts.push({
-          inlineData: {
-            data: selectedImage.split(',')[1],
-            mimeType: "image/png"
-          }
-        });
-      }
-
-      const prompt = `Como uma especialista em marketing para artesãs de papelaria personalizada, crie um conteúdo para o Instagram do tipo ${contentType.toUpperCase()}.
-      Contexto adicional: ${postContext}
-      O nome do meu ateliê é ${companyData.name}.
-      
-      Se houver uma imagem, analise-a e crie uma legenda/roteiro que combine com o que está sendo mostrado.
-      
-      Para POST: Crie uma legenda engajadora com hashtags.
-      Para STORY: Crie uma sequência de 3 a 5 falas ou textos para sobrepor na imagem.
-      Para REEL: Crie um roteiro curto (hook, conteúdo, CTA) e sugestão de áudio/música.
-      
-      Mantenha um tom amigável, profissional e criativo.`;
-
-      parts.push({ text: prompt });
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [{ parts }],
-      });
-
-      setAiGeneratedText(response.text || 'Não foi possível gerar o conteúdo.');
-    } catch (error) {
-      console.error('Erro ao gerar post com IA:', error);
-      alert('Erro ao gerar conteúdo. Verifique sua conexão e chave de API.');
-    } finally {
-      setIsGeneratingPost(false);
-    }
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -373,8 +307,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       {/* Cards de Saldo e Inteligência */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Card de Saldo Principal */}
-        <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          <div className="bg-gray-900 text-white p-8 rounded-[3rem] shadow-xl flex flex-col justify-between relative overflow-hidden group min-h-[220px]">
+        <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-6">
+          <div className="bg-gray-900 text-white p-8 rounded-[3rem] shadow-xl flex flex-col justify-between relative overflow-hidden group min-h-[220px] 2xl:col-span-2">
             <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:scale-110 transition-transform">
               <Wallet2 size={120} />
             </div>
@@ -552,7 +486,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                 <Instagram size={28} />
               </div>
               <button 
-                onClick={() => setIsAIContentCreatorOpen(true)}
+                onClick={() => onNavigate?.('content_creator')}
                 className="text-[10px] font-black text-pink-600 bg-white px-4 py-2 rounded-full uppercase tracking-widest transition-all hover:scale-105 shadow-lg"
               >
                 Criar Post IA
@@ -613,7 +547,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
               </button>
            </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
               {filteredData.type === 'project' ? (
                 (filteredData.items as Project[]).map(project => {
                   const { finalPrice } = calculateProjectBreakdown(project, materials, platforms, companyData, transactions);
@@ -701,7 +635,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       {/* Grid Secundário: Ranking e Atividades */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         {/* Calendário Sazonal e Planejamento */}
-        <div className="lg:col-span-12 bg-white p-10 rounded-[3rem] shadow-sm border border-pink-50">
+        <div className="lg:col-span-6 xl:col-span-7 bg-white p-10 rounded-[3rem] shadow-sm border border-pink-50">
            <div className="flex items-center justify-between mb-10">
               <div className="flex items-center gap-3">
                  <div className="p-4 bg-pink-500 text-white rounded-3xl shadow-lg shadow-pink-100">
@@ -788,7 +722,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
         </div>
 
         {/* Produtos Mais Vendidos */}
-        <div className="lg:col-span-5 bg-white p-10 rounded-[3rem] shadow-sm border border-yellow-50">
+        <div className="lg:col-span-6 xl:col-span-5 bg-white p-10 rounded-[3rem] shadow-sm border border-yellow-50">
            <div className="flex items-center gap-3 mb-10">
               <div className="p-4 bg-yellow-400 text-yellow-900 rounded-3xl shadow-lg shadow-yellow-100">
                 <Star size={24} />
@@ -830,7 +764,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
         </div>
 
         {/* Atividade Recente (Resumo Financeiro e Entregas) */}
-        <div className="lg:col-span-7 bg-white p-10 rounded-[3rem] shadow-sm border border-pink-50">
+        <div className="lg:col-span-12 bg-white p-10 rounded-[3rem] shadow-sm border border-pink-50">
             <div className="flex items-center justify-between mb-10">
                 <h3 className="text-xl font-black text-gray-800 flex items-center gap-3">
                     <TrendingUp className="text-blue-500" /> Fluxo do Ateliê
@@ -840,7 +774,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                 </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
                 <div className="space-y-6">
                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50 pb-4 flex items-center gap-2">
                        <ArrowRight size={12} /> Próximas Entregas
@@ -946,147 +880,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
             </div>
         </div>
       </div>
-
-      {/* Modal de Criador de Conteúdo IA */}
-      {isAIContentCreatorOpen && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn overflow-y-auto">
-          <div className="bg-white rounded-[3rem] p-8 max-w-3xl w-full shadow-2xl relative my-8">
-            <button 
-              onClick={() => {
-                setIsAIContentCreatorOpen(false);
-                setSelectedImage(null);
-                setAiGeneratedText('');
-                setPostContext('');
-              }} 
-              className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 hover:text-pink-500 hover:bg-pink-50 rounded-full transition-colors"
-            >
-              <X size={20} />
-            </button>
-            
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-3 bg-pink-500 text-white rounded-2xl shadow-lg shadow-pink-100">
-                <Instagram size={24} />
-              </div>
-              <div>
-                <h3 className="text-2xl font-black text-gray-800 tracking-tight">Criador de Conteúdo <span className="text-pink-500">IA</span></h3>
-                <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Transforme fotos em engajamento</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-6">
-                {/* Tipo de Conteúdo */}
-                <div className="flex p-1 bg-gray-100 rounded-2xl">
-                  {(['post', 'story', 'reel'] as const).map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setContentType(type)}
-                      className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${contentType === type ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                      {type === 'post' ? <div className="flex items-center justify-center gap-2"><Layout size={14} /> Post</div> : 
-                       type === 'story' ? <div className="flex items-center justify-center gap-2"><Image size={14} /> Story</div> : 
-                       <div className="flex items-center justify-center gap-2"><Video size={14} /> Reel</div>}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Upload de Imagem */}
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Foto do Produto</label>
-                  <div className="relative group">
-                    {selectedImage ? (
-                      <div className="relative rounded-[2rem] overflow-hidden aspect-square border-4 border-pink-100 shadow-xl">
-                        <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
-                        <button 
-                          onClick={() => setSelectedImage(null)}
-                          className="absolute top-4 right-4 p-2 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-200 rounded-[2rem] bg-gray-50 hover:bg-pink-50 hover:border-pink-200 transition-all cursor-pointer group">
-                        <div className="p-4 bg-white rounded-2xl shadow-sm mb-3 group-hover:scale-110 transition-transform">
-                          <Image size={32} className="text-gray-300 group-hover:text-pink-500" />
-                        </div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Clique para enviar foto</p>
-                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                      </label>
-                    )}
-                  </div>
-                </div>
-
-                {/* Contexto */}
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">O que é este post? (Opcional)</label>
-                  <textarea 
-                    value={postContext}
-                    onChange={(e) => setPostContext(e.target.value)}
-                    placeholder="Ex: Topo de bolo tema Safari para o primeiro aninho do Leo..."
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-sm text-gray-700 font-medium focus:ring-2 focus:ring-pink-500 outline-none transition-all h-24 resize-none"
-                  />
-                </div>
-
-                <button 
-                  onClick={handleGeneratePost}
-                  disabled={isGeneratingPost}
-                  className="w-full bg-pink-500 text-white font-black py-4 rounded-2xl hover:bg-pink-600 transition-all shadow-lg shadow-pink-500/30 flex items-center justify-center gap-3 disabled:opacity-50"
-                >
-                  {isGeneratingPost ? (
-                    <>
-                      <RefreshCw className="animate-spin" size={20} />
-                      <span>Criando sua obra-prima...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={20} />
-                      <span>Gerar Conteúdo com IA</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="flex flex-col">
-                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-2">Resultado da IA</label>
-                <div className="flex-1 bg-gray-900 rounded-[2rem] p-8 text-white relative overflow-hidden group min-h-[400px]">
-                  <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
-                    <Instagram size={120} />
-                  </div>
-                  
-                  {aiGeneratedText ? (
-                    <div className="relative z-10 h-full flex flex-col">
-                      <div className="flex justify-between items-center mb-6">
-                        <span className="px-3 py-1 bg-white/10 rounded-full text-[8px] font-black uppercase tracking-widest border border-white/10">Sugestão Pronta</span>
-                        <button 
-                          onClick={() => {
-                            navigator.clipboard.writeText(aiGeneratedText);
-                            alert('Copiado para o Instagram!');
-                          }}
-                          className="flex items-center gap-2 text-[10px] font-black text-pink-400 hover:text-pink-300 transition-colors"
-                        >
-                          <Layout size={14} /> Copiar Texto
-                        </button>
-                      </div>
-                      <textarea 
-                        value={aiGeneratedText}
-                        onChange={(e) => setAiGeneratedText(e.target.value)}
-                        className="flex-1 bg-transparent border-none outline-none text-sm leading-relaxed font-medium resize-none custom-scrollbar"
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-40">
-                      <div className="p-4 bg-white/5 rounded-3xl">
-                        <Sparkles size={48} />
-                      </div>
-                      <p className="text-xs font-bold uppercase tracking-widest max-w-[200px]">Aguardando você inserir os dados ao lado...</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal de Meta do Mês */}
       {isGoalModalOpen && (

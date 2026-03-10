@@ -33,6 +33,7 @@ import { FinancialControl } from './views/FinancialControl';
 import { OrderHistory } from './views/OrderHistory';
 import { LoginView } from './views/LoginView';
 import { PublicCatalog } from './views/PublicCatalog';
+import { ContentCreator } from './views/ContentCreator';
 import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
@@ -44,7 +45,12 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
+  const [isSidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1280;
+    }
+    return true;
+  });
   const [publicCatalogEmail, setPublicCatalogEmail] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'local'>('synced');
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
@@ -294,6 +300,7 @@ const App: React.FC = () => {
 
   const navItems = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard, color: 'text-pink-500' },
+    { id: 'content_creator', label: 'Criador de Conteúdo', icon: Sparkles, color: 'text-pink-500' },
     { id: 'pricing', label: 'Orçamentos', icon: Calculator, color: 'text-blue-500' },
     { id: 'schedule', label: 'Cronograma', icon: Calendar, color: 'text-blue-500' },
     { id: 'order_history', label: 'Histórico Pedidos', icon: History, color: 'text-pink-500' },
@@ -323,15 +330,15 @@ const App: React.FC = () => {
     <div className="flex min-h-screen bg-[#fffcf5] animate-fadeIn font-['Quicksand'] overflow-x-hidden text-[#4b5563]">
       <div className={`fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-30 transition-opacity lg:hidden ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)}></div>
       
-      <aside className={`fixed lg:static inset-y-0 left-0 z-40 bg-white border-r border-pink-100 flex flex-col shadow-xl lg:shadow-none transition-transform duration-300 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${isSidebarOpen ? 'w-64' : 'lg:w-20'}`}>
-        <div className="p-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-pink-500 rounded-xl flex items-center justify-center shadow-lg shrink-0 overflow-hidden">
+      <aside className={`fixed lg:static inset-y-0 left-0 z-40 bg-white border-r border-pink-100 flex flex-col shadow-xl lg:shadow-none transition-all duration-300 ease-in-out transform ${isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0 lg:w-24'}`}>
+        <div className={`p-6 flex items-center ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-10 h-10 bg-pink-500 rounded-xl flex items-center justify-center shadow-lg shrink-0 overflow-hidden group-hover:scale-110 transition-transform">
               <img src="https://cdn-icons-png.flaticon.com/512/4230/4230588.png" alt="Logo" className="w-7 h-7 filter brightness-0 invert" />
             </div>
-            {isSidebarOpen && <h1 className="text-pink-600 font-black text-lg tracking-tight truncate">Calculiê</h1>}
+            {isSidebarOpen && <h1 className="text-pink-600 font-black text-lg tracking-tight truncate animate-fadeIn">Calculiê</h1>}
           </div>
-          <button className="lg:hidden text-gray-400 p-1" onClick={() => setSidebarOpen(false)}><X size={20}/></button>
+          {isSidebarOpen && <button className="lg:hidden text-gray-400 p-1 hover:text-pink-500 transition-colors" onClick={() => setSidebarOpen(false)}><X size={20}/></button>}
         </div>
 
         <nav className="flex-1 mt-4 px-3 space-y-1 overflow-y-auto custom-scrollbar">
@@ -339,22 +346,23 @@ const App: React.FC = () => {
             <button
               key={item.id}
               onClick={() => { setActiveTab(item.id); if(window.innerWidth < 1024) setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${
+              className={`w-full flex items-center ${isSidebarOpen ? 'gap-4 p-4' : 'justify-center p-4'} rounded-2xl transition-all group ${
                 activeTab === item.id 
                   ? 'bg-pink-50 text-pink-600 shadow-sm border border-pink-100' 
-                  : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+                  : 'text-gray-400 hover:bg-gray-50 hover:text-pink-500'
               }`}
+              title={!isSidebarOpen ? item.label : ''}
             >
-              <item.icon className={`w-6 h-6 shrink-0 ${activeTab === item.id ? item.color : 'text-gray-300'}`} />
-              {isSidebarOpen && <span className="font-bold text-sm tracking-tight">{item.label}</span>}
+              <item.icon className={`w-6 h-6 shrink-0 transition-transform group-hover:scale-110 ${activeTab === item.id ? item.color : 'text-gray-300 group-hover:text-pink-400'}`} />
+              {isSidebarOpen && <span className="font-bold text-sm tracking-tight truncate animate-fadeIn">{item.label}</span>}
             </button>
           ))}
         </nav>
 
         <div className="p-4 border-t border-pink-50 space-y-3">
-          <button onClick={handleLogout} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-red-400 hover:bg-red-50 transition-all ${!isSidebarOpen && 'justify-center'}`}>
-            <LogOut size={20} />
-            {isSidebarOpen && <span className="font-black text-sm">Sair</span>}
+          <button onClick={handleLogout} className={`w-full flex items-center ${isSidebarOpen ? 'gap-4 p-4' : 'justify-center p-4'} rounded-2xl text-red-400 hover:bg-red-50 transition-all group`} title={!isSidebarOpen ? 'Sair' : ''}>
+            <LogOut size={20} className="group-hover:scale-110 transition-transform" />
+            {isSidebarOpen && <span className="font-black text-sm animate-fadeIn">Sair</span>}
           </button>
         </div>
       </aside>
@@ -391,12 +399,13 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 lg:p-10 pb-24 lg:pb-10">
-          <div className="max-w-[1600px] mx-auto">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 xl:p-12 pb-24 lg:pb-12">
+          <div className="max-w-[1800px] mx-auto">
              {(() => {
                 const props = { projects, customers, materials, companyData, platforms, transactions, products };
                 switch (activeTab) {
-                  case 'dashboard': return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} />;
+                  case 'dashboard': return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} onNavigate={(tab) => setActiveTab(tab)} />;
+                  case 'content_creator': return <ContentCreator companyData={companyData} />;
                   case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} />;
                   case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} currentUser={currentUser || ''} />;
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;

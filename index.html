@@ -36,30 +36,48 @@
             padding-right: env(safe-area-inset-right);
         }
         ::-webkit-scrollbar {
-            width: 8px;
+            width: 10px;
+            height: 10px;
         }
         ::-webkit-scrollbar-track {
-            background: #f1f1f1;
+            background: #fffcf5;
         }
         ::-webkit-scrollbar-thumb {
             background: #fbcfe8;
-            border-radius: 10px;
+            border-radius: 20px;
+            border: 2px solid #fffcf5;
         }
         ::-webkit-scrollbar-thumb:hover {
             background: #f9a8d4;
         }
-        #pdf-template {
-            position: absolute;
-            left: -9999px;
-            top: -9999px;
-            width: 794px;
-            background: white;
-            color: black;
-            font-family: 'Quicksand', sans-serif;
+        
+        /* Desktop specific refinements */
+        @media (min-width: 1024px) {
+            .custom-scrollbar::-webkit-scrollbar {
+                width: 6px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+                background: #fbcfe8;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                background: #f9a8d4;
+            }
+        }
+
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .animate-slideUp {
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
         @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
         .mobile-nav-animation {
             animation: slideUp 0.3s ease-out;

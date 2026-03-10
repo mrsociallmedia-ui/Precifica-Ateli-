@@ -111,45 +111,45 @@ export const Customers: React.FC<CustomersProps> = ({
     <div className="space-y-8 animate-fadeIn">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black text-gray-800 tracking-tight">Base de <span className="text-pink-500">Clientes</span></h2>
-          <p className="text-gray-400 font-medium">Gerencie seus contatos e datas especiais.</p>
+          <h2 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tight">Base de <span className="text-pink-500">Clientes</span></h2>
+          <p className="text-sm md:text-base text-gray-400 font-medium">Gerencie seus contatos e datas especiais.</p>
         </div>
         <button 
           onClick={handleOpenAdd}
-          className="bg-pink-400 hover:bg-pink-500 text-white font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg shadow-pink-100 active:scale-95"
+          className="bg-pink-400 hover:bg-pink-500 text-white font-black px-6 md:px-8 py-3 md:py-4 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center gap-2 transition-all shadow-lg shadow-pink-100 active:scale-95 w-full md:w-auto"
         >
           <Plus size={20} />
           Novo Cliente
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
         {customers.map(customer => {
           const orderCount = projects.filter(p => p.customerId === customer.id).length;
           return (
-            <div key={customer.id} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 group hover:shadow-xl transition-all flex flex-col">
+            <div key={customer.id} className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-pink-50 group hover:shadow-xl transition-all flex flex-col">
               <div className="flex items-start justify-between mb-6">
-                <div className="w-14 h-14 bg-pink-50 rounded-2xl flex items-center justify-center text-pink-500 shadow-sm group-hover:bg-pink-500 group-hover:text-white transition-all">
-                  <User size={28} />
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-pink-50 rounded-2xl flex items-center justify-center text-pink-500 shadow-sm group-hover:bg-pink-500 group-hover:text-white transition-all">
+                  <User size={24} className="md:w-7 md:h-7" />
                 </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button 
                     onClick={() => handleOpenEdit(customer)}
                     className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"
                   >
-                    <Edit3 size={20} />
+                    <Edit3 size={18} md:size={20} />
                   </button>
                   <button 
                     onClick={() => deleteCustomer(customer.id)}
                     className="p-2 text-gray-300 hover:text-red-500 transition-colors"
                   >
-                    <Trash2 size={20} />
+                    <Trash2 size={18} md:size={20} />
                   </button>
                 </div>
               </div>
               
               <div className="mb-6">
-                <h3 className="text-2xl font-black text-gray-800 truncate">{customer.name}</h3>
+                <h3 className="text-xl md:text-2xl font-black text-gray-800 truncate">{customer.name}</h3>
                 <span className="text-[10px] font-black text-blue-400 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">
                   {orderCount} {orderCount === 1 ? 'Pedido' : 'Pedidos'}
                 </span>
@@ -261,7 +261,7 @@ export const Customers: React.FC<CustomersProps> = ({
 
       {showForm && (
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-full max-w-2xl rounded-[3rem] p-12 shadow-2xl relative overflow-hidden">
+          <div className="bg-white w-full max-w-2xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
             <div className={`absolute top-0 left-0 w-full h-2 ${editingCustomerId ? 'bg-blue-400' : 'bg-pink-400'}`}></div>
             <button 
               onClick={() => setShowForm(false)}
@@ -269,7 +269,7 @@ export const Customers: React.FC<CustomersProps> = ({
             >
               <X size={24} />
             </button>
-            <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
+            <h3 className="text-2xl md:text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
                <div className={`p-3 rounded-2xl ${editingCustomerId ? 'bg-blue-50 text-blue-500' : 'bg-pink-50 text-pink-500'}`}>
                  {editingCustomerId ? <Edit3 size={24} /> : <Plus size={24} />}
                </div>
@@ -281,7 +281,7 @@ export const Customers: React.FC<CustomersProps> = ({
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome Completo</label>
                   <input 
                     type="text" required
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold"
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold text-sm md:text-base"
                     value={newCustomer.name}
                     onChange={e => setNewCustomer({...newCustomer, name: e.target.value})}
                   />
@@ -292,7 +292,7 @@ export const Customers: React.FC<CustomersProps> = ({
                   </label>
                   <input 
                     type="date"
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold text-gray-600"
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold text-gray-600 text-sm md:text-base"
                     value={newCustomer.birthDate}
                     onChange={e => setNewCustomer({...newCustomer, birthDate: e.target.value})}
                   />
@@ -306,7 +306,7 @@ export const Customers: React.FC<CustomersProps> = ({
                   </label>
                   <input 
                     type="tel"
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold"
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold text-sm md:text-base"
                     value={newCustomer.phone}
                     onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})}
                     placeholder="(00) 00000-0000"
@@ -318,24 +318,24 @@ export const Customers: React.FC<CustomersProps> = ({
                   </label>
                   <input 
                     type="text"
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold"
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold text-sm md:text-base"
                     value={newCustomer.address}
                     onChange={e => setNewCustomer({...newCustomer, address: e.target.value})}
                   />
                 </div>
               </div>
 
-              <div className="flex gap-6 pt-6">
+              <div className="flex flex-col md:flex-row gap-4 md:gap-6 pt-6">
                 <button 
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="flex-1 px-8 py-5 border-2 border-gray-50 text-gray-400 rounded-3xl font-black uppercase tracking-widest hover:bg-gray-50 transition-all"
+                  className="w-full md:flex-1 px-8 py-4 md:py-5 border-2 border-gray-50 text-gray-400 rounded-2xl md:rounded-3xl font-black uppercase tracking-widest hover:bg-gray-50 transition-all"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit"
-                  className={`flex-1 px-8 py-5 text-white font-black rounded-3xl transition-all shadow-lg ${editingCustomerId ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-100' : 'bg-pink-400 hover:bg-pink-500 shadow-pink-100'}`}
+                  className={`w-full md:flex-1 px-8 py-4 md:py-5 text-white font-black rounded-2xl md:rounded-3xl transition-all shadow-lg ${editingCustomerId ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-100' : 'bg-pink-400 hover:bg-pink-500 shadow-pink-100'}`}
                 >
                   {editingCustomerId ? 'Salvar Alterações' : 'Salvar Cliente'}
                 </button>
