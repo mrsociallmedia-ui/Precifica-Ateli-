@@ -28,12 +28,7 @@ export const ContentCreator: React.FC<ContentCreatorProps> = ({ companyData }) =
     setCopied(false);
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('Chave da API do Gemini não configurada.');
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
       const prompt = `Você é um especialista em marketing digital para ateliês de artesanato e confeitaria.
 Crie um conteúdo para o Instagram com as seguintes características:
