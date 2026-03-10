@@ -93,8 +93,9 @@ const App: React.FC = () => {
       if (error) {
         console.error("Erro de sessão Supabase:", error);
         // Se o token de atualização for inválido, forçamos o logout para limpar o cache local
-        if (error.message?.includes('Refresh Token Not Found') || error.message?.includes('refresh_token_not_found')) {
+        if (error.message?.includes('Refresh Token Not Found') || error.message?.includes('refresh_token_not_found') || error.message?.includes('Invalid Refresh Token')) {
           supabase.auth.signOut();
+          localStorage.clear();
         }
         setIsAuthenticated(false);
       } else if (session?.user) {

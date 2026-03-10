@@ -137,13 +137,13 @@ export const Customers: React.FC<CustomersProps> = ({
                     onClick={() => handleOpenEdit(customer)}
                     className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"
                   >
-                    <Edit3 size={18} md:size={20} />
+                    <Edit3 size={18} className="md:w-5 md:h-5" />
                   </button>
                   <button 
                     onClick={() => deleteCustomer(customer.id)}
                     className="p-2 text-gray-300 hover:text-red-500 transition-colors"
                   >
-                    <Trash2 size={18} md:size={20} />
+                    <Trash2 size={18} className="md:w-5 md:h-5" />
                   </button>
                 </div>
               </div>

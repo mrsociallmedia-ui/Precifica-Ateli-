@@ -1,310 +1,207 @@
-
-import React, { useState, useEffect } from 'react';
-import { 
-  Instagram, 
-  Layout, 
-  Image, 
-  Video, 
-  X, 
-  Sparkles, 
-  RefreshCw, 
-  Send,
-  MessageSquare,
-  ArrowRight,
-  Heart,
-  Link2,
-  CheckCircle2,
-  AlertCircle
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { Sparkles, Instagram, Video, Image as ImageIcon, Copy, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { CompanyData } from '../types';
+import { GoogleGenAI } from '@google/genai';
 
 interface ContentCreatorProps {
   companyData: CompanyData;
 }
 
 export const ContentCreator: React.FC<ContentCreatorProps> = ({ companyData }) => {
-  const [contentType, setContentType] = useState<'post' | 'story' | 'reel'>('post');
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [fileType, setFileType] = useState<'image' | 'video' | null>(null);
-  const [aiGeneratedText, setAiGeneratedText] = useState('');
-  const [isGeneratingPost, setIsGeneratingPost] = useState(false);
-  const [postContext, setPostContext] = useState('');
-  const [isInstagramConnected, setIsInstagramConnected] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
+  const [topic, setTopic] = useState('');
+  const [format, setFormat] = useState<'post' | 'reels' | 'stories'>('post');
+  const [tone, setTone] = useState<'professional' | 'casual' | 'fun' | 'emotional'>('casual');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedContent, setGeneratedContent] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
 
-  // Simular verificação de conexão
-  useEffect(() => {
-    const connected = localStorage.getItem('instagram_connected') === 'true';
-    setIsInstagramConnected(connected);
-  }, []);
-
-  const handleConnectInstagram = () => {
-    setIsConnecting(true);
-    // Simulação de OAuth
-    setTimeout(() => {
-      localStorage.setItem('instagram_connected', 'true');
-      setIsInstagramConnected(true);
-      setIsConnecting(false);
-      alert('Instagram conectado com sucesso!');
-    }, 2000);
-  };
-
-  const handleDisconnectInstagram = () => {
-    if (confirm('Deseja desconectar sua conta do Instagram?')) {
-      localStorage.removeItem('instagram_connected');
-      setIsInstagramConnected(false);
-    }
-  };
-
-  const handleGeneratePost = async () => {
-    if (!selectedFile && !postContext) {
-      alert('Por favor, insira uma foto/vídeo ou descreva o contexto do post.');
+  const handleGenerate = async () => {
+    if (!topic.trim()) {
+      setError('Por favor, digite um tema para o conteúdo.');
       return;
     }
 
-    setIsGeneratingPost(true);
+    setIsGenerating(true);
+    setError('');
+    setGeneratedContent('');
+    setCopied(false);
+
     try {
-      const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-      
-      const parts: any[] = [];
-      
-      if (selectedFile) {
-        parts.push({
-          inlineData: {
-            data: selectedFile.split(',')[1],
-            mimeType: fileType === 'video' ? "video/mp4" : "image/png"
-          }
-        });
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('Chave da API do Gemini não configurada.');
       }
 
-      const prompt = `Como uma especialista em marketing para artesãs de papelaria personalizada, crie um conteúdo para o Instagram do tipo ${contentType.toUpperCase()}.
-      O arquivo enviado é um(a) ${fileType === 'video' ? 'VÍDEO' : 'FOTO'}.
-      Contexto adicional: ${postContext}
-      O nome do meu ateliê é ${companyData.name}.
-      
-      Se houver um arquivo, analise-o e crie uma legenda/roteiro que combine com o que está sendo mostrado.
-      
-      Para POST: Crie uma legenda engajadora com hashtags.
-      Para STORY: Crie uma sequência de 3 a 5 falas ou textos para sobrepor na imagem/vídeo.
-      Para REEL: Crie um roteiro curto (hook, conteúdo, CTA) e sugestão de áudio/música.
-      
-      Mantenha um tom amigável, profissional e criativo.`;
+      const ai = new GoogleGenAI({ apiKey });
 
-      parts.push({ text: prompt });
+      const prompt = `Você é um especialista em marketing digital para ateliês de artesanato e confeitaria.
+Crie um conteúdo para o Instagram com as seguintes características:
+- Formato: ${format === 'post' ? 'Post de Feed (Legenda envolvente)' : format === 'reels' ? 'Roteiro e Legenda para Reels' : 'Ideia e Texto para Stories'}
+- Tom de voz: ${tone === 'professional' ? 'Profissional e focado em vendas' : tone === 'casual' ? 'Casual e próximo do cliente' : tone === 'fun' ? 'Divertido e engajador' : 'Emocional e inspirador'}
+- Tema/Produto: ${topic}
+- Nome do Ateliê: ${companyData.name || 'Meu Ateliê'}
+
+O conteúdo deve ser pronto para copiar e colar, incluindo emojis adequados e hashtags relevantes no final.
+Se for Reels ou Stories, inclua uma breve sugestão visual (o que mostrar na tela) antes do texto/legenda.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [{ parts }],
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
       });
 
-      setAiGeneratedText(response.text || 'Não foi possível gerar o conteúdo.');
-    } catch (error) {
-      console.error('Erro ao gerar post com IA:', error);
-      alert('Erro ao gerar conteúdo. Verifique sua conexão e chave de API.');
+      if (response.text) {
+        setGeneratedContent(response.text);
+      } else {
+        throw new Error('Não foi possível gerar o conteúdo.');
+      }
+    } catch (err: any) {
+      console.error('Erro ao gerar conteúdo:', err);
+      setError(err.message || 'Ocorreu um erro ao gerar o conteúdo. Tente novamente.');
     } finally {
-      setIsGeneratingPost(false);
+      setIsGenerating(false);
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit for demo
-        alert('O arquivo é muito grande. Por favor, envie um arquivo de até 10MB.');
-        return;
-      }
-
-      const isVideo = file.type.startsWith('video/');
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedFile(reader.result as string);
-        setFileType(isVideo ? 'video' : 'image');
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleCopy = () => {
+    navigator.clipboard.writeText(generatedContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="space-y-10 animate-fadeIn pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-4xl font-black text-gray-800 tracking-tight">Criador de <span className="text-pink-500">Conteúdo</span></h2>
-          <p className="text-gray-400 font-medium">Use IA para transformar suas fotos e vídeos em posts de alto engajamento.</p>
+    <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn pb-24">
+      <div className="flex items-center gap-4 mb-8">
+        <div className="p-4 bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-2xl shadow-lg">
+          <Sparkles size={32} />
         </div>
-        <div className="flex items-center gap-3">
-          {isInstagramConnected ? (
-            <div className="flex items-center gap-3 bg-white p-2 pr-4 rounded-full border border-green-100 shadow-sm">
-              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white shadow-lg">
-                <CheckCircle2 size={16} />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-green-600 uppercase tracking-widest leading-none">Conectado</span>
-                <button onClick={handleDisconnectInstagram} className="text-[8px] font-bold text-gray-400 hover:text-red-500 text-left">Desconectar</button>
-              </div>
-            </div>
-          ) : (
-            <button 
-              onClick={handleConnectInstagram}
-              disabled={isConnecting}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:shadow-lg transition-all disabled:opacity-50"
-            >
-              {isConnecting ? <RefreshCw className="animate-spin" size={14} /> : <Link2 size={14} />}
-              Conectar Instagram
-            </button>
-          )}
-          <div className="bg-white p-3 px-6 rounded-full border border-pink-50 shadow-sm flex items-center gap-3">
-            <Instagram className="text-pink-500" size={18} />
-            <span className="text-sm font-black text-gray-700">Marketing Digital</span>
-          </div>
+        <div>
+          <h2 className="text-3xl font-black text-gray-800 tracking-tight">Criador de Conteúdo IA</h2>
+          <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">Gere posts incríveis em segundos</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-[3rem] p-8 md:p-12 shadow-sm border border-pink-50">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          <div className="space-y-8">
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-4">O que vamos criar hoje?</label>
-              <div className="flex p-1.5 bg-gray-100 rounded-[2rem]">
-                {(['post', 'story', 'reel'] as const).map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setContentType(type)}
-                    className={`flex-1 py-4 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${contentType === type ? 'bg-white text-pink-600 shadow-lg' : 'text-gray-400 hover:text-gray-600'}`}
-                  >
-                    {type === 'post' ? <Layout size={16} /> : 
-                     type === 'story' ? <Image size={16} /> : 
-                     <Video size={16} />}
-                    {type}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Foto ou Vídeo do seu Trabalho</label>
-              <div className="relative group">
-                {selectedFile ? (
-                  <div className="relative rounded-[3rem] overflow-hidden aspect-square border-8 border-pink-50 shadow-2xl bg-black">
-                    {fileType === 'video' ? (
-                      <video src={selectedFile} controls className="w-full h-full object-contain" />
-                    ) : (
-                      <img src={selectedFile} alt="Preview" className="w-full h-full object-cover" />
-                    )}
-                    <button 
-                      onClick={() => {
-                        setSelectedFile(null);
-                        setFileType(null);
-                      }}
-                      className="absolute top-6 right-6 p-3 bg-red-500 text-white rounded-full shadow-xl hover:bg-red-600 transition-all hover:scale-110 z-10"
-                    >
-                      <X size={20} />
-                    </button>
-                  </div>
-                ) : (
-                  <label className="flex flex-col items-center justify-center aspect-square border-4 border-dashed border-gray-100 rounded-[3rem] bg-gray-50/50 hover:bg-pink-50 hover:border-pink-200 transition-all cursor-pointer group">
-                    <div className="p-6 bg-white rounded-3xl shadow-sm mb-4 group-hover:scale-110 transition-transform">
-                      <div className="flex gap-2">
-                        <Image size={32} className="text-gray-300 group-hover:text-pink-500" />
-                        <Video size={32} className="text-gray-300 group-hover:text-purple-500" />
-                      </div>
-                    </div>
-                    <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Clique para enviar foto ou vídeo</p>
-                    <p className="text-[10px] font-bold text-gray-300 mt-2">Imagens ou Vídeos até 10MB</p>
-                    <input type="file" className="hidden" accept="image/*,video/*" onChange={handleFileUpload} />
-                  </label>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Contexto ou Detalhes (Opcional)</label>
-              <textarea 
-                value={postContext}
-                onChange={(e) => setPostContext(e.target.value)}
-                placeholder="Ex: Topo de bolo tema Safari para o primeiro aninho do Leo. Usei papel lamicote dourado e camadas de 180g..."
-                className="w-full bg-gray-50 border border-gray-100 rounded-[2rem] p-6 text-sm text-gray-700 font-medium focus:ring-4 focus:ring-pink-500/10 focus:border-pink-500 outline-none transition-all h-32 resize-none"
-              />
-            </div>
-
-            <button 
-              onClick={handleGeneratePost}
-              disabled={isGeneratingPost}
-              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white font-black py-5 rounded-[2rem] hover:shadow-2xl hover:shadow-pink-500/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-[0.98]"
-            >
-              {isGeneratingPost ? (
-                <>
-                  <RefreshCw className="animate-spin" size={24} />
-                  <span>A IA está criando...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={24} />
-                  <span>Gerar Conteúdo Mágico</span>
-                </>
-              )}
-            </button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Formulário */}
+        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-pink-50 space-y-6">
+          <div className="space-y-4">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Sobre o que você quer falar?</label>
+            <textarea
+              className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-600 min-h-[120px] resize-none focus:ring-4 focus:ring-pink-50 transition-all"
+              placeholder="Ex: Lançamento da nova coleção de dia das mães, mostrando os bastidores da produção..."
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+            />
           </div>
 
-          <div className="flex flex-col h-full">
-            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-4">Sugestão da Calculiê IA</label>
-            <div className="flex-1 bg-gray-900 rounded-[3rem] p-10 text-white relative overflow-hidden group min-h-[500px] flex flex-col shadow-2xl">
-              <div className="absolute -top-20 -right-20 p-20 opacity-5 group-hover:scale-110 transition-transform">
-                <Instagram size={300} />
-              </div>
-              
-              {aiGeneratedText ? (
-                <div className="relative z-10 h-full flex flex-col">
-                  <div className="flex justify-between items-center mb-8">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-pink-500 rounded-full animate-pulse"></div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Legenda Gerada</span>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText(aiGeneratedText);
-                        alert('Copiado! Agora é só colar no Instagram.');
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full text-[10px] font-black text-pink-400 transition-all border border-white/5"
-                    >
-                      <Layout size={14} /> Copiar Texto
-                    </button>
-                  </div>
-                  <textarea 
-                    value={aiGeneratedText}
-                    onChange={(e) => setAiGeneratedText(e.target.value)}
-                    className="flex-1 bg-transparent border-none outline-none text-base leading-relaxed font-medium resize-none custom-scrollbar pr-4 text-white/90"
-                  />
-                  <div className="mt-8 pt-8 border-t border-white/5 flex items-center justify-between">
-                    <p className="text-[10px] font-bold text-white/30 italic">Dica: Você pode editar o texto acima antes de copiar.</p>
-                    <div className="flex gap-3">
-                      {isInstagramConnected && (
-                        <button 
-                          onClick={() => alert('Post enviado para o Instagram! (Simulação)')}
-                          className="flex items-center gap-2 px-6 py-2 bg-pink-500 hover:bg-pink-600 rounded-full text-[10px] font-black text-white transition-all shadow-lg shadow-pink-500/20"
-                        >
-                          <Send size={14} /> Publicar Agora
-                        </button>
-                      )}
-                      <div className="flex gap-2">
-                        <div className="w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center"><Heart size={14} className="text-pink-500" /></div>
-                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center"><Send size={14} className="text-blue-500" /></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-30">
-                  <div className="p-8 bg-white/5 rounded-full border border-white/5">
-                    <Sparkles size={64} className="text-pink-500" />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-black uppercase tracking-widest">Aguardando seu arquivo</p>
-                    <p className="text-[10px] font-bold max-w-[200px] mx-auto leading-relaxed">Insira uma foto ou vídeo ao lado para que a IA possa criar um conteúdo incrível para você.</p>
-                  </div>
-                </div>
-              )}
+          <div className="space-y-4">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Formato</label>
+            <div className="grid grid-cols-3 gap-3">
+              <button
+                onClick={() => setFormat('post')}
+                className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all ${format === 'post' ? 'bg-pink-50 border-pink-200 text-pink-600 shadow-sm' : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'}`}
+              >
+                <Instagram size={24} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Post</span>
+              </button>
+              <button
+                onClick={() => setFormat('reels')}
+                className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all ${format === 'reels' ? 'bg-purple-50 border-purple-200 text-purple-600 shadow-sm' : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'}`}
+              >
+                <Video size={24} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Reels</span>
+              </button>
+              <button
+                onClick={() => setFormat('stories')}
+                className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all ${format === 'stories' ? 'bg-orange-50 border-orange-200 text-orange-600 shadow-sm' : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'}`}
+              >
+                <ImageIcon size={24} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Stories</span>
+              </button>
             </div>
+          </div>
+
+          <div className="space-y-4">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tom de Voz</label>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { id: 'casual', label: 'Casual & Próximo' },
+                { id: 'professional', label: 'Profissional & Vendas' },
+                { id: 'fun', label: 'Divertido & Engajador' },
+                { id: 'emotional', label: 'Emocional & Inspirador' }
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTone(t.id as any)}
+                  className={`p-3 rounded-xl border text-xs font-bold transition-all ${tone === t.id ? 'bg-gray-800 border-gray-800 text-white shadow-md' : 'bg-white border-gray-100 text-gray-500 hover:bg-gray-50'}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && (
+            <div className="p-4 bg-red-50 text-red-500 rounded-2xl flex items-center gap-3 text-sm font-bold">
+              <AlertCircle size={18} />
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating || !topic.trim()}
+            className="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-pink-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Gerando Mágica...
+              </>
+            ) : (
+              <>
+                <Sparkles size={18} />
+                Gerar Conteúdo
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Resultado */}
+        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-purple-50 flex flex-col h-full min-h-[400px]">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">Resultado</h3>
+            {generatedContent && (
+              <button
+                onClick={handleCopy}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${copied ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+              >
+                {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
+                {copied ? 'Copiado!' : 'Copiar Texto'}
+              </button>
+            )}
+          </div>
+
+          <div className="flex-1 bg-gray-50 rounded-2xl p-6 border border-gray-100 overflow-y-auto custom-scrollbar relative">
+            {isGenerating ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 space-y-4">
+                <div className="relative">
+                  <div className="w-16 h-16 border-4 border-pink-100 rounded-full"></div>
+                  <div className="w-16 h-16 border-4 border-pink-500 rounded-full border-t-transparent animate-spin absolute inset-0"></div>
+                  <Sparkles size={20} className="absolute inset-0 m-auto text-pink-500 animate-pulse" />
+                </div>
+                <p className="text-xs font-black uppercase tracking-widest animate-pulse">A IA está escrevendo...</p>
+              </div>
+            ) : generatedContent ? (
+              <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-p:text-gray-600 font-medium whitespace-pre-wrap">
+                {generatedContent}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-gray-300 space-y-4 opacity-50">
+                <Sparkles size={48} />
+                <p className="text-xs font-black uppercase tracking-widest text-center max-w-[200px]">Seu conteúdo gerado aparecerá aqui</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
