@@ -49,9 +49,11 @@ const createMockSupabase = () => {
 // Inicialização prioritária com as chaves reais fornecidas
 let supabaseInstance: any;
 try {
-  if (SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.includes('.supabase.co')) {
+  // Supabase anon keys are JWTs and always start with 'eyJ'
+  if (SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.includes('.supabase.co') && SUPABASE_KEY.startsWith('eyJ')) {
     supabaseInstance = createClient(SUPABASE_URL, SUPABASE_KEY);
   } else {
+    console.warn("Invalid Supabase credentials detected. Falling back to mock client.");
     supabaseInstance = createMockSupabase();
   }
 } catch (e) {
