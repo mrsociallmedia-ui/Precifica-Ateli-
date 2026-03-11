@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Instagram, Video, Image as ImageIcon, Copy, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { Sparkles, Instagram, Video, Image as ImageIcon, Copy, CheckCircle2, Loader2, AlertCircle, Facebook, Linkedin, Twitter, Smartphone } from 'lucide-react';
 import { CompanyData } from '../types';
 import { GoogleGenAI } from '@google/genai';
 
@@ -9,6 +9,7 @@ interface ContentCreatorProps {
 
 export const ContentCreator: React.FC<ContentCreatorProps> = ({ companyData }) => {
   const [topic, setTopic] = useState('');
+  const [network, setNetwork] = useState<'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'twitter'>('instagram');
   const [format, setFormat] = useState<'post' | 'reels' | 'stories'>('post');
   const [tone, setTone] = useState<'professional' | 'casual' | 'fun' | 'emotional'>('casual');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -30,15 +31,15 @@ export const ContentCreator: React.FC<ContentCreatorProps> = ({ companyData }) =
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-      const prompt = `Você é um especialista em marketing digital para ateliês de artesanato e confeitaria.
-Crie um conteúdo para o Instagram com as seguintes características:
-- Formato: ${format === 'post' ? 'Post de Feed (Legenda envolvente)' : format === 'reels' ? 'Roteiro e Legenda para Reels' : 'Ideia e Texto para Stories'}
+      const prompt = `Você é um especialista em marketing digital.
+Crie um conteúdo para a rede social ${network.toUpperCase()} com as seguintes características:
+- Formato: ${format === 'post' ? 'Post de Feed (Legenda envolvente)' : format === 'reels' ? 'Roteiro e Legenda para Vídeo Curto' : 'Ideia e Texto para Stories/Status'}
 - Tom de voz: ${tone === 'professional' ? 'Profissional e focado em vendas' : tone === 'casual' ? 'Casual e próximo do cliente' : tone === 'fun' ? 'Divertido e engajador' : 'Emocional e inspirador'}
 - Tema/Produto: ${topic}
-- Nome do Ateliê: ${companyData.name || 'Meu Ateliê'}
+- Nome do Negócio: ${companyData.name || 'Meu Negócio'}
 
 O conteúdo deve ser pronto para copiar e colar, incluindo emojis adequados e hashtags relevantes no final.
-Se for Reels ou Stories, inclua uma breve sugestão visual (o que mostrar na tela) antes do texto/legenda.`;
+Se for Vídeo ou Stories, inclua uma breve sugestão visual (o que mostrar na tela) antes do texto/legenda.`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -59,7 +60,25 @@ Se for Reels ou Stories, inclua uma breve sugestão visual (o que mostrar na tel
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(generatedContent);
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(generatedContent);
+    } else {
+      // Fallback para navegadores sem suporte ao clipboard API ou contextos não seguros
+      const textArea = document.createElement("textarea");
+      textArea.value = generatedContent;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+      } catch (err) {
+        console.error('Fallback: Oops, unable to copy', err);
+      }
+      document.body.removeChild(textArea);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -90,28 +109,50 @@ Se for Reels ou Stories, inclua uma breve sugestão visual (o que mostrar na tel
           </div>
 
           <div className="space-y-4">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Rede Social</label>
+            <div className="grid grid-cols-5 gap-2">
+              {[
+                { id: 'instagram', icon: Instagram, activeClass: 'bg-pink-50 border-pink-200 text-pink-600 shadow-sm' },
+                { id: 'facebook', icon: Facebook, activeClass: 'bg-blue-50 border-blue-200 text-blue-600 shadow-sm' },
+                { id: 'tiktok', icon: Smartphone, activeClass: 'bg-gray-50 border-gray-200 text-gray-600 shadow-sm' },
+                { id: 'linkedin', icon: Linkedin, activeClass: 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm' },
+                { id: 'twitter', icon: Twitter, activeClass: 'bg-sky-50 border-sky-200 text-sky-600 shadow-sm' }
+              ].map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => setNetwork(n.id as any)}
+                  className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all ${network === n.id ? n.activeClass : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'}`}
+                  title={n.id.charAt(0).toUpperCase() + n.id.slice(1)}
+                >
+                  <n.icon size={20} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Formato</label>
             <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => setFormat('post')}
                 className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all ${format === 'post' ? 'bg-pink-50 border-pink-200 text-pink-600 shadow-sm' : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'}`}
               >
-                <Instagram size={24} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Post</span>
+                <ImageIcon size={24} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-center">Post / Feed</span>
               </button>
               <button
                 onClick={() => setFormat('reels')}
                 className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all ${format === 'reels' ? 'bg-purple-50 border-purple-200 text-purple-600 shadow-sm' : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'}`}
               >
                 <Video size={24} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Reels</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-center">Vídeo Curto</span>
               </button>
               <button
                 onClick={() => setFormat('stories')}
                 className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all ${format === 'stories' ? 'bg-orange-50 border-orange-200 text-orange-600 shadow-sm' : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'}`}
               >
-                <ImageIcon size={24} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Stories</span>
+                <Smartphone size={24} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-center">Stories</span>
               </button>
             </div>
           </div>
