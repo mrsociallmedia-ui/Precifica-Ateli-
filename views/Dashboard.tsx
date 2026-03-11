@@ -120,7 +120,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
     setIsGeneratingAI(true);
     try {
       const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const prompt = `Como uma especialista em marketing para artesãs de papelaria personalizada e topos de bolo, gere um calendário de conteúdo para o Instagram para este mês. 
       Minhas metas são: ${instagramPostsInput} Posts, ${instagramReelsInput} Reels e ${instagramStoriesInput} Stories por dia.

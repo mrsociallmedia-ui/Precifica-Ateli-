@@ -4,7 +4,6 @@ import { CompanyData } from '../types';
 import { GoogleGenAI } from '@google/genai';
 
 console.log("DEBUG ENV:", {
-  processEnvGemini: typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : 'process undefined',
   importMetaEnvGemini: import.meta.env?.VITE_GEMINI_API_KEY,
   importMetaEnv: import.meta.env
 });
@@ -24,7 +23,6 @@ export const ContentCreator: React.FC<ContentCreatorProps> = ({ companyData }) =
   const [error, setError] = useState('');
 
   const debugInfo = JSON.stringify({
-    processEnvGemini: typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : 'process undefined',
     importMetaEnvGemini: import.meta.env?.VITE_GEMINI_API_KEY,
     importMetaEnv: import.meta.env
   }, null, 2);
