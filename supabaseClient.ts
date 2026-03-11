@@ -68,5 +68,3 @@ try {
 }
 
 export const supabase = supabaseInstance;
-
-export const supabase = supabaseInstance;
