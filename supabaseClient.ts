@@ -2,8 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Credenciais do Supabase - Usando variáveis de ambiente para segurança
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://scnjxuzapasdfgevegds.supabase.co';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_AlGWoYoW7lJtePDIiWwb2w_fXwMFqkj';
 
 // Mock do Supabase para fallback caso as chaves falhem ou para facilitar testes locais
 const createMockSupabase = () => {
@@ -53,8 +53,7 @@ const createMockSupabase = () => {
 // Inicialização prioritária com as chaves reais fornecidas
 let supabaseInstance: any;
 try {
-  // Supabase anon keys are JWTs and always start with 'eyJ'
-  if (SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.includes('.supabase.co') && SUPABASE_KEY.startsWith('eyJ')) {
+  if (SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.includes('.supabase.co')) {
     supabaseInstance = createClient(SUPABASE_URL, SUPABASE_KEY);
   } else {
     if (SUPABASE_URL || SUPABASE_KEY) {
