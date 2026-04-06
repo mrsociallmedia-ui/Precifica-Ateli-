@@ -37,6 +37,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   // Initialize with URL params or current week (Monday to Friday)
   const [startDate, setStartDate] = useState(() => {
@@ -246,6 +247,139 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
     }
 
     doc.save(`relatorio_pedidos_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const formatDisplayDate = (dateStr?: string) => {
+    if (!dateStr) return 'A combinar';
+    try {
+      const [year, month, day] = dateStr.split('-');
+      return `${day}/${month}/${year}`;
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const handleGeneratePDF = async (proj: Project) => {
+    const calcBreakdown = calculateProjectBreakdown(proj, materials, platforms, companyData, transactions);
+    const customer = customers.find(c => c.id === proj.customerId);
+    
+    setIsGeneratingPdf(true);
+
+    try {
+      if ((document as any).fonts) {
+        await (document as any).fonts.ready;
+      }
+
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.width = '794px'; 
+      container.style.background = 'white';
+      container.style.color = '#111827';
+      container.style.fontFamily = "'Quicksand', sans-serif";
+
+      const primaryColor = '#ec4899'; 
+
+      container.innerHTML = `
+        <div style="padding: 50px; border-top: 15px solid ${primaryColor}; position: relative;">
+          <div style="position: absolute; top: 100px; right: -50px; width: 300px; height: 300px; background: ${primaryColor}; opacity: 0.03; border-radius: 50%; pointer-events: none;"></div>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 50px; position: relative; z-index: 1;">
+            <div style="flex: 1.5;">
+              ${companyData.logo ? 
+                `<img src="${companyData.logo}" style="max-height: 90px; max-width: 280px; object-fit: contain; margin-bottom: 15px;" />` : 
+                `<div style="height: 50px; width: 50px; background: ${primaryColor}; border-radius: 12px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-weight: 900; font-size: 24px;">${companyData.name.charAt(0)}</span></div>`
+              }
+              <h1 style="margin: 0; font-size: 28px; font-weight: 900; color: ${primaryColor}; letter-spacing: -1px; line-height: 1.1;">${companyData.name}</h1>
+              <div style="margin-top: 10px; font-size: 11px; color: #6b7280; font-weight: 600; line-height: 1.5;">
+                ${companyData.email ? `<div>${companyData.email}</div>` : ''}
+                ${companyData.phone ? `<div>${companyData.phone}</div>` : ''}
+                ${companyData.cnpj ? `<div>CNPJ: ${companyData.cnpj}</div>` : ''}
+              </div>
+            </div>
+            <div style="text-align: right; flex: 1;">
+              <h2 style="margin: 0; font-size: 12px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 10px;">Proposta Comercial</h2>
+              <div style="background: #fdf2f8; padding: 20px; border-radius: 25px; border: 1px solid #fce7f3; display: inline-block; min-width: 180px;">
+                <p style="margin: 0; font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Orçamento Nº</p>
+                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #1f2937; line-height: 1;">#${proj.quoteNumber || proj.id.slice(-6).toUpperCase()}</p>
+                <p style="margin: 8px 0 0 0; font-size: 11px; color: #6b7280; font-weight: 700; text-transform: uppercase;">Emissão: ${new Date(proj.createdAt).toLocaleDateString('pt-BR')}</p>
+              </div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 50px;">
+            <div style="background: #fafafa; padding: 25px; border-radius: 25px; border: 1px solid #f3f4f6;">
+              <p style="margin: 0 0 10px 0; font-size: 10px; color: #9ca3af; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Dados do Cliente</p>
+              <p style="margin: 0; font-weight: 800; color: #111827; font-size: 18px;">${customer?.name || 'Cliente Avulso'}</p>
+              <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">${customer?.phone || 'Telefone não informado'}</p>
+            </div>
+            <div style="background: #f0f9ff; padding: 25px; border-radius: 25px; border: 1px solid #e0f2fe;">
+              <p style="margin: 0 0 10px 0; font-size: 10px; color: #0ea5e9; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Resumo do Pedido</p>
+              <p style="margin: 0; font-weight: 800; color: #111827; font-size: 18px;">${proj.theme}</p>
+              <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">Data de Entrega: <span style="color: #0ea5e9;">${formatDisplayDate(proj.deliveryDate)}</span></p>
+            </div>
+          </div>
+          <div style="margin-bottom: 50px; border-radius: 25px; overflow: hidden; border: 1px solid #f3f4f6; box-shadow: 0 4px 15px rgba(0,0,0,0.02);">
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+              <thead>
+                <tr style="background: #111827; color: white;">
+                  <th style="padding: 20px 25px; text-align: left; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Descrição do Produto</th>
+                  <th style="padding: 20px 25px; text-align: center; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Qtd</th>
+                  <th style="padding: 20px 25px; text-align: right; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Vlr. Unitário</th>
+                  <th style="padding: 20px 25px; text-align: right; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${proj.items!.map((item, idx) => `
+                  <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+                    <td style="padding: 18px 25px; border-bottom: 1px solid #f3f4f6;">
+                      <div style="font-weight: 700; color: #374151; font-size: 14px;">${item.name}</div>
+                    </td>
+                    <td style="padding: 18px 25px; text-align: center; font-weight: 700; color: #4b5563; font-size: 14px; border-bottom: 1px solid #f3f4f6;">${item.quantity}</td>
+                    <td style="padding: 18px 25px; text-align: right; color: #4b5563; font-size: 14px; border-bottom: 1px solid #f3f4f6;">R$ ${item.unitPrice?.toFixed(2) || '0.00'}</td>
+                    <td style="padding: 18px 25px; text-align: right; font-weight: 900; color: #111827; font-size: 14px; border-bottom: 1px solid #f3f4f6;">R$ ${((item.unitPrice || 0) * item.quantity).toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          <div style="display: flex; justify-content: flex-end;">
+            <div style="width: 350px;">
+                <div style="padding: 10px 20px;">
+                    <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #6b7280; font-weight: 700;">
+                        <span>Subtotal:</span>
+                        <span>R$ ${calcBreakdown.basePieceValue.toFixed(2)}</span>
+                    </div>
+                    ${calcBreakdown.shipping > 0 ? `<div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #6b7280; font-weight: 700;"><span>Frete:</span><span>+ R$ ${calcBreakdown.shipping.toFixed(2)}</span></div>` : ''}
+                    ${calcBreakdown.totalDiscount > 0 ? `<div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #ef4444; font-weight: 700;"><span>Desconto:</span><span>- R$ ${calcBreakdown.totalDiscount.toFixed(2)}</span></div>` : ''}
+                </div>
+                <div style="background: #111827; border-radius: 25px; padding: 30px; color: white; margin-top: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;">Total Geral</span>
+                    <span style="font-weight: 900; font-size: 28px;">R$ ${calcBreakdown.finalPrice.toFixed(2)}</span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div style="margin-top: 50px; text-align: center; border-top: 1px solid #f3f4f6; padding-top: 20px;">
+            <p style="margin: 0; font-size: 12px; color: #9ca3af; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Orçamento válido por 7 dias</p>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(container);
+      const canvas = await (window as any).html2canvas(container, { scale: 2, backgroundColor: '#ffffff', windowWidth: 794 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Orcamento_${proj.quoteNumber || proj.id.slice(-6).toUpperCase()}.pdf`);
+      document.body.removeChild(container);
+    } catch (err) {
+      alert("Erro ao gerar PDF.");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const generateReceipt = (project: Project, finalPrice: number) => {
@@ -539,14 +673,25 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                       <p className="text-sm font-black text-gray-800">R$ {finalPrice.toFixed(2)}</p>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <button
-                        onClick={() => generateReceipt(project, finalPrice)}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors"
-                        title="Gerar Recibo PDF"
-                      >
-                        <Download size={12} />
-                        Recibo
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleGeneratePDF(project)}
+                          disabled={isGeneratingPdf}
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-pink-50 text-pink-600 hover:bg-pink-100 hover:text-pink-700 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50"
+                          title="Gerar Proposta PDF"
+                        >
+                          <FileText size={12} />
+                          Proposta
+                        </button>
+                        <button
+                          onClick={() => generateReceipt(project, finalPrice)}
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors"
+                          title="Gerar Recibo PDF"
+                        >
+                          <Download size={12} />
+                          Recibo
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
