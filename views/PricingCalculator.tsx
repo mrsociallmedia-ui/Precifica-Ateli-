@@ -250,6 +250,14 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     });
   };
 
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+
+  const updateItemName = (index: number, name: string) => {
+    const newItems = [...(currentProject.items || [])];
+    newItems[index] = { ...newItems[index], name };
+    setCurrentProject({ ...currentProject, items: newItems });
+  };
+
   const updateItemQuantity = (index: number, qty: number) => {
     const newItems = [...(currentProject.items || [])];
     newItems[index] = { ...newItems[index], quantity: Math.max(1, qty) };
@@ -447,7 +455,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               <h2 style="margin: 0; font-size: 12px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 10px;">Proposta Comercial</h2>
               <div style="background: #fdf2f8; padding: 20px; border-radius: 25px; border: 1px solid #fce7f3; display: inline-block; min-width: 180px;">
                 <p style="margin: 0; font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Orçamento Nº</p>
-                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #1f2937; line-height: 1;">#${proj.quoteNumber || '1'}</p>
+                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #1f2937; line-height: 1;">#${proj.quoteNumber || (proj.id ? proj.id.slice(-6).toUpperCase() : '1')}</p>
                 <p style="margin: 8px 0 0 0; font-size: 11px; color: #6b7280; font-weight: 700; text-transform: uppercase;">Emissão: ${new Date().toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
@@ -520,7 +528,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Orcamento_${proj.quoteNumber || '1'}.pdf`);
+      pdf.save(`Orcamento_${proj.quoteNumber || (proj.id ? proj.id.slice(-6).toUpperCase() : '1')}.pdf`);
       document.body.removeChild(container);
     } catch (err) {
       alert("Erro ao gerar PDF.");
@@ -886,7 +894,19 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                  <div key={index} className="flex flex-col md:flex-row md:items-center justify-between bg-gray-50/50 p-5 rounded-2xl border border-gray-100 gap-4">
                     <div className="flex items-center gap-4 flex-1">
                        <span className="font-black text-gray-400 text-xs">{index + 1}</span>
-                       <p className="font-black text-gray-700 text-sm">{item.name}</p>
+                       {editingItemIndex === index ? (
+                          <input 
+                            type="text" 
+                            className="flex-1 p-2 bg-white border border-gray-200 rounded-xl outline-none font-black text-gray-700 text-sm" 
+                            value={item.name} 
+                            onChange={e => updateItemName(index, e.target.value)}
+                            onBlur={() => setEditingItemIndex(null)}
+                            onKeyDown={e => e.key === 'Enter' && setEditingItemIndex(null)}
+                            autoFocus
+                          />
+                        ) : (
+                          <p className="font-black text-gray-700 text-sm">{item.name}</p>
+                        )}
                     </div>
                     <div className="flex items-center gap-4">
                        <div className="flex flex-col gap-1">
@@ -897,7 +917,10 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                           <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Qtd</label>
                           <input type="number" className="w-16 p-2 bg-white border border-gray-200 rounded-xl outline-none font-black text-gray-700 text-xs" value={item.quantity} onChange={e => updateItemQuantity(index, parseInt(e.target.value) || 1)} />
                        </div>
-                       <button onClick={() => removeItem(index)} className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button>
+                       <div className="flex items-center gap-2">
+                          <button onClick={() => setEditingItemIndex(editingItemIndex === index ? null : index)} className="text-gray-300 hover:text-blue-500 transition-colors"><Edit3 size={18} /></button>
+                          <button onClick={() => removeItem(index)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+                        </div>
                     </div>
                  </div>
                ))}

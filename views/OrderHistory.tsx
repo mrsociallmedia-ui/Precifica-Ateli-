@@ -181,7 +181,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
     doc.text(`${stats.completed} concluídos | ${stats.inProgress} em andamento`, 20, 56);
 
     // Tabela de Pedidos
-    const tableColumn = ['Data', 'Cliente', 'Tema', 'Status', 'Valor (R$)'];
+    const tableColumn = ['Nº', 'Data', 'Cliente', 'Tema', 'Status', 'Valor (R$)'];
     const tableRows = filteredProjects.map(p => {
       const customerName = getCustomerName(p.customerId);
       const { finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
@@ -191,6 +191,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
       const createdDate = new Date(timestamp).toLocaleDateString('pt-BR');
       
       return [
+        p.quoteNumber || '-',
         createdDate,
         customerName,
         p.theme,
@@ -221,11 +222,12 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
         fillColor: [249, 250, 251], // gray-50
       },
       columnStyles: {
-        0: { cellWidth: 25 }, // Data
-        1: { cellWidth: 45 }, // Cliente
-        2: { cellWidth: 'auto' }, // Tema
-        3: { cellWidth: 30 }, // Status
-        4: { cellWidth: 25, halign: 'right' }, // Valor
+        0: { cellWidth: 15 }, // Nº
+        1: { cellWidth: 25 }, // Data
+        2: { cellWidth: 40 }, // Cliente
+        3: { cellWidth: 'auto' }, // Tema
+        4: { cellWidth: 25 }, // Status
+        5: { cellWidth: 25, halign: 'right' }, // Valor
       },
     });
 

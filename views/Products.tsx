@@ -218,6 +218,17 @@ export const Products: React.FC<ProductsProps> = ({
     setShowForm(true);
   };
 
+  const [editingMaterialIndex, setEditingMaterialIndex] = useState<number | null>(null);
+
+  const handleEditMaterial = (index: number) => {
+    const mat = newProduct.materials![index];
+    setSelectedMatId(mat.materialId);
+    setUsageType(mat.usageType || 'standard');
+    setUsageValue(mat.usageValue || mat.quantity || 1);
+    setPrintingCost(mat.printingCost || 0);
+    setEditingMaterialIndex(index);
+  };
+
   const addMaterialToProduct = () => {
     if (!selectedMatId) return;
 
@@ -235,7 +246,15 @@ export const Products: React.FC<ProductsProps> = ({
       printingCost: printingCost || 0
     };
 
-    setNewProduct({ ...newProduct, materials: [...(newProduct.materials || []), matItem] });
+    if (editingMaterialIndex !== null) {
+      const updatedMaterials = [...(newProduct.materials || [])];
+      updatedMaterials[editingMaterialIndex] = matItem;
+      setNewProduct({ ...newProduct, materials: updatedMaterials });
+      setEditingMaterialIndex(null);
+    } else {
+      setNewProduct({ ...newProduct, materials: [...(newProduct.materials || []), matItem] });
+    }
+
     setSelectedMatId('');
     setUsageValue(1);
     setPrintingCost(0);
@@ -748,7 +767,12 @@ export const Products: React.FC<ProductsProps> = ({
                           </div>
                         )}
 
-                        <button type="button" onClick={addMaterialToProduct} className="w-full py-4 bg-yellow-400 text-yellow-900 rounded-2xl font-black text-xs uppercase hover:bg-yellow-500 transition-all shadow-md active:scale-95">Adicionar Material à Peça</button>
+                         <button type="button" onClick={addMaterialToProduct} className="w-full py-4 bg-yellow-400 text-yellow-900 rounded-2xl font-black text-xs uppercase hover:bg-yellow-500 transition-all shadow-md active:scale-95">
+                           {editingMaterialIndex !== null ? 'Atualizar Material' : 'Adicionar Material à Peça'}
+                         </button>
+                         {editingMaterialIndex !== null && (
+                           <button type="button" onClick={() => { setEditingMaterialIndex(null); setSelectedMatId(''); setUsageValue(1); setPrintingCost(0); setUsageType('standard'); }} className="w-full py-2 text-gray-400 font-black text-[10px] uppercase tracking-widest hover:text-gray-600 transition-colors">Cancelar Edição</button>
+                         )}
                      </div>
 
                      <div className="space-y-3">
@@ -770,7 +794,10 @@ export const Products: React.FC<ProductsProps> = ({
                                      </p>
                                   </div>
                                </div>
-                               <button type="button" onClick={() => removeMaterialFromProduct(index)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                               <div className="flex items-center gap-2">
+                                 <button type="button" onClick={() => handleEditMaterial(index)} className="text-gray-300 hover:text-blue-500 transition-colors"><Edit3 size={16} /></button>
+                                 <button type="button" onClick={() => removeMaterialFromProduct(index)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                               </div>
                             </div>
                           );
                         })}
