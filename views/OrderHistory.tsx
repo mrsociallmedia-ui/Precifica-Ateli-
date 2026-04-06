@@ -301,7 +301,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
               <h2 style="margin: 0; font-size: 12px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 10px;">Proposta Comercial</h2>
               <div style="background: #fdf2f8; padding: 20px; border-radius: 25px; border: 1px solid #fce7f3; display: inline-block; min-width: 180px;">
                 <p style="margin: 0; font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Orçamento Nº</p>
-                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #1f2937; line-height: 1;">#${proj.quoteNumber || proj.id.slice(-6).toUpperCase()}</p>
+                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #1f2937; line-height: 1;">#${proj.quoteNumber || (proj.id.includes('_') ? proj.id.split('_')[1] : proj.id.slice(-6).toUpperCase())}</p>
                 <p style="margin: 8px 0 0 0; font-size: 11px; color: #6b7280; font-weight: 700; text-transform: uppercase;">Emissão: ${new Date(proj.createdAt).toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
@@ -373,7 +373,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Orcamento_${proj.quoteNumber || proj.id.slice(-6).toUpperCase()}.pdf`);
+      pdf.save(`Orcamento_${proj.quoteNumber || (proj.id.includes('_') ? proj.id.split('_')[1] : proj.id.slice(-6).toUpperCase())}.pdf`);
       document.body.removeChild(container);
     } catch (err) {
       alert("Erro ao gerar PDF.");
@@ -398,7 +398,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
     
     doc.setFontSize(10);
     doc.setTextColor(...textColor);
-    doc.text(`Nº do Pedido: ${project.quoteNumber || project.id.slice(-6).toUpperCase()}`, 14, 30);
+    doc.text(`Nº do Pedido: ${project.quoteNumber || (project.id.includes('_') ? project.id.split('_')[1] : project.id.slice(-6).toUpperCase())}`, 14, 30);
     doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}`, 14, 36);
 
     // Dados da Empresa (Alinhado à direita)
