@@ -3,11 +3,6 @@ import { Sparkles, Instagram, Video, Image as ImageIcon, Copy, CheckCircle2, Loa
 import { CompanyData } from '../types';
 import { GoogleGenAI } from '@google/genai';
 
-console.log("DEBUG ENV:", {
-  importMetaEnvGemini: import.meta.env?.VITE_GEMINI_API_KEY,
-  importMetaEnv: import.meta.env
-});
-
 interface ContentCreatorProps {
   companyData: CompanyData;
 }
@@ -21,11 +16,6 @@ export const ContentCreator: React.FC<ContentCreatorProps> = ({ companyData }) =
   const [generatedContent, setGeneratedContent] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
-
-  const debugInfo = JSON.stringify({
-    importMetaEnvGemini: import.meta.env?.VITE_GEMINI_API_KEY,
-    importMetaEnv: import.meta.env
-  }, null, 2);
 
   const handleGenerate = async () => {
     if (!topic.trim()) {
@@ -41,16 +31,10 @@ export const ContentCreator: React.FC<ContentCreatorProps> = ({ companyData }) =
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
       
-      console.log("DEBUG: Checking API key sources...", {
-        fromImportMeta: !!import.meta.env.VITE_GEMINI_API_KEY,
-        fromProcessEnv: !!process.env.GEMINI_API_KEY
-      });
-
       if (!apiKey || apiKey.trim() === "") {
         throw new Error('A chave da API (GEMINI_API_KEY) não foi configurada corretamente no ambiente. Por favor, verifique o arquivo .env ou as configurações do servidor.');
       }
 
-      console.log("DEBUG: API Key found, length:", apiKey.length);
       const ai = new GoogleGenAI({ apiKey });
 
       const prompt = `Você é um especialista em marketing digital.
@@ -112,7 +96,7 @@ Se for Vídeo ou Stories, inclua uma breve sugestão visual (o que mostrar na te
           <Sparkles size={32} />
         </div>
         <div>
-          <h2 className="text-3xl font-black text-gray-800 tracking-tight">Criador de Conteúdo IA (v2)</h2>
+          <h2 className="text-3xl font-black text-gray-800 tracking-tight">Criador de Conteúdo IA</h2>
           <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">Gere posts incríveis em segundos</p>
         </div>
       </div>
@@ -258,7 +242,6 @@ Se for Vídeo ou Stories, inclua uma breve sugestão visual (o que mostrar na te
               <div className="h-full flex flex-col items-center justify-center text-gray-300 space-y-4 opacity-50">
                 <Sparkles size={48} />
                 <p className="text-xs font-black uppercase tracking-widest text-center max-w-[200px]">Seu conteúdo gerado aparecerá aqui</p>
-                <pre className="text-[8px] text-left w-full overflow-auto mt-4 p-2 bg-gray-100 rounded text-gray-800">{debugInfo}</pre>
               </div>
             )}
           </div>
