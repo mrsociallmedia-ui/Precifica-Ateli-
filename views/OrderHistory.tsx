@@ -282,8 +282,8 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
       const primaryColor = '#ec4899'; 
 
       container.innerHTML = `
-        <div style="padding: 50px; border-top: 15px solid ${primaryColor}; position: relative;">
-          <div style="position: absolute; top: 100px; right: -50px; width: 300px; height: 300px; background: ${primaryColor}; opacity: 0.03; border-radius: 50%; pointer-events: none;"></div>
+        <div style="padding: 50px; border-top: 15px solid ${primaryColor}; position: relative; overflow: hidden; background: white;">
+          <div style="position: absolute; top: 100px; right: -50px; width: 300px; height: 300px; background: ${primaryColor}; opacity: 0.03; border-radius: 50%; pointer-events: none; z-index: 0;"></div>
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 50px; position: relative; z-index: 1;">
             <div style="flex: 1.5;">
               ${companyData.logo ? 
@@ -297,12 +297,12 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                 ${companyData.cnpj ? `<div>CNPJ: ${companyData.cnpj}</div>` : ''}
               </div>
             </div>
-            <div style="text-align: right; flex: 1;">
-              <h2 style="margin: 0; font-size: 12px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 10px;">Proposta Comercial</h2>
-              <div style="background: #fdf2f8; padding: 20px; border-radius: 25px; border: 1px solid #fce7f3; display: inline-block; min-width: 180px;">
-                <p style="margin: 0; font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Orçamento Nº</p>
-                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #1f2937; line-height: 1;">#${proj.quoteNumber || (proj.id.includes('_') ? proj.id.split('_')[1] : proj.id.slice(-6).toUpperCase())}</p>
-                <p style="margin: 8px 0 0 0; font-size: 11px; color: #6b7280; font-weight: 700; text-transform: uppercase;">Emissão: ${new Date(proj.createdAt).toLocaleDateString('pt-BR')}</p>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; flex: 1;">
+              <h2 style="margin: 0; font-size: 12px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px;">Proposta Comercial</h2>
+              <div style="background: #fdf2f8; padding: 20px; border-radius: 25px; border: 1px solid #fce7f3; min-width: 180px; text-align: center; position: relative; z-index: 10;">
+                <p style="margin: 0; font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; position: relative; z-index: 11;">Orçamento Nº</p>
+                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #1f2937; line-height: 1.2; position: relative; z-index: 11;">#${proj.quoteNumber || (proj.id.includes('_') ? proj.id.split('_')[1] : proj.id.slice(-6).toUpperCase())}</p>
+                <p style="margin: 8px 0 0 0; font-size: 11px; color: #6b7280; font-weight: 700; text-transform: uppercase; position: relative; z-index: 11;">Emissão: ${new Date(proj.createdAt).toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
           </div>
@@ -367,7 +367,14 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
       `;
 
       document.body.appendChild(container);
-      const canvas = await (window as any).html2canvas(container, { scale: 2, backgroundColor: '#ffffff', windowWidth: 794 });
+      const canvas = await (window as any).html2canvas(container, { 
+        scale: 2, 
+        backgroundColor: '#ffffff', 
+        windowWidth: 794,
+        useCORS: true,
+        allowTaint: true,
+        logging: false
+      });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pdfWidth = pdf.internal.pageSize.getWidth();
