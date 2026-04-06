@@ -39,7 +39,19 @@ export const ContentCreator: React.FC<ContentCreatorProps> = ({ companyData }) =
     setCopied(false);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      
+      console.log("DEBUG: Checking API key sources...", {
+        fromImportMeta: !!import.meta.env.VITE_GEMINI_API_KEY,
+        fromProcessEnv: !!process.env.GEMINI_API_KEY
+      });
+
+      if (!apiKey || apiKey.trim() === "") {
+        throw new Error('A chave da API (GEMINI_API_KEY) não foi configurada corretamente no ambiente. Por favor, verifique o arquivo .env ou as configurações do servidor.');
+      }
+
+      console.log("DEBUG: API Key found, length:", apiKey.length);
+      const ai = new GoogleGenAI({ apiKey });
 
       const prompt = `Você é um especialista em marketing digital.
 Crie um conteúdo para a rede social ${network.toUpperCase()} com as seguintes características:
@@ -100,7 +112,7 @@ Se for Vídeo ou Stories, inclua uma breve sugestão visual (o que mostrar na te
           <Sparkles size={32} />
         </div>
         <div>
-          <h2 className="text-3xl font-black text-gray-800 tracking-tight">Criador de Conteúdo IA</h2>
+          <h2 className="text-3xl font-black text-gray-800 tracking-tight">Criador de Conteúdo IA (v2)</h2>
           <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">Gere posts incríveis em segundos</p>
         </div>
       </div>
