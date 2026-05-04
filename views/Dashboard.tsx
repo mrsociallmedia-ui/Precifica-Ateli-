@@ -32,7 +32,6 @@ import {
   RefreshCw,
   Layout
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
 import { Project, Customer, Material, CompanyData, Platform, Transaction, Product, MonthlyGoal } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -120,29 +119,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
   const generateAIContent = async () => {
     setIsGeneratingAI(true);
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      
-      if (!apiKey || apiKey.trim() === "") {
-        throw new Error('A chave da API (GEMINI_API_KEY) não foi detectada.');
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const prompt = `Como uma especialista em marketing para artesãs de papelaria personalizada e topos de bolo, gere um calendário de conteúdo para o Instagram para este mês. 
-      Minhas metas são: ${instagramPostsInput} Posts, ${instagramReelsInput} Reels e ${instagramStoriesInput} Stories por dia.
-      O nome do meu ateliê é ${companyData.name}.
-      Gere ideias criativas de temas para posts, reels e stories que ajudem a atrair clientes e converter vendas.
-      Formate como uma lista curta e inspiradora.`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
+      const response = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: "gemini-1.5-flash",
+          prompt: `Como uma especialista em marketing para artesãs de papelaria personalizada e topos de bolo, gere um calendário de conteúdo para o Instagram para este mês. 
+          Minhas metas são: ${instagramPostsInput} Posts, ${instagramReelsInput} Reels e ${instagramStoriesInput} Stories por dia.
+          O nome do meu ateliê é ${companyData.name}.
+          Gere ideias criativas de temas para posts, reels e stories que ajudem a atrair clientes e converter vendas.
+          Formate como uma lista curta e inspiradora.`
+        })
       });
 
-      setAiContent(response.text || 'Não foi possível gerar conteúdo no momento.');
-    } catch (error) {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao gerar conteúdo');
+
+      setAiContent(data.text || 'Não foi possível gerar conteúdo no momento.');
+    } catch (error: any) {
       console.error('Erro ao gerar conteúdo com IA:', error);
-      alert('Erro ao conectar com a IA. Verifique sua chave de API.');
+      alert('Erro ao conectar com a IA: ' + error.message);
     } finally {
       setIsGeneratingAI(false);
     }

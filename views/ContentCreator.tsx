@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { Sparkles, Instagram, Video, Image as ImageIcon, Copy, CheckCircle2, Loader2, AlertCircle, Facebook, Linkedin, Twitter, Smartphone } from 'lucide-react';
 import { CompanyData } from '../types';
 
-import { GoogleGenAI } from '@google/genai';
-
 interface ContentCreatorProps {
   companyData: CompanyData;
 }
@@ -30,15 +28,12 @@ export const ContentCreator: React.FC<ContentCreatorProps> = ({ companyData }) =
     setCopied(false);
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      
-      if (!apiKey || apiKey.trim() === "") {
-        throw new Error('A chave da API (GEMINI_API_KEY) não foi detectada. Por favor, verifique se ela foi configurada no menu Configurações ou se o modelo gratuito está ativo.');
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-
-      const promptString = `Você é um especialista em marketing digital.
+      const response = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gemini-1.5-flash',
+          prompt: `Você é um especialista em marketing digital.
 Crie um conteúdo para a rede social ${network.toUpperCase()} com as seguintes características:
 - Formato: ${format === 'post' ? 'Post de Feed (Legenda envolvente)' : format === 'reels' ? 'Roteiro e Legenda para Vídeo Curto' : 'Ideia e Texto para Stories/Status'}
 - Tom de voz: ${tone === 'professional' ? 'Profissional e focado em vendas' : tone === 'casual' ? 'Casual e próximo do cliente' : tone === 'fun' ? 'Divertido e engajador' : 'Emocional e inspirador'}
@@ -46,15 +41,15 @@ Crie um conteúdo para a rede social ${network.toUpperCase()} com as seguintes c
 - Nome do Negócio: ${companyData.name || 'Meu Negócio'}
 
 O conteúdo deve ser pronto para copiar e colar, incluindo emojis adequados e hashtags relevantes no final.
-Se for Vídeo ou Stories, inclua uma breve sugestão visual (o que mostrar na tela) antes do texto/legenda.`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: promptString,
+Se for Vídeo ou Stories, inclua uma breve sugestão visual (o que mostrar na tela) antes do texto/legenda.`
+        })
       });
 
-      if (response.text) {
-        setGeneratedContent(response.text);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao gerar conteúdo');
+
+      if (data.text) {
+        setGeneratedContent(data.text);
       } else {
         throw new Error('Não foi possível gerar o conteúdo.');
       }

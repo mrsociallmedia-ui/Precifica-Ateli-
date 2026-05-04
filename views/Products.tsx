@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
 import { calculateProjectBreakdown } from '../utils';
-import { GoogleGenAI } from "@google/genai";
 
 declare const html2canvas: any;
 
@@ -44,26 +43,26 @@ export const Products: React.FC<ProductsProps> = ({
 
     setIsGeneratingAIDescription(true);
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      
-      if (!apiKey || apiKey.trim() === "") {
-        throw new Error('A chave da API (GEMINI_API_KEY) não foi detectada.');
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Gere uma descrição curta, criativa e profissional para um produto artesanal de ateliê.
+      const response = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: "gemini-1.5-flash",
+          prompt: `Gere uma descrição curta, criativa e profissional para um produto artesanal de ateliê.
         Nome do Produto: ${newProduct.name}
         Categoria: ${newProduct.category}
         A descrição deve ser atraente para clientes, destacando o cuidado artesanal e a exclusividade. 
-        Máximo de 3 parágrafos curtos. Use emojis se apropriado.`,
+        Máximo de 3 parágrafos curtos. Use emojis se apropriado.`
+        })
       });
 
-      if (response.text) {
-        setNewProduct(prev => ({ ...prev, description: response.text }));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao gerar conteúdo');
+
+      if (data.text) {
+        setNewProduct(prev => ({ ...prev, description: data.text }));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao gerar descrição com IA:", error);
       alert("Houve um erro ao gerar a descrição. Tente novamente.");
     } finally {
