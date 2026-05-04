@@ -37,7 +37,7 @@ import { ContentCreator } from './views/ContentCreator';
 import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
-import { supabase } from './supabaseClient';
+import { supabase, isMock } from './supabaseClient';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -89,24 +89,35 @@ const App: React.FC = () => {
     }
 
     // Verificar sessão atual ao carregar
-    supabase.auth.getSession().then(({ data: { session }, error }: { data: { session: Session | null }, error: any }) => {
-      if (error) {
-        console.error("Erro de sessão Supabase:", error);
-        // Se o token de atualização for inválido, forçamos o logout para limpar o cache local
-        if (error.message?.includes('Refresh Token Not Found') || error.message?.includes('refresh_token_not_found') || error.message?.includes('Invalid Refresh Token')) {
-          supabase.auth.signOut();
-          localStorage.clear();
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error }: { data: { session: Session | null }, error: any } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("Erro de sessão Supabase:", error);
+          if (error.message?.includes('Refresh Token Not Found') || error.message?.includes('refresh_token_not_found') || error.message?.includes('Invalid Refresh Token')) {
+            if (!isMock) {
+              await supabase.auth.signOut();
+              localStorage.clear();
+            }
+          }
+          setIsAuthenticated(false);
+        } else if (session?.user) {
+          const email = session.user.email!.toLowerCase();
+          setCurrentUser(email);
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
         }
+      } catch (err) {
+        console.error("Erro fatal ao validar sessão:", err);
         setIsAuthenticated(false);
-      } else if (session?.user) {
-        const email = session.user.email!.toLowerCase();
-        setCurrentUser(email);
-        setIsAuthenticated(true);
-      } else {
-        setIsAuthenticated(false);
+      } finally {
+        setIsAuthChecking(false);
       }
-      setIsAuthChecking(false);
-    });
+    };
+
+    checkSession();
 
     // Ouvir mudanças de estado (Login/Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
@@ -188,7 +199,7 @@ const App: React.FC = () => {
 
   const fetchCloudData = useCallback(async (email: string) => {
     loadLocalCache(email);
-    if (!supabase || supabase.isMock) {
+    if (!supabase || isMock) {
       setSyncStatus('local');
       return;
     }
@@ -227,8 +238,9 @@ const App: React.FC = () => {
   const pushCloudData = useCallback(async () => {
     saveLocalCache();
     if (!currentUser || !initializedRef.current) return;
-    if (!supabase || supabase.isMock) {
+    if (!supabase || isMock) {
       setSyncStatus('local');
+      saveLocalCache();
       return;
     }
     
