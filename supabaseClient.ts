@@ -2,8 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Credenciais do Supabase - Usando variáveis de ambiente para segurança
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://scnjxuzapasdfgevegds.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_AlGWoYoW7lJtePDIiWwb2w_fXwMFqkj';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Mock do Supabase para fallback caso as chaves falhem ou para facilitar testes locais
 const createMockSupabase = () => {
