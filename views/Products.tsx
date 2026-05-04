@@ -44,7 +44,12 @@ export const Products: React.FC<ProductsProps> = ({
 
     setIsGeneratingAIDescription(true);
     try {
-      const apiKey = process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY;
+      
+      if (!apiKey || apiKey.trim() === "") {
+        throw new Error('A chave da API (GEMINI_API_KEY) não foi detectada.');
+      }
+
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",

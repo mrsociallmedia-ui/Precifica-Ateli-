@@ -32,6 +32,7 @@ import {
   RefreshCw,
   Layout
 } from 'lucide-react';
+import { GoogleGenAI } from '@google/genai';
 import { Project, Customer, Material, CompanyData, Platform, Transaction, Product, MonthlyGoal } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -119,8 +120,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
   const generateAIContent = async () => {
     setIsGeneratingAI(true);
     try {
-      const { GoogleGenAI } = await import('@google/genai');
-      const apiKey = process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY;
+      
+      if (!apiKey || apiKey.trim() === "") {
+        throw new Error('A chave da API (GEMINI_API_KEY) não foi detectada.');
+      }
+
       const ai = new GoogleGenAI({ apiKey });
       
       const prompt = `Como uma especialista em marketing para artesãs de papelaria personalizada e topos de bolo, gere um calendário de conteúdo para o Instagram para este mês. 
@@ -131,7 +136,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
 
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: prompt,
       });
 
       setAiContent(response.text || 'Não foi possível gerar conteúdo no momento.');

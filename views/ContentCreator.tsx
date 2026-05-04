@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Instagram, Video, Image as ImageIcon, Copy, CheckCircle2, Loader2, AlertCircle, Facebook, Linkedin, Twitter, Smartphone } from 'lucide-react';
 import { CompanyData } from '../types';
+
 import { GoogleGenAI } from '@google/genai';
 
 interface ContentCreatorProps {
@@ -29,15 +30,15 @@ export const ContentCreator: React.FC<ContentCreatorProps> = ({ companyData }) =
     setCopied(false);
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY;
       
       if (!apiKey || apiKey.trim() === "") {
-        throw new Error('A chave da API (GEMINI_API_KEY) não foi configurada corretamente no ambiente. Por favor, verifique o arquivo .env ou as configurações do servidor.');
+        throw new Error('A chave da API (GEMINI_API_KEY) não foi detectada. Por favor, verifique se ela foi configurada no menu Configurações ou se o modelo gratuito está ativo.');
       }
 
       const ai = new GoogleGenAI({ apiKey });
 
-      const prompt = `Você é um especialista em marketing digital.
+      const promptString = `Você é um especialista em marketing digital.
 Crie um conteúdo para a rede social ${network.toUpperCase()} com as seguintes características:
 - Formato: ${format === 'post' ? 'Post de Feed (Legenda envolvente)' : format === 'reels' ? 'Roteiro e Legenda para Vídeo Curto' : 'Ideia e Texto para Stories/Status'}
 - Tom de voz: ${tone === 'professional' ? 'Profissional e focado em vendas' : tone === 'casual' ? 'Casual e próximo do cliente' : tone === 'fun' ? 'Divertido e engajador' : 'Emocional e inspirador'}
@@ -49,7 +50,7 @@ Se for Vídeo ou Stories, inclua uma breve sugestão visual (o que mostrar na te
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: prompt,
+        contents: promptString,
       });
 
       if (response.text) {
