@@ -38,6 +38,7 @@ import {
   Square,
   CalendarDays,
   StickyNote,
+  ExternalLink,
   User,
   PartyPopper,
   Edit3,
@@ -72,7 +73,7 @@ import {
   ProjectItemEntry,
   Transaction
 } from '../types';
-import { calculateProjectBreakdown } from '../utils';
+import { calculateProjectBreakdown, getMLRange } from '../utils';
 import jsPDF from 'jspdf';
 
 interface PricingCalculatorProps {
@@ -146,6 +147,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     discountPercentage: 0,
     discountAmount: 0,
     downPayment: 0,
+    mlCommissionPercentage: 0,
+    mlShippingCost: 0,
   };
 
   const [currentProject, setCurrentProject] = useState<Partial<Project>>(initialProjectState);
@@ -311,6 +314,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       discountPercentage: currentProject.discountPercentage || 0,
       discountAmount: currentProject.discountAmount || 0,
       downPayment: currentProject.downPayment || 0,
+      mlCommissionPercentage: currentProject.mlCommissionPercentage || 0,
+      mlShippingCost: currentProject.mlShippingCost || 0,
       hoursToMake: currentProject.items!.reduce((acc, i) => acc + (i.hoursToMake * i.quantity), 0),
       materials: currentProject.items!.flatMap(i => i.materials),
       profitMargin: currentProject.items![0]?.profitMargin || 30,

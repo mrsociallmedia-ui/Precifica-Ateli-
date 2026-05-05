@@ -2,11 +2,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack, Repeat, FileText as FileIcon, Layers3, Share2, ExternalLink, QrCode, MessageSquare,
-  ShoppingCart, ShoppingBag, Minus, RefreshCw, MessageCircle, Wand2, Eye, EyeOff
+  ShoppingCart, ShoppingBag, Minus, RefreshCw, MessageCircle, Wand2, Eye, EyeOff, Calculator
 } from 'lucide-react';
 import { generateContent } from '../lib/gemini';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
-import { calculateProjectBreakdown } from '../utils';
+import { calculateProjectBreakdown, getMLRange } from '../utils';
 
 declare const html2canvas: any;
 
@@ -133,8 +133,26 @@ export const Products: React.FC<ProductsProps> = ({
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: '', category: productCategories[0] || 'Geral', description: '', minutesToMake: 60, materials: [],
     profitMargin: companyData.defaultProfitMargin, marketPrice: 0, image: '', images: [], packagingCost: 0, minOrderQuantity: 1,
-    showInCatalog: true
+    showInCatalog: true,
+    mlCommissionPercentage: 0,
+    mlShippingCost: 0,
+    platformId: platforms[0]?.id || ''
   });
+
+  const [isMLMode, setIsMLMode] = useState(false);
+
+  useEffect(() => {
+    if (editingProductId) {
+       const product = products.find(p => p.id === editingProductId);
+       if (product?.mlCommissionPercentage) {
+          setIsMLMode(true);
+       } else {
+          setIsMLMode(false);
+       }
+    } else {
+       setIsMLMode(false);
+    }
+  }, [editingProductId, products]);
   
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -283,7 +301,9 @@ export const Products: React.FC<ProductsProps> = ({
         marketPrice: Number(newProduct.marketPrice) || 0,
         packagingCost: Number(newProduct.packagingCost) || 0,
         minOrderQuantity: Number(newProduct.minOrderQuantity) || 1,
-        showInCatalog: newProduct.showInCatalog !== false
+        showInCatalog: newProduct.showInCatalog !== false,
+        mlCommissionPercentage: isMLMode ? newProduct.mlCommissionPercentage : undefined,
+        mlShippingCost: isMLMode ? newProduct.mlShippingCost : undefined
       };
       setProducts(prev => [product, ...prev]);
     }
@@ -344,6 +364,14 @@ export const Products: React.FC<ProductsProps> = ({
 
   const currentPreview = useMemo(() => {
     if (!showForm) return null;
+    
+    // Determine platform for preview
+    let platformId = platforms[0]?.id || '';
+    if (isMLMode) {
+       const mlPlatform = platforms.find(p => p.name.toLowerCase().includes('mercado livre'));
+       if (mlPlatform) platformId = mlPlatform.id;
+    }
+
     const mockProject = {
       items: [{ 
         productId: 'preview', 
@@ -354,11 +382,13 @@ export const Products: React.FC<ProductsProps> = ({
         profitMargin: newProduct.profitMargin || 30,
         manualBaseCost: newProduct.manualBaseCost
       }],
-      platformId: platforms[0]?.id || '',
-      excedente: companyData.defaultExcedente
+      platformId: platformId,
+      excedente: companyData.defaultExcedente,
+      mlCommissionPercentage: isMLMode ? newProduct.mlCommissionPercentage : undefined,
+      mlShippingCost: isMLMode ? newProduct.mlShippingCost : undefined
     };
     return calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
-  }, [newProduct, materials, platforms, companyData, showForm]);
+  }, [newProduct, materials, platforms, companyData, showForm, isMLMode]);
 
   const isLengthMaterial = selectedMaterial?.unit === 'metro';
 
@@ -798,6 +828,142 @@ export const Products: React.FC<ProductsProps> = ({
                             </div>
                           );
                         })}
+                     </div>
+                  </div>
+
+                  {/* SEÇÃO MERCADO LIVRE */}
+                  <div className="mt-8 p-10 bg-[#1e232e] rounded-[3rem] border border-slate-700/50 animate-fadeIn space-y-8 shadow-2xl relative overflow-hidden">
+                     <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/5 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                     
+                     <div className="flex items-center gap-4">
+                        <div className="flex flex-col items-center">
+                           <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-md overflow-hidden p-1">
+                              <img src="https://http2.mlstatic.com/frontend-assets/ui-navigation/5.18.9/mercadolibre/logo__small.png" alt="ML" className="w-full object-contain" />
+                           </div>
+                           <span className="text-[8px] font-black text-white/40 uppercase tracking-tighter mt-1">mercado livre</span>
+                        </div>
+                        <h3 className="text-xl md:text-2xl font-black text-white tracking-tight">Você venderá este item no Mercado Livre?</h3>
+                     </div>
+
+                     <div className="space-y-6">
+                        <div className="space-y-4">
+                           <div className="flex justify-between items-center px-1">
+                              <label className="text-[11px] font-black text-slate-100 uppercase tracking-widest">Comissão do Mercado Livre</label>
+                              <a href="https://www.mercadolivre.com.br/ajuda/quanto-custa-vender-um-produto_1338" target="_blank" rel="noreferrer" className="text-[10px] font-bold text-blue-400 hover:text-blue-300 transition-colors border-b border-blue-400/30">Ver comissão por categoria</a>
+                           </div>
+                           
+                           <div className="flex flex-col md:flex-row gap-4 items-start">
+                              <div className="relative w-full md:w-64">
+                                 <div className="absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center border-r border-slate-700 font-bold text-slate-400 text-sm font-['Quicksand']">%</div>
+                                 <input 
+                                    type="number" 
+                                    className="w-full p-4 pl-16 bg-slate-900/50 border border-slate-700 rounded-xl outline-none font-black text-white focus:ring-2 focus:ring-blue-500 transition-all text-lg font-['Quicksand']" 
+                                    placeholder="0,00"
+                                    value={newProduct.mlCommissionPercentage || ''}
+                                    onChange={e => {
+                                       setNewProduct({...newProduct, mlCommissionPercentage: parseFloat(e.target.value) || 0});
+                                       if (!isMLMode) setIsMLMode(true);
+                                    }}
+                                 />
+                              </div>
+                           </div>
+
+                           <div className="bg-blue-50/10 border border-blue-500/30 rounded-2xl p-6 space-y-4 animate-fadeIn">
+                              <div className="flex items-center gap-3">
+                                 <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
+                                    <Package size={20} />
+                                 </div>
+                                 <div className="space-y-0.5">
+                                    <p className="text-xs font-bold text-blue-100">
+                                       Seu anúncio ficará na faixa <span className="text-blue-400 font-black">{currentPreview ? getMLRange(currentPreview.finalPrice) : '...'}</span>
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 font-medium">
+                                       {currentPreview && currentPreview.finalPrice >= 79 ? (
+                                          <>O custo para você será baseado no <span className="text-blue-300 font-bold">peso do seu produto</span>.</>
+                                       ) : (
+                                          <>Será aplicada uma <span className="text-yellow-400 font-bold">taxa fixa de R$ 6,00</span> por unidade vendida.</>
+                                       )}
+                                    </p>
+                                 </div>
+                              </div>
+                              <a 
+                                href="https://www.mercadolivre.com.br/knowledge-hub/40538" 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest group"
+                              >
+                                 <ExternalLink size={14} className="group-hover:scale-110 transition-transform" />
+                                 Ver tabela de custos de envio
+                              </a>
+                           </div>
+
+                           <div className="mt-4 p-4 bg-slate-900/50 rounded-2xl border border-slate-700 flex items-start gap-4 animate-fadeIn">
+                              <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                                 <Info size={16} />
+                              </div>
+                              <div className="space-y-1 font-['Quicksand']">
+                                 <p className="text-[11px] font-black text-white uppercase tracking-tight">Resumo de Custos ML</p>
+                                 <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                    <p className="text-[10px] font-medium text-slate-300">Comissão ({newProduct.mlCommissionPercentage}%): <span className="text-white font-black">R$ {currentPreview?.platformFeeDetails?.commission.toFixed(2) || '0.00'}</span></p>
+                                    {currentPreview && currentPreview.finalPrice < 79 && (
+                                       <p className="text-[10px] font-medium text-yellow-400">Taxa Fixa: <span className="font-black">R$ 6,00</span> (Preço &lt; R$ 79)</p>
+                                    )}
+                                    <p className="text-[10px] font-medium text-slate-300">Frete Vendedor: <span className="text-white font-black">R$ {(newProduct.mlShippingCost || 0).toFixed(2)}</span></p>
+                                 </div>
+                                 <p className="text-[11px] font-black text-blue-400 pt-1">Preço Final no ML Sugerido: R$ {currentPreview?.finalPrice.toFixed(2)}</p>
+                              </div>
+                           </div>
+                        </div>
+
+                        <div className="space-y-4 pt-4 border-t border-slate-700/50">
+                           <label className="text-[11px] font-black text-slate-100 uppercase tracking-widest px-1 block">Valor estimado do frete</label>
+                           <div className="relative w-full md:w-64">
+                              <div className="absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center border-r border-slate-700 font-bold text-slate-400 text-sm font-['Quicksand']">R$</div>
+                              <input 
+                                 type="number" 
+                                 className="w-full p-4 pl-16 bg-slate-900/50 border border-slate-700 rounded-xl outline-none font-black text-white focus:ring-2 focus:ring-blue-500 transition-all text-lg font-['Quicksand']" 
+                                 placeholder="0,00"
+                                 value={newProduct.mlShippingCost || ''}
+                                 onChange={e => {
+                                    setNewProduct({...newProduct, mlShippingCost: parseFloat(e.target.value) || 0});
+                                    if (!isMLMode) setIsMLMode(true);
+                                 }}
+                              />
+                           </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-6 border-t border-slate-700/50">
+                           <button 
+                             type="button" 
+                             onClick={() => {
+                                setIsMLMode(false);
+                                // Set platform back to something else
+                                const nonMLPlatform = platforms.find(p => !p.name.toLowerCase().includes('mercado livre'));
+                                setNewProduct({
+                                   ...newProduct, 
+                                   mlCommissionPercentage: 0, 
+                                   mlShippingCost: 0,
+                                   platformId: nonMLPlatform?.id || platforms[0]?.id
+                                });
+                             }} 
+                             className="px-8 py-3 bg-slate-700 text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-600 transition-all"
+                           >
+                             Não
+                           </button>
+                           <button 
+                             type="button" 
+                             onClick={() => {
+                                setIsMLMode(true);
+                                const mlPlatform = platforms.find(p => p.name.toLowerCase().includes('mercado livre'));
+                                if (mlPlatform) {
+                                   setNewProduct({...newProduct, platformId: mlPlatform.id});
+                                }
+                             }}
+                             className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 ${isMLMode ? 'bg-blue-600 text-white shadow-blue-500/20' : 'bg-slate-700 text-slate-400'}`}
+                           >
+                             Sim
+                           </button>
+                        </div>
                      </div>
                   </div>
                </div>

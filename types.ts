@@ -110,6 +110,10 @@ export interface Project {
   cakeSize?: string;
   cakeFloors?: string; 
   
+  // Mercado Livre specific
+  mlCommissionPercentage?: number;
+  mlShippingCost?: number;
+  
   // Campos legados mantidos por compatibilidade
   hoursToMake: number;
   materials: ProjectItem[];
@@ -132,6 +136,9 @@ export interface Product {
   packagingCost?: number;
   minOrderQuantity?: number;
   showInCatalog?: boolean;
+  mlCommissionPercentage?: number;
+  mlShippingCost?: number;
+  platformId?: string;
 }
 
 export interface Transaction {

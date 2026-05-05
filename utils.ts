@@ -86,14 +86,14 @@ export const calculateProjectBreakdown = (
   // Taxas de Plataforma
   const selectedPlatform = platforms.find(p => p.id === project.platformId);
   const isShopee = selectedPlatform?.name.toLowerCase().includes('shopee');
+  const isMercadoLivre = selectedPlatform?.name.toLowerCase().includes('mercado livre');
   
   let priceWithFees = valueAfterDiscount;
   let actualPlatformFees = 0;
   let feeDetails = { commission: 0, fixedFee: 0, shippingSubsidy: 0 };
 
   if (isShopee) {
-    // Cálculo específico Shopee baseado na tabela fornecida
-    // Valor base para cálculo é o valor após desconto
+    // ... (existing shopee logic)
     const baseVal = valueAfterDiscount;
     let commissionPercent = 0;
     let fixedFee = 0;
@@ -125,7 +125,6 @@ export const calculateProjectBreakdown = (
     const totalFeePercent = (commissionPercent + subsidyPercent) / 100;
     const totalFixedFees = fixedFee + cpfExtraFee;
 
-    // Preço Final = (Valor Desejado + Taxas Fixas) / (1 - Taxa Percentual)
     if (totalFeePercent < 1) {
       priceWithFees = (valueAfterDiscount + totalFixedFees) / (1 - totalFeePercent);
       actualPlatformFees = priceWithFees - valueAfterDiscount;
@@ -134,6 +133,31 @@ export const calculateProjectBreakdown = (
         commission: priceWithFees * (commissionPercent / 100),
         fixedFee: totalFixedFees,
         shippingSubsidy: priceWithFees * (subsidyPercent / 100)
+      };
+    }
+  } else if (isMercadoLivre) {
+    const commissionPercent = project.mlCommissionPercentage || (selectedPlatform?.feePercentage || 0);
+    const mlShipping = project.mlShippingCost || 0;
+    const platformFeePercent = commissionPercent / 100;
+
+    if (platformFeePercent < 1) {
+      // No Mercado Livre, itens abaixo de R$ 79 têm taxa fixa de R$ 6,00
+      // Preço Final = (Valor Desejado + Frete Vendedor + Taxa Fixa) / (1 - Taxa%)
+      
+      // Tentativa inicial sem os 6 reais
+      priceWithFees = (valueAfterDiscount + mlShipping) / (1 - platformFeePercent);
+      
+      // Se o preço final for < 79, aplica a taxa fixa de 6 reais e recalcula
+      if (priceWithFees < 79) {
+        priceWithFees = (valueAfterDiscount + mlShipping + 6) / (1 - platformFeePercent);
+      }
+
+      actualPlatformFees = priceWithFees - valueAfterDiscount;
+
+      feeDetails = {
+        commission: priceWithFees * platformFeePercent,
+        fixedFee: mlShipping + (priceWithFees < 79 ? 6 : 0),
+        shippingSubsidy: 0
       };
     }
   } else {
@@ -191,4 +215,15 @@ export const calculateProjectBreakdown = (
     basePieceValue,
     platformFeeDetails: feeDetails
   };
+};
+
+export const getMLRange = (price: number): string => {
+  if (price <= 18.99) return 'R$ 0 a R$ 18,99';
+  if (price <= 48.99) return 'R$ 19 a R$ 48,99';
+  if (price <= 78.99) return 'R$ 49 a R$ 78,99';
+  if (price <= 99.99) return 'R$ 79 a R$ 99,99';
+  if (price <= 119.99) return 'R$ 100 a R$ 119,99';
+  if (price <= 149.99) return 'R$ 120 a R$ 149,99';
+  if (price <= 199.99) return 'R$ 150 a R$ 199,99';
+  return 'A partir de R$ 200';
 };
