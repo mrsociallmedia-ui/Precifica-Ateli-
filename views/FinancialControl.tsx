@@ -31,6 +31,8 @@ import {
   ArrowDownUp,
   BarChart3,
   Scale,
+  Users,
+  FileText,
   History as HistoryIcon
 } from 'lucide-react';
 import { Transaction, Project, Material, Platform, CompanyData, CashClosure, Customer } from '../types';
@@ -145,15 +147,48 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     const paidTransactions = openTransactions.filter(t => t.status !== 'pending');
     const pendingTransactions = openTransactions.filter(t => t.status === 'pending');
 
-    const income = paidTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const expense = paidTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    const income = paidTransactions.filter(t => t.type === 'income' && !t.isExchange).reduce((acc, t) => acc + t.amount, 0);
+    const expense = paidTransactions.filter(t => t.type === 'expense' && !t.isExchange).reduce((acc, t) => acc + t.amount, 0);
     
-    const pendingIncome = pendingTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const pendingExpense = pendingTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    const pendingIncomeOnly = pendingTransactions.filter(t => t.type === 'income');
+    const pendingExpenseOnly = pendingTransactions.filter(t => t.type === 'expense');
 
-    // Calculate total receivables from projects
+    // Calculate dynamic barter offsets for Contas a Pagar and Receber
+    // Step 1: Base Barter Balance for each customer (PAID only)
+    const customerBarterCredits: Record<string, number> = {};
+    transactions.filter(t => t.isExchange && t.customerId && t.status === 'paid').forEach(t => {
+      if (!customerBarterCredits[t.customerId!]) customerBarterCredits[t.customerId!] = 0;
+      customerBarterCredits[t.customerId!] += (t.type === 'income' ? t.amount : -t.amount);
+    });
+
+    // Clone credits to use for offsets
+    const creditsForExpenses = { ...customerBarterCredits };
+    const debitsForIncome = { ...customerBarterCredits }; // Income is offset if balance is negative (artisanship debt)
+
+    // Calculate Effective Pending Expense (Contas a Pagar)
+    const effectivePendingExpense = pendingExpenseOnly.reduce((acc, t) => {
+      if (t.isExchange && t.customerId && creditsForExpenses[t.customerId] > 0) {
+        const offset = Math.min(t.amount, creditsForExpenses[t.customerId]);
+        creditsForExpenses[t.customerId] -= offset;
+        return acc + (t.amount - offset);
+      }
+      return acc + t.amount;
+    }, 0);
+
+    // Calculate Effective Pending Income (Receivables)
+    const effectivePendingIncome = pendingIncomeOnly.reduce((acc, t) => {
+      if (t.isExchange && t.customerId && debitsForIncome[t.customerId] < 0) {
+        const artisanDebt = Math.abs(debitsForIncome[t.customerId]);
+        const offset = Math.min(t.amount, artisanDebt);
+        debitsForIncome[t.customerId] += offset;
+        return acc + (t.amount - offset);
+      }
+      return acc + t.amount;
+    }, 0);
+
+    // Calculate total receivables from projects (excluding exchanges)
     const projectReceivables = projects.reduce((acc, p) => {
-      if (p.status === 'completed') return acc; // Completed projects are assumed paid or handled via transactions
+      if (p.status === 'completed' || p.isExchange) return acc;
       const breakdown = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
       return acc + breakdown.remainingBalance;
     }, 0);
@@ -162,13 +197,15 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       income, 
       expense, 
       balance: income - expense, 
-      receivables: projectReceivables + pendingIncome,
-      toPay: pendingExpense
+      receivables: projectReceivables + effectivePendingIncome,
+      toPay: effectivePendingExpense
     };
   }, [transactions, projects, materials, platforms, companyData]);
 
   const barterBalances = useMemo(() => {
     const balances: Record<string, number> = {};
+    
+    // Transactions
     transactions.filter(t => t.isExchange && t.customerId).forEach(t => {
       if (!balances[t.customerId!]) balances[t.customerId!] = 0;
       if (t.type === 'income') {
@@ -177,12 +214,21 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
         balances[t.customerId!] -= t.amount;
       }
     });
+
+    // Projects (Exchanges)
+    projects.filter(p => p.isExchange && p.customerId).forEach(p => {
+      if (!balances[p.customerId]) balances[p.customerId] = 0;
+      const { finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
+      // A project is an expense for the barter pool (artisan giving work)
+      balances[p.customerId] -= finalPrice;
+    });
+
     return Object.entries(balances).map(([id, balance]) => ({
       customerId: id,
       customerName: customers.find(c => c.id === id)?.name || 'Desconhecido',
       balance
     })).filter(b => b.balance !== 0);
-  }, [transactions, customers]);
+  }, [transactions, projects, customers, materials, platforms, companyData]);
 
   // Cálculos de Fechamento de Caixa com Mão de Obra e Lucro Real
   const closureStats = useMemo(() => {
@@ -199,8 +245,8 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
         return t.date >= closureStartDate && t.date <= closureEndDate;
       }
     });
-    const income = filtered.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const expense = filtered.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    const income = filtered.filter(t => t.type === 'income' && !t.isExchange).reduce((acc, t) => acc + t.amount, 0);
+    const expense = filtered.filter(t => t.type === 'expense' && !t.isExchange).reduce((acc, t) => acc + t.amount, 0);
     
     let laborAccumulated = 0;
     let profitAccumulated = 0;
@@ -208,7 +254,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     const salesBreakdownList: Array<{ name: string, amount: number, labor: number, profit: number }> = [];
 
     filtered.forEach(t => {
-      if (t.type === 'income' && t.category === 'Venda') {
+      if (t.type === 'income' && t.category === 'Venda' && !t.isExchange) {
         totalSales += t.amount;
         // Tenta encontrar o projeto associado pelo ID da transação
         const parts = t.id.split('_');
@@ -271,7 +317,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     if (editingTransactionId) {
       const updatedTransactions = transactions.map(t => 
         t.id === editingTransactionId 
-          ? { ...t, ...newTransaction as Transaction } 
+          ? { ...t, ...newTransaction as Transaction, isExchange: newTransaction.category === 'Permuta' || newTransaction.isExchange } 
           : t
       );
       setTransactions(updatedTransactions);
@@ -286,7 +332,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
         paymentMethod: newTransaction.paymentMethod || 'Dinheiro',
         date: newTransaction.date || new Date().toISOString().split('T')[0],
         status: newTransaction.status as 'pending' | 'paid' || 'paid',
-        isExchange: newTransaction.isExchange || false,
+        isExchange: newTransaction.category === 'Permuta' || newTransaction.isExchange || false,
         customerId: newTransaction.customerId
       };
       setTransactions([transaction, ...transactions]);
@@ -506,6 +552,322 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     alert('Caixa reaberto com sucesso!');
   };
 
+  const handlePrintBarterReport = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const summaryContent = barterBalances.map(item => `
+      <tr>
+        <td>${item.customerName}</td>
+        <td class="${item.balance >= 0 ? 'text-green' : 'text-red'}" style="text-align: right">
+          R$ ${Math.abs(item.balance).toFixed(2)} ${item.balance >= 0 ? '(CRÉDITO)' : '(DÉBITO)'}
+        </td>
+      </tr>
+    `).join('');
+
+    const totalBalance = barterBalances.reduce((acc, item) => acc + item.balance, 0);
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Resumo Geral de Permutas - ${companyData.name}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+            body { font-family: 'Inter', sans-serif; padding: 40px; color: #1a202c; }
+            .header { border-bottom: 2px solid #edf2f7; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .title { font-size: 20px; font-weight: 900; margin: 0; text-transform: uppercase; color: #d53f8c; }
+            .subtitle { color: #718096; font-size: 11px; margin-top: 5px; font-weight: 700; text-transform: uppercase; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { text-align: left; font-size: 10px; color: #718096; text-transform: uppercase; padding: 12px; border-bottom: 2px solid #edf2f7; letter-spacing: 1px; }
+            td { padding: 12px; border-bottom: 1px solid #f7fafc; font-size: 12px; color: #2d3748; }
+            .text-green { color: #38a169; font-weight: bold; }
+            .text-red { color: #e53e3e; font-weight: bold; }
+            .footer { margin-top: 60px; display: flex; justify-content: flex-end; }
+            .total-box { background: #f7fafc; padding: 20px 30px; border-radius: 16px; border: 1px solid #edf2f7; display: inline-block; }
+            .total-label { font-size: 10px; font-weight: 900; color: #a0aec0; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+            .total-value { font-size: 20px; font-weight: 900; color: #2d3748; }
+            @media print { 
+              body { padding: 0; }
+              .header { border-bottom-color: #333; }
+              .total-box { border-color: #333; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1 class="title">Resumo Geral de Saldos de Permuta</h1>
+              <div class="subtitle">${companyData.name}</div>
+            </div>
+            <div class="subtitle">Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>CLIENTE</th>
+                <th style="text-align: right">SALDO ATUAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${summaryContent || '<tr><td colspan="2" style="text-align:center; padding: 40px; color: #a0aec0; font-weight: bold;">Nenhum saldo de permuta registrado.</td></tr>'}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <div class="total-box">
+              <div class="total-label">SALDO LÍQUIDO GERAL (RESERVA DE CRÉDITO)</div>
+              <div class="total-value ${totalBalance >= 0 ? 'text-green' : 'text-red'}">
+                R$ ${Math.abs(totalBalance).toFixed(2)} ${totalBalance >= 0 ? '(FAVORÁVEL)' : '(DEVEDOR)'}
+              </div>
+            </div>
+          </div>
+
+          <script>
+            window.onload = () => { setTimeout(() => { window.print(); }, 500); };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handleDetailedBarterReport = (targetCustomerId?: string, isCreditReport: boolean = false) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const barterCustomers = targetCustomerId ? [targetCustomerId] : barterBalances.map(b => b.customerId);
+    
+    if (barterCustomers.length === 0) {
+      alert('Selecione um cliente com movimentação de permuta.');
+      return;
+    }
+    
+    const content = barterCustomers.map(customerId => {
+      const customer = customers.find(c => c.id === customerId);
+      const customerName = customer?.name || 'Desconhecido';
+      
+      const customerPaidTransactions = transactions.filter(t => t.isExchange && t.customerId === customerId && t.status === 'paid');
+      const customerPendingTransactions = transactions.filter(t => t.isExchange && t.customerId === customerId && t.status === 'pending');
+      
+      const customerProjects = projects.filter(p => p.isExchange && p.customerId === customerId);
+      const customerCompletedProjects = customerProjects.filter(p => p.status === 'completed');
+      const customerPendingProjects = customerProjects.filter(p => p.status !== 'completed');
+
+      // Totals
+      const totalBarterIncome = customerPaidTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+      
+      const totalBarterUtilizedTransactions = customerPaidTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+      const totalBarterUtilizedProjects = customerProjects.reduce((sum, p) => {
+        const { finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
+        return sum + finalPrice;
+      }, 0);
+
+      const totalBarterUtilized = totalBarterUtilizedTransactions + totalBarterUtilizedProjects;
+      const currentBalance = totalBarterIncome - totalBarterUtilized;
+      
+      return `
+        <div class="report-page">
+          <div class="report-header">
+            <div class="company-info">
+              <div class="company-name">${companyData.name}</div>
+              <div class="company-details">
+                ${companyData.cnpj ? `<span>CNPJ: ${companyData.cnpj}</span><br>` : ''}
+                ${companyData.email ? `<span>Email: ${companyData.email}</span><br>` : ''}
+                ${companyData.phone ? `<span>Whats: ${companyData.phone}</span>` : ''}
+              </div>
+            </div>
+            <div class="report-meta">
+              <div class="report-title">${isCreditReport ? 'RELATÓRIO DE CRÉDITO COM ATELIÊ' : 'RELATÓRIO DE PERMUTA'}</div>
+              <div class="report-date">Emissão: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}</div>
+            </div>
+          </div>
+
+          <div class="customer-info-box">
+            <div class="info-label">DADOS DO CLIENTE / PARCEIRO</div>
+            <div class="info-content">
+              <strong>${customerName}</strong><br>
+              ${customer?.phone ? `Telefone: ${customer.phone}<br>` : ''}
+              ${customer?.address ? `Endereço: ${customer.address}${customer.neighborhood ? `, ${customer.neighborhood}` : ''}<br>` : ''}
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">VALOR TOTAL DE CRÉDITO (CADASTRADO)</div>
+              <div class="stat-value">R$ ${totalBarterIncome.toFixed(2)}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">VALOR TOTAL UTILIZADO (ABATIDO)</div>
+              <div class="stat-value text-red">R$ ${totalBarterUtilized.toFixed(2)}</div>
+            </div>
+            <div class="stat-card highlight">
+              <div class="stat-label text-white/60">SALDO REMANESCENTE DISPONÍVEL</div>
+              <div class="stat-value ${currentBalance >= 0 ? 'text-green' : 'text-danger'}">
+                 R$ ${Math.abs(currentBalance).toFixed(2)} 
+                 <small style="font-size: 10px">${currentBalance >= 0 ? '(SALDO EM CRÉDITO)' : '(DÉBITO COM ATELIÊ)'}</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">ITENS QUE JÁ TIVERAM BAIXA (ABATIDOS)</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>DATA</th>
+                  <th>MOVIMENTAÇÃO / PRODUTO</th>
+                  <th style="text-align: right">VALOR</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${[
+                  ...customerPaidTransactions.filter(t => t.type === 'expense').map(t => ({
+                    date: t.date,
+                    desc: t.description,
+                    amount: t.amount
+                  })),
+                  ...customerCompletedProjects.map(p => ({
+                    date: p.deliveryDate || p.createdAt,
+                    desc: `[PEDIDO] ${p.theme}`,
+                    amount: calculateProjectBreakdown(p, materials, platforms, companyData, transactions).finalPrice
+                  }))
+                ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(item => `
+                  <tr>
+                    <td>${new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                    <td>${item.desc}</td>
+                    <td class="text-red" style="text-align: right">R$ ${item.amount.toFixed(2)}</td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" style="text-align:center; padding: 20px; color: #a0aec0;">Nenhum item abatido até o momento.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section">
+            <div class="section-title">DETALHAMENTO DE ENTRADAS (CRÉDITOS)</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>DATA</th>
+                  <th>DESCRIÇÃO DA ENTRADA</th>
+                  <th style="text-align: right">VALOR</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${customerPaidTransactions.filter(t => t.type === 'income').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t => `
+                  <tr>
+                    <td>${new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                    <td>${t.description}</td>
+                    <td class="text-green" style="text-align: right">R$ ${t.amount.toFixed(2)}</td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" style="text-align:center; padding: 20px; color: #a0aec0;">Nenhuma entrada de crédito registrada.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+
+          ${!isCreditReport ? `
+          <div class="section">
+            <div class="section-title">LANÇAMENTOS PENDENTES (CRONOGRAMA E FINANCEIRO)</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>PREVISÃO</th>
+                  <th>DESCRIÇÃO / ITEM</th>
+                  <th style="text-align: right">VALOR</th>
+                  <th style="text-align: right">SITUAÇÃO</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${[
+                  ...customerPendingTransactions.map(t => ({
+                    date: t.date,
+                    desc: t.description,
+                    amount: t.amount,
+                    status: t.type === 'income' ? 'Aguardando Crédito' : 'Aguardando Baixa'
+                  })),
+                  ...customerPendingProjects.map(p => ({
+                    date: p.deliveryDate || p.dueDate,
+                    desc: `[PEDIDO] ${p.theme}`,
+                    amount: calculateProjectBreakdown(p, materials, platforms, companyData, transactions).finalPrice,
+                    status: 'Aguardando Entrega'
+                  }))
+                ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(item => `
+                  <tr>
+                    <td>${new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                    <td>${item.desc}</td>
+                    <td style="text-align: right">R$ ${item.amount.toFixed(2)}</td>
+                    <td style="text-align: right">${item.status}</td>
+                  </tr>
+                `).join('') || '<tr><td colspan="4" style="text-align:center; padding: 20px; color: #a0aec0;">Nenhum lançamento pendente.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+          ` : ''}
+          
+          <div class="footer-note">
+            Este relatório consolida todas as trocas e serviços realizados sob regime de permuta com ${customerName}.<br>
+            <strong>Saldo disponível para novos abatimentos: R$ ${currentBalance >= 0 ? currentBalance.toFixed(2) : '0.00'}</strong>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Extrato de Permuta Detalhado</title>
+          <meta charset="utf-8">
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+            body { font-family: 'Inter', -apple-system, sans-serif; padding: 0; margin: 0; color: #1a202c; background: #fff; line-height: 1.5; }
+            .report-page { padding: 40px; page-break-after: always; position: relative; }
+            .report-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #edf2f7; padding-bottom: 20px; margin-bottom: 20px; }
+            .company-name { font-size: 20px; font-weight: 900; color: #2d3748; text-transform: uppercase; }
+            .company-details { font-size: 10px; color: #718096; line-height: 1.4; margin-top: 4px; }
+            .report-meta { text-align: right; }
+            .report-title { font-size: 14px; font-weight: 900; color: #d53f8c; letter-spacing: 1px; }
+            .report-date { font-size: 9px; color: #a0aec0; margin-top: 4px; }
+            
+            .customer-info-box { background: #f7fafc; border: 1px solid #edf2f7; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+            .info-label { font-size: 9px; font-weight: 900; color: #a0aec0; letter-spacing: 1px; margin-bottom: 6px; }
+            .info-content { font-size: 11px; }
+            
+            .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
+            .stat-card { background: #fff; border: 1px solid #edf2f7; padding: 15px; border-radius: 12px; }
+            .stat-card.highlight { background: #1a202c; color: #fff; border: none; }
+            .stat-label { font-size: 8px; font-weight: 900; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 6px; text-transform: uppercase; }
+            .text-white/60 { color: rgba(255,255,255,0.6); }
+            .stat-value { font-size: 16px; font-weight: 900; }
+            .text-green { color: #38a169; }
+            .text-red { color: #e53e3e; }
+            .text-danger { color: #feb2b2; }
+            
+            .section { margin-bottom: 30px; }
+            .section-title { font-size: 10px; font-weight: 900; color: #4a5568; background: #edf2f7; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; text-transform: uppercase; }
+            
+            table { width: 100%; border-collapse: collapse; }
+            th { text-align: left; font-size: 9px; font-weight: 700; color: #718096; padding: 8px 12px; border-bottom: 2px solid #edf2f7; text-transform: uppercase; }
+            td { padding: 10px 12px; border-bottom: 1px solid #f7fafc; font-size: 11px; }
+            
+            .footer-note { font-size: 10px; color: #4a5568; text-align: center; margin-top: 40px; padding: 20px; border-top: 1px dashed #edf2f7; line-height: 1.8; }
+            
+            @media print {
+              .report-page { padding: 30px; }
+              body { -webkit-print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          ${content}
+          <script>
+            window.onload = () => { setTimeout(() => { window.print(); }, 500); };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // Fixed missing deleteTransaction function
   const deleteTransaction = (id: string) => {
     if (confirm('Deseja excluir este lançamento?')) {
@@ -513,18 +875,47 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     }
   };
 
-  const filteredTransactions = transactions
-    .filter(t => !t.closed) // Only show open transactions in the main list
-    .filter(t => {
-      if (activeTab === 'history') return t.status !== 'pending';
-      if (t.status !== 'pending') return false;
-      if (pendingSubFilter === 'all') return true;
-      return t.type === pendingSubFilter;
-    })
-    .filter(t => 
-      t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.category.toLowerCase().includes(searchTerm.toLowerCase())
-    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const filteredTransactions = useMemo(() => {
+    // Shared credits for calculating effective values in the list
+    const customerBarterCredits: Record<string, number> = {};
+    transactions.filter(t => t.isExchange && t.customerId && t.status === 'paid').forEach(t => {
+      if (!customerBarterCredits[t.customerId!]) customerBarterCredits[t.customerId!] = 0;
+      customerBarterCredits[t.customerId!] += (t.type === 'income' ? t.amount : -t.amount);
+    });
+
+    const activeCreditsForCalc = { ...customerBarterCredits };
+
+    return transactions
+      .filter(t => !t.closed)
+      .filter(t => {
+        if (activeTab === 'history') return t.status !== 'pending';
+        if (t.status !== 'pending') return false;
+        if (pendingSubFilter === 'all') return true;
+        return t.type === pendingSubFilter;
+      })
+      .filter(t => 
+        t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.category.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .map(t => {
+        // Calculate effective amount for display if pending and barter
+        let effectiveAmount = t.amount;
+        if (t.status === 'pending' && t.isExchange && t.customerId) {
+          const balance = activeCreditsForCalc[t.customerId] || 0;
+          if (t.type === 'expense' && balance > 0) {
+            const offset = Math.min(t.amount, balance);
+            effectiveAmount = t.amount - offset;
+            activeCreditsForCalc[t.customerId] -= offset;
+          } else if (t.type === 'income' && balance < 0) {
+            const offset = Math.min(t.amount, Math.abs(balance));
+            effectiveAmount = t.amount - offset;
+            activeCreditsForCalc[t.customerId] += offset;
+          }
+        }
+        return { ...t, effectiveAmount };
+      });
+  }, [transactions, activeTab, pendingSubFilter, searchTerm]);
 
   return (
     <div className="space-y-10 animate-fadeIn pb-24">
@@ -637,19 +1028,32 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       {/* SALDOS DE PERMUTA POR CLIENTE */}
       {barterBalances.length > 0 && (
         <div className="bg-pink-50 p-8 rounded-[2.5rem] border border-pink-100 animate-fadeIn">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-pink-500 text-white rounded-2xl shadow-lg">
-              <RefreshCw size={24} />
-            </div>
-            <div>
-              <h3 className="text-xl font-black text-pink-600 tracking-tight">Saldos de Permuta</h3>
-              <p className="text-[10px] text-pink-400 font-bold uppercase tracking-widest">Controle de créditos e trocas por cliente</p>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-pink-500 text-white rounded-2xl shadow-lg">
+                <RefreshCw size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-pink-600 tracking-tight">Saldos de Permuta</h3>
+                <p className="text-[10px] text-pink-400 font-bold uppercase tracking-widest">Controle de créditos e trocas por cliente</p>
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {barterBalances.map(item => (
-              <div key={item.customerId} className="bg-white p-6 rounded-2xl border border-pink-50 shadow-sm flex flex-col gap-2 group hover:shadow-md transition-all">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest truncate">{item.customerName}</p>
+              <div key={item.customerId} className="bg-white p-6 rounded-2xl border border-pink-50 shadow-sm flex flex-col gap-2 group hover:shadow-md transition-all relative">
+                <div className="flex justify-between items-start">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest truncate">{item.customerName}</p>
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => handleDetailedBarterReport(item.customerId, true)}
+                      className="p-1.5 bg-blue-50 text-blue-500 hover:bg-blue-100 rounded-lg transition-colors"
+                      title="Relatório de Crédito"
+                    >
+                      <FileText size={12} />
+                    </button>
+                  </div>
+                </div>
                 <div className="flex items-end justify-between">
                   <p className={`text-2xl font-black ${item.balance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                     R$ {Math.abs(item.balance).toFixed(2)}
@@ -710,7 +1114,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
               <div className="px-6 py-2 bg-purple-600 text-white rounded-xl shadow-lg shadow-purple-100 flex flex-col items-center justify-center">
                 <span className="text-[8px] font-black uppercase tracking-widest opacity-60">Total {pendingSubFilter === 'all' ? 'Pendente' : pendingSubFilter === 'expense' ? 'A Pagar' : 'A Receber'}</span>
                 <span className="text-sm font-black">
-                  R$ {filteredTransactions.reduce((acc, t) => acc + t.amount, 0).toFixed(2)}
+                  R$ {filteredTransactions.reduce((acc, t) => acc + (t as any).effectiveAmount, 0).toFixed(2)}
                 </span>
               </div>
             </div>
@@ -773,7 +1177,17 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                   </td>
                   <td className="px-8 py-5 font-bold text-gray-500 text-xs">{t.paymentMethod}</td>
                   <td className={`px-8 py-5 text-right font-black ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                    {t.type === 'income' ? '+' : '-'} R$ {t.amount.toFixed(2)}
+                    <div className="flex flex-col items-end">
+                      <span>{t.type === 'income' ? '+' : '-'} R$ {(t as any).effectiveAmount.toFixed(2)}</span>
+                      {(t as any).effectiveAmount !== t.amount && (
+                        <span className="text-[9px] text-gray-400 line-through opacity-60">
+                          R$ {t.amount.toFixed(2)}
+                        </span>
+                      )}
+                      {(t as any).effectiveAmount === 0 && t.status === 'pending' && t.isExchange && (
+                        <span className="text-[8px] bg-green-100 text-green-600 px-1 rounded uppercase">Abatido por permuta</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-8 py-5 text-right">
                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1137,7 +1551,14 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Categoria</label>
-                    <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700" value={newTransaction.category} onChange={e => setNewTransaction({...newTransaction, category: e.target.value})}>
+                    <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700" value={newTransaction.category} onChange={e => {
+                      const category = e.target.value;
+                      setNewTransaction({
+                        ...newTransaction, 
+                        category,
+                        isExchange: category === 'Permuta' ? true : newTransaction.isExchange
+                      });
+                    }}>
                        {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                   </div>
