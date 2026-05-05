@@ -14,8 +14,8 @@ const normalizeUrl = (url: string) => {
   return cleanUrl;
 };
 
-const SUPABASE_URL = normalizeUrl(import.meta.env.VITE_SUPABASE_URL || '');
-const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+const SUPABASE_URL = normalizeUrl(import.meta.env.VITE_SUPABASE_URL || 'https://scnjxuzapasdfgevegds.supabase.co');
+const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow').trim();
 
 // Mock do Supabase para fallback caso as chaves falhem ou para facilitar testes locais
 const createMockSupabase = () => {
