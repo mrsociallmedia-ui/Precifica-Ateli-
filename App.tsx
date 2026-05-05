@@ -53,6 +53,7 @@ const App: React.FC = () => {
   });
   const [publicCatalogEmail, setPublicCatalogEmail] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'local'>('synced');
+  const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
   
@@ -270,9 +271,11 @@ const App: React.FC = () => {
 
       if (error) throw error;
       setSyncStatus('synced');
-    } catch (err) {
+      setSyncErrorMessage(null);
+    } catch (err: any) {
       console.error("Supabase Push Error:", err);
       setSyncStatus('error');
+      setSyncErrorMessage(err.message || 'Erro desconhecido');
     }
   }, [saveLocalCache, companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser]);
 
@@ -394,13 +397,18 @@ const App: React.FC = () => {
               {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
             <button 
-              onClick={handleManualRefresh}
+              onClick={() => {
+                if (syncStatus === 'error' && syncErrorMessage) {
+                  alert(`Erro de Sincronização:\n${syncErrorMessage}\n\nVerifique se:\n1. Você executou o script SQL no Supabase.\n2. Suas chaves nas Configurações do App (Settings) estão corretas.\n3. A tabela 'user_data' foi criada.`);
+                }
+                handleManualRefresh();
+              }}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
               syncStatus === 'synced' ? 'bg-green-50 border-green-100 text-green-500 hover:bg-green-100' :
               syncStatus === 'syncing' ? 'bg-blue-50 border-blue-100 text-blue-500 animate-pulse' :
               syncStatus === 'local' ? 'bg-yellow-50 border-yellow-100 text-yellow-600 hover:bg-yellow-100' :
               'bg-red-50 border-red-100 text-red-500 hover:bg-red-200'
-            }`} title={syncStatus === 'error' ? 'Erro na sincronização. Verifique se criou a tabela no SQL do Supabase. Clique para tentar novamente.' : 'Clique para forçar sincronização'}>
+            }`} title={syncStatus === 'error' ? `Erro: ${syncErrorMessage}. Clique para ver detalhes.` : 'Clique para forçar sincronização'}>
               {syncStatus === 'synced' ? <CheckCircle2 size={12} /> : 
                syncStatus === 'syncing' ? <RefreshCw size={12} className="animate-spin" /> : 
                syncStatus === 'local' ? <CloudDownload size={12} /> :
