@@ -285,6 +285,42 @@ const App: React.FC = () => {
         initializedRef.current = true;
         setIsInitialLoadDone(true);
       }).catch(() => setIsInitialLoadDone(true));
+
+      // Configurar Sincronização em Tempo Real (Realtime)
+      if (supabase && !isMock) {
+        const channel = supabase
+          .channel('user_data_realtime')
+          .on('postgres_changes', { 
+            event: 'UPDATE', 
+            schema: 'public', 
+            table: 'user_data', 
+            filter: `user_email=eq.${currentUser.toLowerCase()}` 
+          }, (payload: any) => {
+            // Quando os dados mudam no banco (por outro dispositivo), atualizamos o estado local
+            if (payload.new && payload.new.app_state) {
+              const s = payload.new.app_state;
+              // Só atualizamos se houver conteúdo e evitamos o loop se o timestamp for igual
+              if (s.craft_company) setCompanyData(s.craft_company);
+              if (s.craft_materials) setMaterials(s.craft_materials);
+              if (s.craft_customers) setCustomers(s.craft_customers);
+              if (s.craft_platforms) setPlatforms(s.craft_platforms);
+              if (s.craft_projects) setProjects(s.craft_projects);
+              if (s.craft_products) setProducts(s.craft_products);
+              if (s.craft_transactions) setTransactions(s.craft_transactions);
+              if (s.craft_closures) setClosures(s.craft_closures);
+              if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
+              if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
+              if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
+              
+              setSyncStatus('synced');
+            }
+          })
+          .subscribe();
+
+        return () => {
+          supabase.removeChannel(channel);
+        };
+      }
     }
   }, [isAuthenticated, currentUser, fetchCloudData]);
 

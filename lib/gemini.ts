@@ -12,16 +12,15 @@ export const generateContent = async (prompt: string, modelName: string = "gemin
     });
 
     if (!response.ok) {
-      const text = await response.text();
-      let errorMessage = `Erro ${response.status}: `;
-      try {
-        const errorData = JSON.parse(text);
-        errorMessage += errorData.error || response.statusText;
-      } catch (e) {
-        // Resposta não é JSON (provavelmente HTML de erro 404/500)
-        errorMessage += `O servidor retornou uma página inesperada. Isso pode acontecer se ele ainda estiver iniciando. Conteúdo parcial: ${text.substring(0, 100)}`;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      } else {
+        const text = await response.text();
+        console.error("Resposta não-JSON do servidor:", text);
+        throw new Error(`O servidor retornou um erro inesperado (${response.status}). Se o problema persistir, verifique a chave da API do Gemini.`);
       }
-      throw new Error(errorMessage);
     }
 
     const data = await response.json();

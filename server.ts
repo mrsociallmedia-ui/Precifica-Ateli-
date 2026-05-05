@@ -51,22 +51,23 @@ async function startServer() {
         return res.status(400).json({ error: "O prompt é obrigatório." });
       }
 
-      const genAI = new GoogleGenAI({ apiKey });
+      const genAI = new GoogleGenAI({ apiKey: apiKey.trim() });
       
-      // Forçamos a chamada em um bloco try-catch interno para capturar erros específicos do SDK
-      let aiResponse;
+      let text = "";
       try {
-        aiResponse = await (genAI as any).models.generateContent({
+        const response = await genAI.models.generateContent({
           model: modelName,
-          contents: [{ role: 'user', parts: [{ text: prompt }] }]
+          contents: prompt
         });
+        text = response.text || "";
       } catch (sdkError: any) {
         console.error("SDK Call Error:", sdkError);
-        return res.status(502).json({ error: `Erro na API do Gemini: ${sdkError.message}` });
+        let errorMessage = sdkError.message || "Erro desconhecido na API do Gemini";
+        if (errorMessage.includes("API key not valid") || errorMessage.includes("API_KEY_INVALID")) {
+          errorMessage = "A chave de API do Gemini é inválida. Por favor, verifique se você inseriu a chave correta nas configurações (ícone de engrenagem).";
+        }
+        return res.status(502).json({ error: errorMessage });
       }
-      
-      const text = aiResponse.text || aiResponse.response?.text?.() || 
-                   (typeof aiResponse === 'string' ? aiResponse : JSON.stringify(aiResponse));
       
       res.json({ text });
     } catch (error: any) {
