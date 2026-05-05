@@ -399,24 +399,26 @@ const App: React.FC = () => {
             <button 
               onClick={() => {
                 if (syncStatus === 'error' && syncErrorMessage) {
-                  alert(`Erro de Sincronização:\n${syncErrorMessage}\n\nVerifique se:\n1. Você executou o script SQL no Supabase.\n2. Suas chaves nas Configurações do App (Settings) estão corretas.\n3. A tabela 'user_data' foi criada.`);
+                  alert(`Erro de Sincronização:\n${syncErrorMessage}\n\nVerifique se:\n1. Você criou a tabela 'user_data' no SQL Editor do Supabase.\n2. Suas chaves nas Configurações (Settings) começam com 'ey' (Anon Key).\n3. O URL termina em '.supabase.co'.`);
+                } else if (syncStatus === 'local') {
+                  alert(`O aplicativo está em "Modo Local".\n\nIsso acontece porque as chaves do Supabase não foram configuradas ou são inválidas.\n\nPara resolver:\n1. Vá nas Configurações do seu App no AI Studio.\n2. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.`);
                 }
                 handleManualRefresh();
               }}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
               syncStatus === 'synced' ? 'bg-green-50 border-green-100 text-green-500 hover:bg-green-100' :
               syncStatus === 'syncing' ? 'bg-blue-50 border-blue-100 text-blue-500 animate-pulse' :
-              syncStatus === 'local' ? 'bg-yellow-50 border-yellow-100 text-yellow-600 hover:bg-yellow-100' :
-              'bg-red-50 border-red-100 text-red-500 hover:bg-red-200'
-            }`} title={syncStatus === 'error' ? `Erro: ${syncErrorMessage}. Clique para ver detalhes.` : 'Clique para forçar sincronização'}>
+              syncStatus === 'local' ? 'bg-yellow-50 border-yellow-100 text-yellow-600 hover:bg-yellow-100 shadow-sm shadow-yellow-200' :
+              'bg-red-50 border-red-100 text-red-500 hover:bg-red-200 shadow-sm'
+            }`} title={syncStatus === 'error' ? `Erro: ${syncErrorMessage}. Clique para ver detalhes.` : syncStatus === 'local' ? 'Clique para saber por que está em Modo Local' : 'Clique para forçar sincronização'}>
               {syncStatus === 'synced' ? <CheckCircle2 size={12} /> : 
                syncStatus === 'syncing' ? <RefreshCw size={12} className="animate-spin" /> : 
-               syncStatus === 'local' ? <CloudDownload size={12} /> :
+               syncStatus === 'local' ? <AlertCircle size={12} /> :
                <AlertCircle size={12} />}
               <span className="hidden sm:inline">
                 {syncStatus === 'synced' ? 'Sincronizado' : 
                  syncStatus === 'syncing' ? 'Sincronizando...' : 
-                 syncStatus === 'local' ? 'Modo Local' : 'Erro Nuvem — Tentar'}
+                 syncStatus === 'local' ? 'Modo Local — Resolver' : 'Erro Nuvem — Tentar'}
               </span>
             </button>
           </div>

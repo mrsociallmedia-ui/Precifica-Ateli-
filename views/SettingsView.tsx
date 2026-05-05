@@ -60,7 +60,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
   const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
   const isUrlSuspicious = supabaseUrl && !supabaseUrl.includes('supabase.co');
-  const isKeySuspicious = supabaseKey && (supabaseKey.startsWith('sb_') || supabaseKey.length < 50);
+  const isKeySuspicious = supabaseKey && (supabaseKey.startsWith('sb_') || (supabaseKey.length > 0 && !supabaseKey.startsWith('ey')));
 
   useEffect(() => {
     const totalMonthlyCosts = (Number(companyData.desiredSalary) || 0) + 

@@ -66,20 +66,26 @@ const createMockSupabase = () => {
 export let isMock = false;
 let supabaseInstance: any;
 
+console.log("Detectando configurações do Supabase...");
+console.log("URL configurada:", SUPABASE_URL ? "Sim" : "Não");
+console.log("Chave configurada:", SUPABASE_KEY ? "Sim" : "Não");
+if (SUPABASE_KEY && !SUPABASE_KEY.startsWith('ey')) {
+  console.warn("AVISO: A chave ANON_KEY do Supabase deve começar com 'ey'. A chave atual começa com:", SUPABASE_KEY.substring(0, 5));
+}
+
 try {
+  // Se houver uma URL válida e uma chave, tentamos o cliente real
   if (SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.includes('.supabase.co')) {
     supabaseInstance = createClient(SUPABASE_URL, SUPABASE_KEY);
     isMock = false;
-    console.log("Supabase Client inicializado com sucesso.");
+    console.log("Supabase Client: Usando conexão real com a nuvem.");
   } else {
-    if (SUPABASE_URL || SUPABASE_KEY) {
-      console.warn("Credenciais do Supabase inválidas ou incompletas. Usando modo local (Mock).");
-    }
+    console.warn("Supabase Client: Usando modo local (Mock) por falta de chaves válidas.");
     supabaseInstance = createMockSupabase();
     isMock = true;
   }
 } catch (e) {
-  console.error("Erro ao inicializar Supabase Client:", e);
+  console.error("Erro crítico ao inicializar Supabase Client:", e);
   supabaseInstance = createMockSupabase();
   isMock = true;
 }
