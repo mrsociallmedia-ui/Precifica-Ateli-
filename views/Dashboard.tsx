@@ -32,6 +32,7 @@ import {
   RefreshCw,
   Layout
 } from 'lucide-react';
+import { generateContent } from '../lib/gemini';
 import { Project, Customer, Material, CompanyData, Platform, Transaction, Product, MonthlyGoal } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -119,23 +120,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
   const generateAIContent = async () => {
     setIsGeneratingAI(true);
     try {
-      const response = await fetch('/api/generate-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: "gemini-1.5-flash",
-          prompt: `Como uma especialista em marketing para artesãs de papelaria personalizada e topos de bolo, gere um calendário de conteúdo para o Instagram para este mês. 
+      const prompt = `Como uma especialista em marketing para artesãs de papelaria personalizada e topos de bolo, gere um calendário de conteúdo para o Instagram para este mês. 
           Minhas metas são: ${instagramPostsInput} Posts, ${instagramReelsInput} Reels e ${instagramStoriesInput} Stories por dia.
           O nome do meu ateliê é ${companyData.name}.
           Gere ideias criativas de temas para posts, reels e stories que ajudem a atrair clientes e converter vendas.
-          Formate como uma lista curta e inspiradora.`
-        })
-      });
+          Formate como uma lista curta e inspiradora.`;
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao gerar conteúdo');
-
-      setAiContent(data.text || 'Não foi possível gerar conteúdo no momento.');
+      const text = await generateContent(prompt, 'gemini-3-flash-preview');
+      setAiContent(text || 'Não foi possível gerar conteúdo no momento.');
     } catch (error: any) {
       console.error('Erro ao gerar conteúdo com IA:', error);
       alert('Erro ao conectar com a IA: ' + error.message);

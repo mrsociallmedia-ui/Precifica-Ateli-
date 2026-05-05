@@ -4,6 +4,7 @@ import {
   Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack, Repeat, FileText as FileIcon, Layers3, Share2, ExternalLink, QrCode, MessageSquare,
   ShoppingCart, ShoppingBag, Minus, RefreshCw, MessageCircle, Wand2, Eye, EyeOff
 } from 'lucide-react';
+import { generateContent } from '../lib/gemini';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -43,24 +44,16 @@ export const Products: React.FC<ProductsProps> = ({
 
     setIsGeneratingAIDescription(true);
     try {
-      const response = await fetch('/api/generate-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: "gemini-1.5-flash",
-          prompt: `Gere uma descrição curta, criativa e profissional para um produto artesanal de ateliê.
+      const prompt = `Gere uma descrição curta, criativa e profissional para um produto artesanal de ateliê.
         Nome do Produto: ${newProduct.name}
         Categoria: ${newProduct.category}
         A descrição deve ser atraente para clientes, destacando o cuidado artesanal e a exclusividade. 
-        Máximo de 3 parágrafos curtos. Use emojis se apropriado.`
-        })
-      });
+        Máximo de 3 parágrafos curtos. Use emojis se apropriado.`;
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao gerar conteúdo');
+      const text = await generateContent(prompt, 'gemini-3-flash-preview');
 
-      if (data.text) {
-        setNewProduct(prev => ({ ...prev, description: data.text }));
+      if (text) {
+        setNewProduct(prev => ({ ...prev, description: text }));
       }
     } catch (error: any) {
       console.error("Erro ao gerar descrição com IA:", error);

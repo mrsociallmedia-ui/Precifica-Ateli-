@@ -280,7 +280,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div className={`p-2 rounded-xl ${!aiStatus.configured ? 'bg-pink-500 text-white' : 'bg-purple-500 text-white'}`}>
                   <Sparkles size={16} />
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className={`text-[10px] font-black uppercase tracking-widest ${!aiStatus.configured ? 'text-pink-700' : 'text-purple-700'}`}>Inteligência Artificial</p>
                   <p className="text-xs font-bold text-gray-700">
                     {aiStatus.checking ? 'Verificando...' : (aiStatus.configured ? 'Pronta para uso' : 'Não configurada')}
@@ -289,8 +289,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {!aiStatus.configured && !aiStatus.checking && (
-                <div className="mt-2 text-[9px] text-pink-600 font-bold uppercase tracking-tighter bg-pink-50/50 p-3 rounded-xl border border-pink-100">
-                  ⚠️ Para usar IA, adicione GEMINI_API_KEY no painel Settings do AI Studio.
+                <div className="mt-4 space-y-3 bg-pink-50/50 p-4 rounded-2xl border border-pink-100">
+                  <p className="text-[10px] text-pink-700 font-black uppercase tracking-widest leading-tight">
+                    ⚠️ Erro de API Key Detectado
+                  </p>
+                  <p className="text-[11px] text-pink-600 font-medium leading-relaxed">
+                    Sua chave Gemini não foi encontrada ou é inválida. Siga estes passos:
+                  </p>
+                  <ol className="text-[10px] text-pink-600 font-bold space-y-1 list-decimal ml-4 uppercase tracking-tighter">
+                    <li>Acesse <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline decoration-pink-300">aistudio.google.com</a> e gere uma API Key</li>
+                    <li>Clique no ícone de engrenagem (Settings) aqui no menu lateral esquerdo do AI Studio</li>
+                    <li>Vá em "Secrets"</li>
+                    <li>Adicione uma nova chave com Name: <code className="bg-pink-100 px-1 rounded text-pink-800">GEMINI_API_KEY</code></li>
+                    <li>Cole o valor da chave (começa com AIza...) e salve</li>
+                  </ol>
                 </div>
               )}
             </div>
