@@ -650,6 +650,9 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                               <span className="text-[8px] font-black bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded uppercase tracking-widest">#{project.quoteNumber}</span>
                             )}
                             <p className="font-black text-gray-800 text-sm">{project.theme}</p>
+                            {project.isExchange && (
+                              <span className="px-2 py-0.5 bg-pink-100 text-pink-600 text-[8px] font-black uppercase rounded-md">Permuta</span>
+                            )}
                           </div>
                           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
                             Criado em {project.orderDate ? new Date(project.orderDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : new Date(project.createdAt).toLocaleDateString('pt-BR')}

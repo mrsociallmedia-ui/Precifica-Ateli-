@@ -15,15 +15,17 @@ import {
   CheckCircle2, 
   Clock,
   Edit3,
-  MessageCircle
+  MessageCircle,
+  RefreshCw
 } from 'lucide-react';
-import { Customer, Project, Material, Platform, CompanyData } from '../types';
+import { Customer, Project, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
 interface CustomersProps {
   customers: Customer[];
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
   projects: Project[];
+  transactions: Transaction[];
   materials: Material[];
   platforms: Platform[];
   companyData: CompanyData;
@@ -33,6 +35,7 @@ export const Customers: React.FC<CustomersProps> = ({
   customers, 
   setCustomers, 
   projects, 
+  transactions,
   materials, 
   platforms, 
   companyData 
@@ -127,25 +130,38 @@ export const Customers: React.FC<CustomersProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
         {customers.map(customer => {
           const orderCount = projects.filter(p => p.customerId === customer.id).length;
+          
+          const barterBalance = transactions
+            .filter(t => t.isExchange && t.customerId === customer.id)
+            .reduce((acc, t) => acc + (t.type === 'income' ? t.amount : -t.amount), 0);
+
           return (
             <div key={customer.id} className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-pink-50 group hover:shadow-xl transition-all flex flex-col">
               <div className="flex items-start justify-between mb-6">
                 <div className="w-12 h-12 md:w-14 md:h-14 bg-pink-50 rounded-2xl flex items-center justify-center text-pink-500 shadow-sm group-hover:bg-pink-500 group-hover:text-white transition-all">
                   <User size={24} className="md:w-7 md:h-7" />
                 </div>
-                <div className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => handleOpenEdit(customer)}
-                    className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"
-                  >
-                    <Edit3 size={18} className="md:w-5 md:h-5" />
-                  </button>
-                  <button 
-                    onClick={() => deleteCustomer(customer.id)}
-                    className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={18} className="md:w-5 md:h-5" />
-                  </button>
+                <div className="flex gap-2">
+                  {barterBalance !== 0 && (
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-[9px] uppercase tracking-widest ${barterBalance > 0 ? 'bg-green-50 border-green-100 text-green-600' : 'bg-red-50 border-red-100 text-red-500'}`}>
+                      <RefreshCw size={10} className={barterBalance > 0 ? 'animate-spin-slow' : ''} />
+                      {barterBalance > 0 ? `Crédito: R$ ${barterBalance.toFixed(2)}` : `Débito: R$ ${Math.abs(barterBalance).toFixed(2)}`}
+                    </div>
+                  )}
+                  <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => handleOpenEdit(customer)}
+                      className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all"
+                    >
+                      <Edit3 size={18} className="md:w-5 md:h-5" />
+                    </button>
+                    <button 
+                      onClick={() => deleteCustomer(customer.id)}
+                      className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={18} className="md:w-5 md:h-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
               

@@ -33,7 +33,7 @@ import {
   Scale,
   History as HistoryIcon
 } from 'lucide-react';
-import { Transaction, Project, Material, Platform, CompanyData, CashClosure } from '../types';
+import { Transaction, Project, Material, Platform, CompanyData, CashClosure, Customer } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
 interface FinancialControlProps {
@@ -42,6 +42,7 @@ interface FinancialControlProps {
   closures: CashClosure[];
   setClosures: React.Dispatch<React.SetStateAction<CashClosure[]>>;
   projects: Project[];
+  customers: Customer[];
   materials: Material[];
   platforms: Platform[];
   companyData: CompanyData;
@@ -52,7 +53,7 @@ interface FinancialControlProps {
 }
 
 export const FinancialControl: React.FC<FinancialControlProps> = ({ 
-  transactions, setTransactions, closures, setClosures, projects, materials, platforms, companyData, categories, setCategories, paymentMethods, setPaymentMethods
+  transactions, setTransactions, closures, setClosures, projects, customers, materials, platforms, companyData, categories, setCategories, paymentMethods, setPaymentMethods
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [showClosure, setShowClosure] = useState(false);
@@ -84,7 +85,8 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     category: 'Venda',
     paymentMethod: 'Pix',
     date: new Date().toISOString().split('T')[0],
-    status: 'paid'
+    status: 'paid',
+    customerId: ''
   });
 
   const handlePartialPayment = (t: Transaction) => {
@@ -164,6 +166,23 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       toPay: pendingExpense
     };
   }, [transactions, projects, materials, platforms, companyData]);
+
+  const barterBalances = useMemo(() => {
+    const balances: Record<string, number> = {};
+    transactions.filter(t => t.isExchange && t.customerId).forEach(t => {
+      if (!balances[t.customerId!]) balances[t.customerId!] = 0;
+      if (t.type === 'income') {
+        balances[t.customerId!] += t.amount;
+      } else {
+        balances[t.customerId!] -= t.amount;
+      }
+    });
+    return Object.entries(balances).map(([id, balance]) => ({
+      customerId: id,
+      customerName: customers.find(c => c.id === id)?.name || 'Desconhecido',
+      balance
+    })).filter(b => b.balance !== 0);
+  }, [transactions, customers]);
 
   // Cálculos de Fechamento de Caixa com Mão de Obra e Lucro Real
   const closureStats = useMemo(() => {
@@ -266,7 +285,9 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
         category: newTransaction.category || 'Geral',
         paymentMethod: newTransaction.paymentMethod || 'Dinheiro',
         date: newTransaction.date || new Date().toISOString().split('T')[0],
-        status: newTransaction.status as 'pending' | 'paid' || 'paid'
+        status: newTransaction.status as 'pending' | 'paid' || 'paid',
+        isExchange: newTransaction.isExchange || false,
+        customerId: newTransaction.customerId
       };
       setTransactions([transaction, ...transactions]);
     }
@@ -275,7 +296,8 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     setNewTransaction({ 
       description: '', amount: 0, type: 'income', category: 'Venda', paymentMethod: 'Pix', 
       date: new Date().toISOString().split('T')[0],
-      status: 'paid'
+      status: 'paid',
+      customerId: ''
     });
   };
 
@@ -612,6 +634,39 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
         </div>
       </div>
 
+      {/* SALDOS DE PERMUTA POR CLIENTE */}
+      {barterBalances.length > 0 && (
+        <div className="bg-pink-50 p-8 rounded-[2.5rem] border border-pink-100 animate-fadeIn">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-3 bg-pink-500 text-white rounded-2xl shadow-lg">
+              <RefreshCw size={24} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-pink-600 tracking-tight">Saldos de Permuta</h3>
+              <p className="text-[10px] text-pink-400 font-bold uppercase tracking-widest">Controle de créditos e trocas por cliente</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {barterBalances.map(item => (
+              <div key={item.customerId} className="bg-white p-6 rounded-2xl border border-pink-50 shadow-sm flex flex-col gap-2 group hover:shadow-md transition-all">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest truncate">{item.customerName}</p>
+                <div className="flex items-end justify-between">
+                  <p className={`text-2xl font-black ${item.balance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    R$ {Math.abs(item.balance).toFixed(2)}
+                  </p>
+                  <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${item.balance >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
+                    {item.balance >= 0 ? 'Crédito com Ateliê' : 'Devendo ao Ateliê'}
+                  </span>
+                </div>
+                <p className="text-[9px] text-gray-400 font-medium leading-tight mt-1 italic">
+                  {item.balance >= 0 ? 'Saldo a favor do cliente para futuras trocas.' : 'O ateliê utilizou mais serviços do que forneceu.'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* LISTA DE FLUXO DE CAIXA */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-8 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -695,8 +750,18 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-black text-gray-700 text-sm">{t.description}</p>
+                          {t.customerId && (
+                            <span className="px-2 py-0.5 bg-blue-50 text-blue-500 text-[8px] font-black uppercase rounded-md">
+                              {customers.find(c => c.id === t.customerId)?.name || 'Cliente'}
+                            </span>
+                          )}
                           {t.status === 'pending' && (
                             <span className="px-2 py-0.5 bg-purple-100 text-purple-600 text-[8px] font-black uppercase rounded-md">Pendente</span>
+                          )}
+                          {t.isExchange && (
+                            <span className="px-2 py-0.5 bg-pink-100 text-pink-600 text-[8px] font-black uppercase rounded-md flex items-center gap-1">
+                              <RefreshCw size={8} /> Permuta
+                            </span>
                           )}
                         </div>
                         <p className="text-[10px] text-gray-400 font-bold uppercase">{new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
@@ -1045,6 +1110,19 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                   <input type="text" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold" placeholder="Ex: Compra de Papéis, Venda Topo de Bolo..." value={newTransaction.description} onChange={e => setNewTransaction({...newTransaction, description: e.target.value})} />
                </div>
 
+               <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Vincular a Cliente {newTransaction.isExchange && <span className="text-pink-500">(Obrigatório na Permuta)</span>}</label>
+                  <select 
+                    required={newTransaction.isExchange}
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700" 
+                    value={newTransaction.customerId || ''} 
+                    onChange={e => setNewTransaction({...newTransaction, customerId: e.target.value})}
+                  >
+                     <option value="">Selecione um cliente...</option>
+                     {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+               </div>
+
                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Valor (R$)</label>
@@ -1071,25 +1149,40 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                   </div>
                </div>
 
-               <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Status do Pagamento</label>
-                  <div className="grid grid-cols-2 gap-4 bg-gray-50 p-2 rounded-2xl border border-gray-100">
-                    <button 
-                      type="button" 
-                      onClick={() => setNewTransaction({...newTransaction, status: 'paid'})} 
-                      className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newTransaction.status !== 'pending' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                      Pago / Recebido
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => setNewTransaction({...newTransaction, status: 'pending'})} 
-                      className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newTransaction.status === 'pending' ? 'bg-purple-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                      Pendente (Boleto/Conta)
-                    </button>
-                  </div>
-               </div>
+                <div className="space-y-4">
+                   <div className="space-y-1">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Status do Pagamento</label>
+                      <div className="grid grid-cols-2 gap-4 bg-gray-50 p-2 rounded-2xl border border-gray-100">
+                        <button 
+                          type="button" 
+                          onClick={() => setNewTransaction({...newTransaction, status: 'paid'})} 
+                          className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newTransaction.status !== 'pending' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                          Pago / Recebido
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setNewTransaction({...newTransaction, status: 'pending'})} 
+                          className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newTransaction.status === 'pending' ? 'bg-purple-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                          Pendente (Boleto/Conta)
+                        </button>
+                      </div>
+                   </div>
+
+                   <div className="flex items-center gap-3 px-2 py-3 bg-gray-50 rounded-2xl border border-gray-100">
+                      <input 
+                        type="checkbox" 
+                        id="isExchange"
+                        className="w-5 h-5 rounded border-gray-300 text-pink-500 focus:ring-pink-500 cursor-pointer"
+                        checked={newTransaction.isExchange || false}
+                        onChange={e => setNewTransaction({...newTransaction, isExchange: e.target.checked})}
+                      />
+                      <label htmlFor="isExchange" className="text-[10px] font-black text-gray-500 uppercase tracking-widest cursor-pointer flex-1">
+                        Esta movimentação é uma <span className="text-pink-500">Permuta / Troca</span>
+                      </label>
+                   </div>
+                </div>
 
                <div className="flex gap-4 pt-4">
                   <button type="button" onClick={() => { setShowForm(false); setEditingTransactionId(null); }} className="flex-1 px-6 py-4 border-2 border-gray-50 text-gray-400 rounded-2xl font-black uppercase tracking-widest hover:bg-gray-50 transition-all">Cancelar</button>

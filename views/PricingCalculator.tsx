@@ -316,6 +316,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       downPayment: currentProject.downPayment || 0,
       mlCommissionPercentage: currentProject.mlCommissionPercentage || 0,
       mlShippingCost: currentProject.mlShippingCost || 0,
+      isExchange: !!currentProject.isExchange,
       hoursToMake: currentProject.items!.reduce((acc, i) => acc + (i.hoursToMake * i.quantity), 0),
       materials: currentProject.items!.flatMap(i => i.materials),
       profitMargin: currentProject.items![0]?.profitMargin || 30,
@@ -335,7 +336,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         type: 'income',
         category: 'Venda',
         paymentMethod: 'Pix',
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        isExchange: !!newProj.isExchange,
+        customerId: newProj.customerId
       };
       setTransactions(prev => [signalTransaction, ...prev]);
     }
@@ -349,7 +352,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         type: 'income',
         category: 'Venda',
         paymentMethod: 'Pix',
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        isExchange: !!newProj.isExchange,
+        customerId: newProj.customerId
       };
       setTransactions(prev => [finalTransaction, ...prev]);
     }
@@ -743,6 +748,45 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                     </span>
                   </div>
                 )}
+                {platforms.find(p => p.id === currentProject.platformId)?.name.toLowerCase().includes('mercado livre') && (
+                  <div className="mt-4 p-6 bg-[#1e232e] rounded-3xl border border-slate-700/50 animate-fadeIn space-y-4">
+                     <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center p-1 shadow-sm">
+                           <img src="https://http2.mlstatic.com/frontend-assets/ui-navigation/5.18.9/mercadolibre/logo__small.png" alt="ML" className="w-full object-contain" />
+                        </div>
+                        <p className="text-xs font-black text-white uppercase tracking-widest">Configuração Mercado Livre</p>
+                     </div>
+                     
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Comissão (%)</label>
+                           <input 
+                              type="number" 
+                              className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl outline-none font-black text-white text-sm" 
+                              placeholder="0,00"
+                              value={currentProject.mlCommissionPercentage || ''}
+                              onChange={e => setCurrentProject({...currentProject, mlCommissionPercentage: parseFloat(e.target.value) || 0})}
+                           />
+                        </div>
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Frete Vendedor (R$)</label>
+                           <input 
+                              type="number" 
+                              className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl outline-none font-black text-white text-sm" 
+                              placeholder="0,00"
+                              value={currentProject.mlShippingCost || ''}
+                              onChange={e => setCurrentProject({...currentProject, mlShippingCost: parseFloat(e.target.value) || 0})}
+                           />
+                        </div>
+                     </div>
+                     
+                     <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+                        <p className="text-[11px] font-black text-blue-100 italic">
+                           Faixa de frete ML: <span className="text-blue-400 underline">{getMLRange(breakdown.finalPrice)}</span>
+                        </p>
+                     </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -780,6 +824,24 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                     ))}
                   </select>
               </div>
+            </div>
+
+            <div className="flex items-center gap-3 px-6 py-4 bg-gray-50 rounded-[2rem] border border-gray-100">
+                <input 
+                  type="checkbox" 
+                  id="projectIsExchange"
+                  className="w-5 h-5 rounded border-gray-300 text-pink-500 focus:ring-pink-500 cursor-pointer"
+                  checked={currentProject.isExchange || false}
+                  onChange={e => setCurrentProject({...currentProject, isExchange: e.target.checked})}
+                />
+                <label htmlFor="projectIsExchange" className="text-[10px] font-black text-gray-500 uppercase tracking-widest cursor-pointer flex-1">
+                  Este Pedido é uma <span className="text-pink-500 font-black">Permuta / Troca de Serviços</span>
+                </label>
+                {currentProject.isExchange && (
+                  <div className="px-3 py-1 bg-pink-100 text-pink-600 rounded-full text-[8px] font-black uppercase tracking-widest animate-pulse">
+                    Permuta Ativa
+                  </div>
+                )}
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-pink-50/30 p-6 rounded-[2rem] border border-pink-100/50">

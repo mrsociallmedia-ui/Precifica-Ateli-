@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3, ChevronDown, ChevronUp, MessageCircle, RefreshCw } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -29,6 +29,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
     theme: string;
     paymentMethod: string;
     date: string;
+    isExchange?: boolean;
   } | null>(null);
 
   const toggleMinimize = (projectId: string) => {
@@ -56,7 +57,8 @@ export const Schedule: React.FC<ScheduleProps> = ({
       maxAmount: breakdown.remainingBalance,
       theme: project.theme,
       paymentMethod: 'Pix',
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      isExchange: project.isExchange || false
     });
   };
 
@@ -70,7 +72,9 @@ export const Schedule: React.FC<ScheduleProps> = ({
       type: 'income',
       category: 'Venda',
       paymentMethod: paymentModal.paymentMethod,
-      date: paymentModal.date
+      date: paymentModal.date,
+      isExchange: !!paymentModal.isExchange,
+      customerId: projects.find(p => p.id === paymentModal.projectId)?.customerId
     };
 
     setTransactions(prev => [newTransaction, ...prev]);
@@ -124,7 +128,9 @@ export const Schedule: React.FC<ScheduleProps> = ({
           type: 'income',
           category: 'Venda',
           paymentMethod: 'Pix',
-          date: new Date().toISOString().split('T')[0]
+          date: new Date().toISOString().split('T')[0],
+          isExchange: !!projectToUpdate.isExchange,
+          customerId: projectToUpdate.customerId
         };
   
         setTransactions(prev => [newTransaction, ...prev]);
@@ -239,7 +245,14 @@ export const Schedule: React.FC<ScheduleProps> = ({
                       </button>
                     </div>
                     <h4 className="font-black text-gray-800 text-base mb-1 truncate">{project.theme}</h4>
-                    <p className="text-[10px] text-pink-500 font-black uppercase tracking-widest mb-2 truncate">{getCustomerName(project.customerId)}</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-[10px] text-pink-500 font-black uppercase tracking-widest truncate">{getCustomerName(project.customerId)}</p>
+                      {project.isExchange && (
+                        <span className="px-2 py-0.5 bg-pink-100 text-pink-600 text-[8px] font-black uppercase rounded-md flex items-center gap-1">
+                          <RefreshCw size={8} /> Permuta
+                        </span>
+                      )}
+                    </div>
                     
                     {!isMinimized && (
                       <>
@@ -455,6 +468,19 @@ export const Schedule: React.FC<ScheduleProps> = ({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-3 px-4 py-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <input 
+                  type="checkbox" 
+                  id="modalIsExchange"
+                  className="w-5 h-5 rounded border-gray-300 text-pink-500 focus:ring-pink-500 cursor-pointer"
+                  checked={paymentModal.isExchange || false}
+                  onChange={e => setPaymentModal({...paymentModal, isExchange: e.target.checked})}
+                />
+                <label htmlFor="modalIsExchange" className="text-[10px] font-black text-gray-500 uppercase tracking-widest cursor-pointer flex-1">
+                  Este recebimento é uma <span className="text-pink-500">Permuta / Troca</span>
+                </label>
               </div>
 
               <div className="space-y-2">

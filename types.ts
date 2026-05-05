@@ -109,6 +109,7 @@ export interface Project {
   cakeShape?: 'round' | 'square';
   cakeSize?: string;
   cakeFloors?: string; 
+  isExchange?: boolean;
   
   // Mercado Livre specific
   mlCommissionPercentage?: number;
@@ -151,6 +152,8 @@ export interface Transaction {
   date: string;
   closed?: boolean;
   status?: 'pending' | 'paid';
+  isExchange?: boolean;
+  customerId?: string;
 }
 
 export interface CashClosure {
