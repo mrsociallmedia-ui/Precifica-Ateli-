@@ -1,19 +1,21 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Credenciais do Supabase - Usando variáveis de ambiente para segurança
-let SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Normalização da URL (caso o usuário cole o endpoint REST completo)
-if (SUPABASE_URL && SUPABASE_URL.includes('.supabase.co')) {
-  try {
-    const url = new URL(SUPABASE_URL);
-    SUPABASE_URL = `${url.protocol}//${url.hostname}`;
-  } catch (e) {
-    console.error("Erro ao normalizar URL do Supabase:", e);
+// Normalização da URL (caso o usuário cole o endpoint REST completo ou com barras extras)
+const normalizeUrl = (url: string) => {
+  if (!url) return '';
+  let cleanUrl = url.trim();
+  // Remove sufixo REST comum e barras finais
+  cleanUrl = cleanUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
+  
+  if (cleanUrl && !cleanUrl.startsWith('http')) {
+    cleanUrl = `https://${cleanUrl}`;
   }
-}
+  return cleanUrl;
+};
+
+const SUPABASE_URL = normalizeUrl(import.meta.env.VITE_SUPABASE_URL || '');
+const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
 // Mock do Supabase para fallback caso as chaves falhem ou para facilitar testes locais
 const createMockSupabase = () => {
