@@ -26,13 +26,7 @@ import {
   AlertCircle,
   Users,
   Settings,
-  Info,
-  Database,
-  Code2,
-  Copy,
-  Terminal,
-  ChevronDown,
-  ChevronUp
+  Info
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 import { supabase } from '../supabaseClient';
@@ -61,46 +55,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showNewPass, setShowNewPass] = useState(false);
   const [isUpdatingPass, setIsUpdatingPass] = useState(false);
   const [passMessage, setPassMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
-  const [showSql, setShowSql] = useState(false);
-  const [copySuccess, setCopySuccess] = useState(false);
 
   // Verificação de chaves suspeitas
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
   const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
   const isUrlSuspicious = supabaseUrl && !supabaseUrl.includes('supabase.co');
   const isKeySuspicious = supabaseKey && (supabaseKey.startsWith('sb_') || supabaseKey.length < 50);
-
-  const sqlScript = `-- SCRIPT DE CONFIGURAÇÃO (SUPABASE)
--- Execute este script no SQL Editor do seu projeto Supabase
-
-CREATE TABLE IF NOT EXISTS public.user_data (
-    user_email TEXT PRIMARY KEY,
-    app_state JSONB DEFAULT '{}'::jsonb,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
-ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
-
--- Remove políticas se já existirem (Corrige erro 42710)
-DROP POLICY IF EXISTS "user_data_select_policy" ON public.user_data;
-DROP POLICY IF EXISTS "user_data_all_policy" ON public.user_data;
-
-CREATE POLICY "user_data_select_policy" ON public.user_data 
-FOR SELECT 
-USING (lower(auth.jwt() ->> 'email') = lower(user_email));
-
-CREATE POLICY "user_data_all_policy" ON public.user_data 
-FOR ALL 
-USING (lower(auth.jwt() ->> 'email') = lower(user_email))
-WITH CHECK (lower(auth.jwt() ->> 'email') = lower(user_email));
-
-CREATE INDEX IF NOT EXISTS idx_user_data_email_lower ON public.user_data (lower(user_email));`;
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(sqlScript);
-    setCopySuccess(true);
-    setTimeout(() => setCopySuccess(false), 2000);
-  };
 
   useEffect(() => {
     const totalMonthlyCosts = (Number(companyData.desiredSalary) || 0) + 
@@ -571,75 +531,6 @@ CREATE INDEX IF NOT EXISTS idx_user_data_email_lower ON public.user_data (lower(
                   {isUpdatingPass ? 'Processando...' : 'Redefinir Senha de Acesso'}
                 </button>
               </form>
-            </div>
-
-            {/* Configuração do Banco de Dados (Supabase) */}
-            <div className="bg-white border border-blue-50 rounded-[2.5rem] overflow-hidden shadow-sm">
-              <button 
-                onClick={() => setShowSql(!showSql)}
-                className="w-full p-8 flex items-center justify-between hover:bg-blue-50/30 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl">
-                    <Database size={20} />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="text-sm font-black text-gray-700 uppercase tracking-tight">Configuração do Banco de Dados</h4>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Script SQL para o Supabase</p>
-                  </div>
-                </div>
-                {showSql ? <ChevronUp className="text-gray-300" /> : <ChevronDown className="text-gray-300" />}
-              </button>
-
-              {showSql && (
-                <div className="p-8 pt-0 space-y-6 animate-fadeIn">
-                  <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-3">
-                    <Info size={18} className="text-blue-500 shrink-0" />
-                    <div className="space-y-2">
-                       <p className="text-[10px] font-black text-blue-700 uppercase tracking-tight">Como configurar:</p>
-                       <ol className="text-[10px] text-blue-600 font-bold uppercase tracking-widest list-decimal ml-4 space-y-1">
-                         <li>Abra seu projeto no Supabase.</li>
-                         <li>Vá em **Project Settings** → **API**.</li>
-                         <li>Copie a **Project URL** e coloque no campo VITE_SUPABASE_URL das configurações do App.</li>
-                         <li>Copie a **anon public API key** (começa com ey...) e coloque no campo VITE_SUPABASE_ANON_KEY.</li>
-                       </ol>
-                    </div>
-                  </div>
-
-                  {(isUrlSuspicious || isKeySuspicious) && (
-                    <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-3">
-                      <AlertCircle size={18} className="text-red-500 shrink-0" />
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-black text-red-700 uppercase tracking-tight">Atenção: Chaves Provavelmente Incorretas</p>
-                        <p className="text-[10px] text-red-600 font-medium leading-relaxed">
-                          {isUrlSuspicious && "A URL deve terminar em '.supabase.co'. "}
-                          {isKeySuspicious && "A Anon Key do Supabase é um código muito longo que começa com 'ey'. Chaves que começam com 'sb_' geralmente são de outros serviços."}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="bg-gray-900 rounded-[2rem] p-6 relative group">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <Terminal size={14} className="text-blue-400" />
-                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">SQL Editor</span>
-                      </div>
-                      <button 
-                        onClick={copyToClipboard}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${copySuccess ? 'bg-green-500 text-white shadow-green-200' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
-                      >
-                        {copySuccess ? <CheckCircle2 size={12} /> : <Copy size={12} />}
-                        {copySuccess ? 'Copiado!' : 'Copiar Script'}
-                      </button>
-                    </div>
-
-                    <div className="h-48 overflow-y-auto custom-scrollbar font-mono text-[10px] text-blue-400/80 leading-relaxed bg-black/30 p-4 rounded-xl border border-white/5">
-                      <pre className="whitespace-pre-wrap">{sqlScript}</pre>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
