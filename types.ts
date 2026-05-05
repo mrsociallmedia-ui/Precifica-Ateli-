@@ -157,6 +157,7 @@ export interface CashClosure {
   difference: number;
   laborAccumulated: number;
   profitAccumulated: number;
+  totalSales?: number;
   notes: string;
   closedAt: string;
 }

@@ -73,6 +73,10 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
   const [closureNotes, setClosureNotes] = useState('');
   const [realBalance, setRealBalance] = useState<number | ''>('');
   
+  const [showPartialModal, setShowPartialModal] = useState(false);
+  const [partialAmount, setPartialAmount] = useState<number | ''>('');
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+
   const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
     description: '',
     amount: 0,
@@ -82,6 +86,57 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     date: new Date().toISOString().split('T')[0],
     status: 'paid'
   });
+
+  const handlePartialPayment = (t: Transaction) => {
+    setSelectedTransaction(t);
+    setPartialAmount('');
+    setShowPartialModal(true);
+  };
+
+  const handlePartialPaymentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTransaction || !partialAmount || Number(partialAmount) <= 0) return;
+
+    const amount = Number(partialAmount);
+    if (amount > selectedTransaction.amount) {
+      alert('O valor do pagamento parcial não pode ser maior que o valor pendente.');
+      return;
+    }
+
+    const remainingAmount = selectedTransaction.amount - amount;
+
+    // Create the paid portion
+    const paidTransaction: Transaction = {
+      id: `partial_${Date.now()}_${selectedTransaction.id}`,
+      description: `${selectedTransaction.description} (Parcial)`,
+      amount: amount,
+      type: selectedTransaction.type,
+      category: selectedTransaction.category,
+      paymentMethod: selectedTransaction.paymentMethod,
+      date: new Date().toISOString().split('T')[0],
+      status: 'paid'
+    };
+
+    let updatedTransactions = [...transactions, paidTransaction];
+
+    if (remainingAmount > 0) {
+      // Update existing pending transaction with remaining amount
+      updatedTransactions = updatedTransactions.map(item =>
+        item.id === selectedTransaction.id ? { ...item, amount: remainingAmount } : item
+      );
+    } else {
+      // Mark as fully paid if remaining is 0
+      updatedTransactions = updatedTransactions.map(item =>
+        item.id === selectedTransaction.id ? { ...item, status: 'paid' } : item
+      );
+    }
+
+    setTransactions(updatedTransactions);
+    setShowPartialModal(false);
+    setSelectedTransaction(null);
+    setPartialAmount('');
+    alert('Pagamento parcial registrado com sucesso!');
+  };
 
   const totals = useMemo(() => {
     const openTransactions = transactions.filter(t => !t.closed);
@@ -130,10 +185,12 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     
     let laborAccumulated = 0;
     let profitAccumulated = 0;
+    let totalSales = 0;
     const salesBreakdownList: Array<{ name: string, amount: number, labor: number, profit: number }> = [];
 
     filtered.forEach(t => {
       if (t.type === 'income' && t.category === 'Venda') {
+        totalSales += t.amount;
         // Tenta encontrar o projeto associado pelo ID da transação
         const parts = t.id.split('_');
         const projectId = parts[parts.length - 1];
@@ -183,6 +240,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       count: filtered.length,
       laborAccumulated,
       profitAccumulated,
+      totalSales,
       salesBreakdownList
     };
   }, [transactions, closureType, closureDate, closureStartDate, closureEndDate, projects, materials, platforms, companyData]);
@@ -262,6 +320,10 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
           </div>
 
           <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Total de Vendas</div>
+              <div class="stat-value">R$ ${closureStats.totalSales.toFixed(2)}</div>
+            </div>
             <div class="stat-card">
               <div class="stat-label">Saldo do Período</div>
               <div class="stat-value">R$ ${closureStats.balance.toFixed(2)}</div>
@@ -353,6 +415,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       difference: Number(realBalance) - closureStats.balance,
       laborAccumulated: closureStats.laborAccumulated,
       profitAccumulated: closureStats.profitAccumulated,
+      totalSales: closureStats.totalSales,
       notes: closureNotes,
       closedAt: new Date().toISOString()
     };
@@ -650,19 +713,28 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                   <td className="px-8 py-5 text-right">
                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       {t.status === 'pending' && (
-                        <button 
-                          onClick={() => {
-                            if (confirm('Marcar este lançamento como PAGO?')) {
-                              setTransactions(prev => prev.map(item => 
-                                item.id === t.id ? { ...item, status: 'paid' } : item
-                              ));
-                            }
-                          }}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-sm"
-                          title="Marcar como Pago"
-                        >
-                          <CheckCircle2 size={12} /> PAGO
-                        </button>
+                        <>
+                          <button 
+                            onClick={() => {
+                              if (confirm('Marcar este lançamento como PAGO TOTAL?')) {
+                                setTransactions(prev => prev.map(item => 
+                                  item.id === t.id ? { ...item, status: 'paid' } : item
+                                ));
+                              }
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-sm"
+                            title="Marcar como Pago Total"
+                          >
+                            <CheckCircle2 size={12} /> PAGO
+                          </button>
+                          <button 
+                            onClick={() => handlePartialPayment(t)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-yellow-600 transition-all shadow-sm"
+                            title="Receber Parcial"
+                          >
+                            <PieChart size={12} /> PARCIAL
+                          </button>
+                        </>
                       )}
                       <button 
                         onClick={() => {
@@ -788,7 +860,11 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                     </div>
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center">
+                       <p className="text-[9px] font-black text-gray-400 uppercase">Total Vendas</p>
+                       <p className="text-xl font-black text-blue-600">R$ {closureStats.totalSales.toFixed(2)}</p>
+                    </div>
                     <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center">
                        <p className="text-[9px] font-black text-gray-400 uppercase">Movimentações</p>
                        <p className="text-xl font-black text-gray-800">{closureStats.count}</p>
@@ -1021,6 +1097,74 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                     {editingTransactionId ? 'Salvar Alterações' : 'Confirmar Lançamento'}
                   </button>
                </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL PAGAMENTO PARCIAL */}
+      {showPartialModal && selectedTransaction && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fadeIn">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-2 bg-yellow-500"></div>
+            <button 
+              onClick={() => { setShowPartialModal(false); setSelectedTransaction(null); }} 
+              className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors"
+            >
+              <X size={24} />
+            </button>
+            <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-yellow-50 text-yellow-500">
+                <PieChart size={24} />
+              </div>
+              Recebimento Parcial
+            </h3>
+            
+            <form onSubmit={handlePartialPaymentSubmit} className="space-y-6">
+              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Pendente Original</p>
+                <div className="flex justify-between items-end">
+                  <p className="text-xl font-black text-gray-800">{selectedTransaction.description}</p>
+                  <p className="text-xl font-black text-red-500">R$ {selectedTransaction.amount.toFixed(2)}</p>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Valor Recebido Agora (R$)</label>
+                <div className="relative">
+                  <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    autoFocus
+                    required 
+                    className="w-full p-4 pl-12 bg-white border border-gray-200 rounded-2xl outline-none font-black text-blue-600 focus:ring-4 focus:ring-blue-50 transition-all"
+                    placeholder="0.00"
+                    value={partialAmount}
+                    onChange={(e) => setPartialAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                  />
+                </div>
+                {partialAmount && Number(partialAmount) > 0 && (
+                  <p className="text-[10px] font-bold text-gray-400 italic px-1 mt-1">
+                    Restará R$ {(selectedTransaction.amount - Number(partialAmount)).toFixed(2)} pendente.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button 
+                  type="button" 
+                  onClick={() => { setShowPartialModal(false); setSelectedTransaction(null); }}
+                  className="flex-1 px-6 py-4 border-2 border-gray-50 text-gray-400 rounded-2xl font-black uppercase tracking-widest hover:bg-gray-50 transition-all font-['Quicksand']"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 px-6 py-4 bg-yellow-500 hover:bg-yellow-600 text-white font-black rounded-2xl transition-all shadow-lg shadow-yellow-100 uppercase tracking-widest text-xs font-['Quicksand']"
+                >
+                  Confirmar
+                </button>
+              </div>
             </form>
           </div>
         </div>
