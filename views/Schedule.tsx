@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -396,6 +396,19 @@ export const Schedule: React.FC<ScheduleProps> = ({
                          <p className="text-[10px] font-bold text-gray-400 uppercase">{c.phone}</p>
                       </div>
                    </div>
+                   {c.phone && (
+                     <button 
+                       onClick={() => {
+                         const cleanPhone = c.phone.replace(/\D/g, '');
+                         const message = encodeURIComponent(`Olá ${c.name}! Nós do ${companyData.name} passamos para te desejar um feliz aniversário! Muita saúde, paz e alegria no seu dia! 🎈🎂`);
+                         window.open(`https://wa.me/55${cleanPhone}?text=${message}`, '_blank');
+                       }}
+                       className="p-3 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-all shadow-sm flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
+                       title="Enviar Mensagem de Aniversário"
+                     >
+                       <MessageCircle size={14} /> Mensagem
+                     </button>
+                   )}
                 </div>
               ))}
             </div>

@@ -14,7 +14,8 @@ import {
   X, 
   CheckCircle2, 
   Clock,
-  Edit3
+  Edit3,
+  MessageCircle
 } from 'lucide-react';
 import { Customer, Project, Material, Platform, CompanyData } from '../types';
 import { calculateProjectBreakdown } from '../utils';
@@ -164,12 +165,37 @@ export const Customers: React.FC<CustomersProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-50 text-green-500 rounded-xl"><Phone size={16} /></div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">WhatsApp</span>
-                    <span className="text-sm font-bold text-gray-600">{customer.phone || 'Não informado'}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-50 text-green-500 rounded-xl"><Phone size={16} /></div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">WhatsApp</span>
+                      <span className="text-sm font-bold text-gray-600">{customer.phone || 'Não informado'}</span>
+                    </div>
                   </div>
+                  {customer.phone && (
+                    <button 
+                      onClick={() => {
+                        const cleanPhone = customer.phone.replace(/\D/g, '');
+                        const isBirthday = (() => {
+                          if (!customer.birthDate) return false;
+                          const today = new Date();
+                          const [_, m, d] = customer.birthDate.split('-').map(Number);
+                          return m === (today.getMonth() + 1) && d === today.getDate();
+                        })();
+                        
+                        const message = isBirthday 
+                          ? encodeURIComponent(`Olá ${customer.name}! Nós do ${companyData.name} passamos para te desejar um feliz aniversário! Muita saúde, paz e alegria no seu dia! 🎈🎂`)
+                          : encodeURIComponent(`Olá ${customer.name}! Tudo bem?`);
+                          
+                        window.open(`https://wa.me/55${cleanPhone}?text=${message}`, '_blank');
+                      }}
+                      className="p-3 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-all shadow-sm flex items-center justify-center"
+                      title="Enviar WhatsApp"
+                    >
+                      <MessageCircle size={16} />
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-start gap-3">
