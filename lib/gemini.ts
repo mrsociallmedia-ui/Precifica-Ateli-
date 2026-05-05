@@ -2,13 +2,13 @@ import { GoogleGenAI } from "@google/genai";
 
 export const generateContent = async (prompt: string, modelName: string = "gemini-3-flash-preview") => {
   try {
-    const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || '') : '');
+    const apiKey = process.env.GEMINI_API_KEY;
     
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY not found. Please set it in your environment variables.");
+      throw new Error("GEMINI_API_KEY não encontrada. Por favor, adicione sua chave nas configurações do AI Studio.");
     }
 
-    const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: modelName,
       contents: [{ role: 'user', parts: [{ text: prompt }] }]
