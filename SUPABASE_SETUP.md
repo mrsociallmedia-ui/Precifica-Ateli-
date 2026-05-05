@@ -8,50 +8,40 @@ Este aplicativo utiliza o **Supabase** para persistência de dados e autenticaç
 3. Copie o **Project URL** e a **Anon Key** (disponíveis em Project Settings > API).
 
 ## 2. Configurar Variáveis de Ambiente
-No seu ambiente de desenvolvimento (ou configurações do AI Studio), adicione as seguintes variáveis:
-- `VITE_SUPABASE_URL`: (Seu Project URL)
-- `VITE_SUPABASE_ANON_KEY`: (Sua Anon Key)
+No AI Studio, vá em **Settings** e adicione as seguintes variáveis (Segredos):
+- `VITE_SUPABASE_URL`: `https://scnjxuzapasdfgevegds.supabase.co`
+- `VITE_SUPABASE_ANON_KEY`: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow`
 
 ## 3. Preparar o Banco de Dados (SQL)
 Vá até o **SQL Editor** no painel do Supabase e execute o seguinte script para criar as tabelas e políticas de segurança (RLS):
 
-```sql
--- Criar a tabela para armazenar os dados dos usuários
+-- 1. Criar a tabela para armazenar os dados dos usuários
 CREATE TABLE IF NOT EXISTS public.user_data (
     user_email TEXT PRIMARY KEY,
     app_state JSONB DEFAULT '{}'::jsonb,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Ativar Row Level Security (RLS)
+-- 2. Ativar Row Level Security (RLS)
 ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
 
--- Política para permitir que usuários autenticados vejam apenas SEUS PRÓPRIOS dados
-CREATE POLICY "Usuários podem ler seus próprios dados" 
-ON public.user_data 
+-- 3. Limpar políticas antigas (evita erro 42710)
+DROP POLICY IF EXISTS "user_data_select_policy" ON public.user_data;
+DROP POLICY IF EXISTS "user_data_all_policy" ON public.user_data;
+
+-- 4. Política para leitura (próprio usuário)
+CREATE POLICY "user_data_select_policy" ON public.user_data 
 FOR SELECT 
-USING (auth.jwt() ->> 'email' = user_email);
+USING (lower(auth.jwt() ->> 'email') = lower(user_email));
 
--- Política para permitir que usuários autenticados salvem apenas SEUS PRÓPRIOS dados
-CREATE POLICY "Usuários podem inserir seus próprios dados" 
-ON public.user_data 
-FOR INSERT 
-WITH CHECK (auth.jwt() ->> 'email' = user_email);
+-- 5. Política para todas as operações (próprio usuário)
+CREATE POLICY "user_data_all_policy" ON public.user_data 
+FOR ALL 
+USING (lower(auth.jwt() ->> 'email') = lower(user_email))
+WITH CHECK (lower(auth.jwt() ->> 'email') = lower(user_email));
 
--- Política para permitir que usuários autenticados atualizem apenas SEUS PRÓPRIOS dados
-CREATE POLICY "Usuários podem atualizar seus próprios dados" 
-ON public.user_data 
-FOR UPDATE 
-USING (auth.jwt() ->> 'email' = user_email);
-
--- Política para permitir que o catálogo público seja lido por qualquer pessoa (opcional, se quiser compartilhar catálogo)
--- Nota: Esta política permite leitura se o user_email for igual ao solicitado via API
-CREATE POLICY "Leitura pública do catálogo" 
-ON public.user_data 
-FOR SELECT 
-TO public 
-USING (true);
-```
+-- 6. Índice para performance
+CREATE INDEX IF NOT EXISTS idx_user_data_email_lower ON public.user_data (lower(user_email));
 
 ## 4. Ativar Autenticação Google (Opcional)
 Se desejar habilitar login social, configure em **Authentication > Providers > Google**. Caso contrário, o sistema usará login por e-mail e senha.
