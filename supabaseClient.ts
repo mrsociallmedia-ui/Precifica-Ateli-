@@ -69,8 +69,8 @@ let supabaseInstance: any;
 console.log("Detectando configurações do Supabase...");
 console.log("URL configurada:", SUPABASE_URL ? "Sim" : "Não");
 console.log("Chave configurada:", SUPABASE_KEY ? "Sim" : "Não");
-if (SUPABASE_KEY && !SUPABASE_KEY.startsWith('ey')) {
-  console.warn("AVISO: A chave ANON_KEY do Supabase deve começar com 'ey'. A chave atual começa com:", SUPABASE_KEY.substring(0, 5));
+if (SUPABASE_KEY && !SUPABASE_KEY.startsWith('ey') && !SUPABASE_KEY.startsWith('sb_')) {
+  console.warn("AVISO: A chave ANON_KEY do Supabase parece inválida.");
 }
 
 try {

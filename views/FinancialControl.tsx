@@ -52,10 +52,11 @@ interface FinancialControlProps {
   setCategories: React.Dispatch<React.SetStateAction<string[]>>;
   paymentMethods: string[];
   setPaymentMethods: React.Dispatch<React.SetStateAction<string[]>>;
+  setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
 }
 
 export const FinancialControl: React.FC<FinancialControlProps> = ({ 
-  transactions, setTransactions, closures, setClosures, projects, customers, materials, platforms, companyData, categories, setCategories, paymentMethods, setPaymentMethods
+  transactions, setTransactions, closures, setClosures, projects, customers, materials, platforms, companyData, categories, setCategories, paymentMethods, setPaymentMethods, setCustomers
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [showClosure, setShowClosure] = useState(false);
@@ -315,27 +316,43 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     if (!newTransaction.description || !newTransaction.amount) return;
 
     if (editingTransactionId) {
+      const isEx = newTransaction.category === 'Permuta' || newTransaction.isExchange;
       const updatedTransactions = transactions.map(t => 
         t.id === editingTransactionId 
-          ? { ...t, ...newTransaction as Transaction, isExchange: newTransaction.category === 'Permuta' || newTransaction.isExchange } 
+          ? { 
+              ...t, 
+              ...newTransaction as Transaction, 
+              type: isEx ? 'income' : (newTransaction.type as 'income' | 'expense'),
+              isExchange: isEx 
+            } 
           : t
       );
       setTransactions(updatedTransactions);
       setEditingTransactionId(null);
     } else {
+      const isEx = newTransaction.category === 'Permuta' || newTransaction.isExchange || false;
       const transaction: Transaction = {
         id: `manual_${Date.now()}`,
         description: newTransaction.description!,
         amount: Number(newTransaction.amount),
-        type: newTransaction.type as 'income' | 'expense',
+        type: isEx ? 'income' : (newTransaction.type as 'income' | 'expense'),
         category: newTransaction.category || 'Geral',
-        paymentMethod: newTransaction.paymentMethod || 'Dinheiro',
+        paymentMethod: isEx ? 'Permuta' : (newTransaction.paymentMethod || 'Dinheiro'),
         date: newTransaction.date || new Date().toISOString().split('T')[0],
         status: newTransaction.status as 'pending' | 'paid' || 'paid',
-        isExchange: newTransaction.category === 'Permuta' || newTransaction.isExchange || false,
+        isExchange: isEx,
         customerId: newTransaction.customerId
       };
       setTransactions([transaction, ...transactions]);
+
+      // LÓGICA DE CRÉDITO PARA PERMUTA
+      if (isEx && transaction.customerId) {
+        setCustomers(prev => prev.map(c => 
+          c.id === transaction.customerId 
+            ? { ...c, creditBalance: (c.creditBalance || 0) + transaction.amount }
+            : c
+        ));
+      }
     }
 
     setShowForm(false);
@@ -1553,10 +1570,13 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Categoria</label>
                     <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700" value={newTransaction.category} onChange={e => {
                       const category = e.target.value;
+                      const isEx = category === 'Permuta';
                       setNewTransaction({
                         ...newTransaction, 
                         category,
-                        isExchange: category === 'Permuta' ? true : newTransaction.isExchange
+                        isExchange: isEx ? true : newTransaction.isExchange,
+                        type: isEx ? 'income' : newTransaction.type,
+                        paymentMethod: isEx ? 'Permuta' : newTransaction.paymentMethod
                       });
                     }}>
                        {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
@@ -1597,7 +1617,16 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                         id="isExchange"
                         className="w-5 h-5 rounded border-gray-300 text-pink-500 focus:ring-pink-500 cursor-pointer"
                         checked={newTransaction.isExchange || false}
-                        onChange={e => setNewTransaction({...newTransaction, isExchange: e.target.checked})}
+                        onChange={e => {
+                          const isChecked = e.target.checked;
+                          setNewTransaction({
+                            ...newTransaction, 
+                            isExchange: isChecked,
+                            type: isChecked ? 'income' : newTransaction.type,
+                            category: isChecked ? 'Permuta' : (newTransaction.category === 'Permuta' ? 'Geral' : newTransaction.category),
+                            paymentMethod: isChecked ? 'Permuta' : (newTransaction.paymentMethod === 'Permuta' ? 'Dinheiro' : newTransaction.paymentMethod)
+                          });
+                        }}
                       />
                       <label htmlFor="isExchange" className="text-[10px] font-black text-gray-500 uppercase tracking-widest cursor-pointer flex-1">
                         Esta movimentação é uma <span className="text-pink-500">Permuta / Troca</span>

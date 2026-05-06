@@ -17,6 +17,7 @@ export interface Customer {
   address: string;
   neighborhood: string;
   zipCode: string;
+  creditBalance?: number;
 }
 
 export interface Platform {

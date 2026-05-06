@@ -85,6 +85,7 @@ interface PricingCalculatorProps {
   products: Product[];
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
+  setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
   projectToEdit?: Project | null;
   onClearEditProject?: () => void;
 }
@@ -98,6 +99,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   products,
   setProjects,
   setTransactions,
+  setCustomers,
   projectToEdit,
   onClearEditProject
 }) => {
@@ -149,14 +151,20 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     downPayment: 0,
     mlCommissionPercentage: 0,
     mlShippingCost: 0,
+    isExchange: false,
   };
 
   const [currentProject, setCurrentProject] = useState<Partial<Project>>(initialProjectState);
   const [showCatalog, setShowCatalog] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'completed'>('ongoing');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  // Estados para novo cliente rápido
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: '', phone: '' });
 
   // Carregar projeto para edição
   useEffect(() => {
@@ -202,8 +210,33 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     });
     setShowCatalog(false);
     setIsFormOpen(false);
+    setIsAddingCustomer(false);
+    setNewCustomer({ name: '', phone: '' });
     const formEl = document.getElementById('calc-form');
     if (formEl) formEl.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleQuickAddCustomer = () => {
+    if (!newCustomer.name.trim()) {
+      alert('O nome do cliente é obrigatório!');
+      return;
+    }
+
+    const customerId = Date.now().toString();
+    const customer: Customer = {
+      id: customerId,
+      name: newCustomer.name.trim(),
+      phone: newCustomer.phone.trim(),
+      birthDate: '',
+      address: '',
+      neighborhood: '',
+      zipCode: '',
+    };
+
+    setCustomers(prev => [customer, ...prev]);
+    setCurrentProject(prev => ({ ...prev, customerId }));
+    setIsAddingCustomer(false);
+    setNewCustomer({ name: '', phone: '' });
   };
 
   const addItemFromCatalog = (product: Product) => {
@@ -327,15 +360,64 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     const previousDownPayment = oldProject?.downPayment || 0;
     const downPaymentIncrease = newProj.downPayment! - previousDownPayment;
 
-    // 1. LANÇAMENTO DE SINAL (Se houver valor novo de entrada)
+    // 1. LÓGICA DE PERMUTA / TROCA DE SERVIÇOS
+    if (newProj.isExchange && newProj.customerId) {
+      const customer = customers.find(c => c.id === newProj.customerId);
+      if (customer) {
+        const availableCredit = customer.creditBalance || 0;
+        const totalToPay = projBreakdown.finalPrice;
+        
+        // Quanto será abatido do crédito
+        const creditDeduction = Math.min(availableCredit, totalToPay);
+        const remainingAfterCredit = totalToPay - creditDeduction;
+
+        // Atualiza saldo do cliente
+        setCustomers(prev => prev.map(c => 
+          c.id === newProj.customerId 
+            ? { ...c, creditBalance: Math.max(0, (c.creditBalance || 0) - creditDeduction) }
+            : c
+        ));
+
+        // Se o valor do pedido for maior que o crédito, garante que o status reflita pagamento pendente
+        if (remainingAfterCredit > 0 && newProj.status === 'pending') {
+          newProj.status = 'pending_payment';
+        }
+
+        // Registra a transação de permuta
+        const exchangeTransaction: Transaction = {
+          id: `exchange_${Date.now()}_${newProj.id}`,
+          description: `Permuta Abatida: ${newProj.theme}${newProj.quoteNumber ? ` (#${newProj.quoteNumber})` : ''}`,
+          amount: creditDeduction,
+          type: 'expense',
+          category: 'Permuta',
+          paymentMethod: 'Permuta',
+          date: new Date().toISOString().split('T')[0],
+          isExchange: true,
+          customerId: newProj.customerId,
+          status: 'paid'
+        };
+        setTransactions(prev => [exchangeTransaction, ...prev]);
+
+        // Se sobrou algo a pagar, a lógica de "Saldo Final" normal cuidará disso quando completado,
+        // mas aqui já informamos o usuário.
+        if (remainingAfterCredit > 0) {
+          alert(`Permuta aplicada! R$ ${creditDeduction.toFixed(2)} abatidos do crédito. Resta R$ ${remainingAfterCredit.toFixed(2)} a pagar.`);
+        } else {
+          alert(`Permuta aplicada! Valor total de R$ ${totalToPay.toFixed(2)} coberto pelo crédito do cliente.`);
+          // Se cobriu tudo, podemos até marcar como pago se o usuário desejar, mas vamos manter o status do projeto.
+        }
+      }
+    }
+
+    // 2. LANÇAMENTO DE SINAL (Se houver valor novo de entrada)
     if (downPaymentIncrease > 0) {
       const signalTransaction: Transaction = {
         id: `signal_${Date.now()}_${newProj.id}`,
         description: `Sinal: ${newProj.theme}${newProj.quoteNumber ? ` (#${newProj.quoteNumber})` : ''}`,
         amount: downPaymentIncrease,
-        type: 'income',
-        category: 'Venda',
-        paymentMethod: 'Pix',
+        type: newProj.isExchange ? 'expense' : 'income',
+        category: newProj.isExchange ? 'Permuta' : 'Venda',
+        paymentMethod: newProj.isExchange ? 'Permuta' : 'Pix',
         date: new Date().toISOString().split('T')[0],
         isExchange: !!newProj.isExchange,
         customerId: newProj.customerId
@@ -349,9 +431,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         id: `final_bal_${Date.now()}_${newProj.id}`,
         description: `Saldo Final: ${newProj.theme}${newProj.quoteNumber ? ` (#${newProj.quoteNumber})` : ''}`,
         amount: projBreakdown.remainingBalance, // Apenas o que falta pagar
-        type: 'income',
-        category: 'Venda',
-        paymentMethod: 'Pix',
+        type: newProj.isExchange ? 'expense' : 'income',
+        category: newProj.isExchange ? 'Permuta' : 'Venda',
+        paymentMethod: newProj.isExchange ? 'Permuta' : 'Pix',
         date: new Date().toISOString().split('T')[0],
         isExchange: !!newProj.isExchange,
         customerId: newProj.customerId
@@ -506,8 +588,22 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               </tbody>
             </table>
           </div>
-          <div style="display: flex; justify-content: flex-end;">
-            <div style="width: 350px;">
+
+          <div style="display: flex; gap: 30px; margin-bottom: 50px;">
+            <div style="flex: 1;">
+              ${proj.observations ? `
+                <div style="background: #fdf2f8; padding: 25px; border-radius: 25px; border: 1px solid #fce7f3; height: 100%;">
+                  <p style="margin: 0 0 10px 0; font-size: 10px; color: #ec4899; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Descrição / Observações</p>
+                  <p style="margin: 0; font-size: 13px; color: #4b5563; font-weight: 600; line-height: 1.6; white-space: pre-line;">${proj.observations}</p>
+                </div>
+              ` : `
+                <div style="background: #fafafa; padding: 25px; border-radius: 25px; border: 1px solid #f3f4f6; height: 100%; display: flex; align-items: center; justify-content: center;">
+                  <p style="margin: 0; font-size: 11px; color: #9ca3af; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Sem observações adicionais</p>
+                </div>
+              `}
+            </div>
+            
+            <div style="width: 320px;">
                 <div style="padding: 10px 20px;">
                     <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #6b7280; font-weight: 700;">
                         <span>Subtotal:</span>
@@ -713,13 +809,64 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-pink-50 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                  <User size={14} className="text-pink-400" /> Cliente
-                </label>
-                <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-gray-700" value={currentProject.customerId} onChange={e => setCurrentProject({...currentProject, customerId: e.target.value})}>
-                  <option value="">Selecione um cliente...</option>
-                  {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                    <User size={14} className="text-pink-400" /> Cliente
+                  </label>
+                  {!isAddingCustomer && (
+                    <button 
+                      onClick={() => setIsAddingCustomer(true)}
+                      className="text-[10px] font-black text-pink-500 hover:text-pink-600 uppercase tracking-widest flex items-center gap-1 transition-colors"
+                    >
+                      <PlusCircle size={12} /> Novo Cliente
+                    </button>
+                  )}
+                </div>
+
+                {isAddingCustomer ? (
+                  <div className="p-4 bg-pink-50/50 border border-pink-100 rounded-2xl space-y-3 animate-slideDown">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-black text-pink-600 uppercase tracking-widest">Rápido: Novo Cliente</span>
+                      <button onClick={() => setIsAddingCustomer(false)} className="text-gray-400 hover:text-red-500"><X size={14} /></button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nome * (ex: Maria Silva)"
+                        className="w-full p-3 bg-white border border-pink-200 rounded-xl outline-none text-sm font-bold text-gray-700"
+                        value={newCustomer.name}
+                        onChange={e => setNewCustomer({...newCustomer, name: e.target.value})}
+                        autoFocus
+                      />
+                      <input 
+                        type="text" 
+                        placeholder="WhatsApp (ex: 11999999999)"
+                        className="w-full p-3 bg-white border border-pink-200 rounded-xl outline-none text-sm font-bold text-gray-700"
+                        value={newCustomer.phone}
+                        onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})}
+                      />
+                      <button 
+                        onClick={handleQuickAddCustomer}
+                        className="w-full py-3 bg-pink-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-pink-600 transition-all shadow-sm"
+                      >
+                        Salvar e Selecionar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-gray-700" value={currentProject.customerId} onChange={e => setCurrentProject({...currentProject, customerId: e.target.value})}>
+                    <option value="">Selecione um cliente...</option>
+                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                )}
+                {currentProject.customerId && customers.find(c => c.id === currentProject.customerId)?.creditBalance ? (
+                  <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-green-50 rounded-xl border border-green-100 animate-fadeIn shadow-sm">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-[10px] font-black text-green-600 uppercase tracking-widest flex-1">
+                      Crédito Disponível: R$ {customers.find(c => c.id === currentProject.customerId)?.creditBalance?.toFixed(2)}
+                    </span>
+                  </div>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
@@ -950,9 +1097,30 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             </div>
             {showCatalog && (
               <div className="bg-yellow-50/50 p-6 rounded-3xl border border-yellow-100 animate-fadeIn space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   {products.map(p => (
-                     <button key={p.id} onClick={() => addItemFromCatalog(p)} className="w-full text-left p-4 bg-white border border-yellow-100 rounded-2xl hover:bg-yellow-100 transition-all flex items-center justify-between group">
+                <div className="relative">
+                  <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-500" />
+                  <input 
+                    type="text" 
+                    placeholder="Pesquisar produto no catálogo..." 
+                    className="w-full pl-12 pr-4 py-3 bg-white border border-yellow-100 rounded-2xl outline-none text-sm font-bold text-gray-700 placeholder:text-gray-300 shadow-sm"
+                    value={catalogSearch}
+                    onChange={e => setCatalogSearch(e.target.value)}
+                  />
+                  {catalogSearch && (
+                    <button 
+                      onClick={() => setCatalogSearch('')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                   {products
+                     .filter(p => p.name.toLowerCase().includes(catalogSearch.toLowerCase()))
+                     .map(p => (
+                     <button key={p.id} onClick={() => { addItemFromCatalog(p); setCatalogSearch(''); }} className="w-full text-left p-4 bg-white border border-yellow-100 rounded-2xl hover:bg-yellow-100 transition-all flex items-center justify-between group">
                         <div>
                            <span className="font-black text-gray-700 text-sm">{p.name}</span>
                            <p className="text-[9px] text-gray-400 font-bold uppercase">Preço: R$ {p.marketPrice > 0 ? p.marketPrice.toFixed(2) : 'Sob consulta'}</p>
@@ -960,18 +1128,47 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                         <Plus size={16} className="text-yellow-500" />
                      </button>
                    ))}
+                   {products.filter(p => p.name.toLowerCase().includes(catalogSearch.toLowerCase())).length === 0 && (
+                     <div className="col-span-full py-8 text-center bg-white/50 rounded-2xl border border-dashed border-gray-200">
+                       <p className="text-xs font-bold text-gray-400">Nenhum produto encontrado "{catalogSearch}"</p>
+                     </div>
+                   )}
                 </div>
               </div>
             )}
             <div className="space-y-4">
+               {/* Cabeçalho da Lista de Itens */}
+               {currentProject.items && currentProject.items.length > 0 && (
+                 <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                   <div className="col-span-1">#</div>
+                   <div className="col-span-4">Descrição do Item</div>
+                   <div className="col-span-2 text-right">Preço Unit.</div>
+                   <div className="col-span-2 text-center">Qtd</div>
+                   <div className="col-span-2 text-right">Subtotal</div>
+                   <div className="col-span-1 text-right">Ações</div>
+                 </div>
+               )}
+
                {currentProject.items?.map((item, index) => (
-                 <div key={index} className="flex flex-col md:flex-row md:items-center justify-between bg-gray-50/50 p-5 rounded-2xl border border-gray-100 gap-4">
-                    <div className="flex items-center gap-4 flex-1">
-                       <span className="font-black text-gray-400 text-xs">{index + 1}</span>
+                 <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center bg-gray-50/50 p-4 md:p-3 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
+                    {/* Mobile Index */}
+                    <div className="flex items-center justify-between md:hidden border-b border-gray-100 pb-2 mb-2">
+                      <span className="font-black text-gray-400 text-xs">Item {index + 1}</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setEditingItemIndex(editingItemIndex === index ? null : index)} className="text-blue-500"><Edit3 size={16} /></button>
+                        <button onClick={() => removeItem(index)} className="text-red-500"><Trash2 size={16} /></button>
+                      </div>
+                    </div>
+
+                    <div className="col-span-1 hidden md:flex justify-center">
+                      <span className="font-black text-gray-400 text-xs">{index + 1}</span>
+                    </div>
+
+                    <div className="col-span-1 md:col-span-4">
                        {editingItemIndex === index ? (
                           <input 
                             type="text" 
-                            className="flex-1 p-2 bg-white border border-gray-200 rounded-xl outline-none font-black text-gray-700 text-sm" 
+                            className="w-full p-2 bg-white border border-pink-200 rounded-xl outline-none font-black text-gray-700 text-sm" 
                             value={item.name} 
                             onChange={e => updateItemName(index, e.target.value)}
                             onBlur={() => setEditingItemIndex(null)}
@@ -979,22 +1176,33 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                             autoFocus
                           />
                         ) : (
-                          <p className="font-black text-gray-700 text-sm">{item.name}</p>
+                          <p className="font-black text-gray-700 text-sm truncate" title={item.name}>{item.name}</p>
                         )}
                     </div>
-                    <div className="flex items-center gap-4">
-                       <div className="flex flex-col gap-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Pç. Unitário</label>
-                          <input type="number" step="0.01" className="w-24 p-2 bg-white border border-gray-200 rounded-xl outline-none font-black text-gray-700 text-xs" value={item.unitPrice || 0} onChange={e => updateItemPrice(index, parseFloat(e.target.value) || 0)} />
+
+                    <div className="col-span-1 md:col-span-2 flex flex-col md:items-end gap-1">
+                       <label className="md:hidden text-[8px] font-black text-gray-400 uppercase tracking-widest">Preço Unit.</label>
+                       <div className="relative w-full md:w-32">
+                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">R$</span>
+                         <input type="number" step="0.01" className="w-full pl-7 pr-2 py-2 bg-white border border-gray-200 rounded-xl outline-none font-black text-gray-700 text-xs text-right" value={item.unitPrice || 0} onChange={e => updateItemPrice(index, parseFloat(e.target.value) || 0)} />
                        </div>
-                       <div className="flex flex-col gap-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Qtd</label>
-                          <input type="number" className="w-16 p-2 bg-white border border-gray-200 rounded-xl outline-none font-black text-gray-700 text-xs" value={item.quantity} onChange={e => updateItemQuantity(index, parseInt(e.target.value) || 1)} />
-                       </div>
-                       <div className="flex items-center gap-2">
-                          <button onClick={() => setEditingItemIndex(editingItemIndex === index ? null : index)} className="text-gray-300 hover:text-blue-500 transition-colors"><Edit3 size={18} /></button>
-                          <button onClick={() => removeItem(index)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
-                        </div>
+                    </div>
+
+                    <div className="col-span-1 md:col-span-2 flex flex-col md:items-center gap-1">
+                       <label className="md:hidden text-[8px] font-black text-gray-400 uppercase tracking-widest">Quantidade</label>
+                       <input type="number" className="w-full md:w-20 p-2 bg-white border border-gray-200 rounded-xl outline-none font-black text-gray-700 text-xs text-center" value={item.quantity} onChange={e => updateItemQuantity(index, parseInt(e.target.value) || 1)} />
+                    </div>
+
+                    <div className="col-span-1 md:col-span-2 flex flex-col md:items-end gap-1">
+                       <label className="md:hidden text-[8px] font-black text-gray-400 uppercase tracking-widest">Subtotal</label>
+                       <span className="font-black text-pink-600 text-sm">
+                         R$ {((item.unitPrice || 0) * item.quantity).toFixed(2)}
+                       </span>
+                    </div>
+
+                    <div className="col-span-1 hidden md:flex items-center justify-end gap-2">
+                       <button onClick={() => setEditingItemIndex(editingItemIndex === index ? null : index)} className="text-gray-300 hover:text-blue-500 transition-colors"><Edit3 size={18} /></button>
+                       <button onClick={() => removeItem(index)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                     </div>
                  </div>
                ))}

@@ -213,7 +213,15 @@ const App: React.FC = () => {
         .eq('user_email', email.toLowerCase())
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        // Se a tabela não existir ou outro erro de banco, tratamos como erro mas permitimos uso local
+        if (error.message?.includes('relation "public.user_data" does not exist')) {
+          console.warn("Tabela user_data não encontrada no Supabase. Siga as instruções em SUPABASE_SETUP.md");
+          setSyncStatus('local');
+          return;
+        }
+        throw error;
+      }
 
       if (data?.app_state) {
         const s = data.app_state;
@@ -230,9 +238,11 @@ const App: React.FC = () => {
         if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
       }
       setSyncStatus('synced');
-    } catch (err) {
+    } catch (err: any) {
       console.error("Supabase Sync Error:", err);
+      // Se for erro de conexão ou permissão, marcamos como erro
       setSyncStatus('error');
+      setSyncErrorMessage(err.message || 'Erro de conexão com a nuvem');
     }
   }, [loadLocalCache]);
 
@@ -241,7 +251,6 @@ const App: React.FC = () => {
     if (!currentUser || !initializedRef.current) return;
     if (!supabase || isMock) {
       setSyncStatus('local');
-      saveLocalCache();
       return;
     }
     
@@ -269,15 +278,21 @@ const App: React.FC = () => {
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_email' });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes('relation "public.user_data" does not exist')) {
+          setSyncStatus('local');
+          return;
+        }
+        throw error;
+      }
       setSyncStatus('synced');
       setSyncErrorMessage(null);
     } catch (err: any) {
       console.error("Supabase Push Error:", err);
       setSyncStatus('error');
-      setSyncErrorMessage(err.message || 'Erro desconhecido');
+      setSyncErrorMessage(err.message || 'Erro ao salvar na nuvem');
     }
-  }, [saveLocalCache, companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods, currentUser]);
+  }, [saveLocalCache, companyData, materials, customers, platforms, projects, products, transactions, closures, productCategories, transactionCategories, paymentMethods, currentUser]);
 
   useEffect(() => {
     if (isAuthenticated && currentUser) {
@@ -435,9 +450,9 @@ const App: React.FC = () => {
             <button 
               onClick={() => {
                 if (syncStatus === 'error' && syncErrorMessage) {
-                  alert(`Erro de Sincronização:\n${syncErrorMessage}\n\nVerifique se:\n1. Você criou a tabela 'user_data' no SQL Editor do Supabase.\n2. Suas chaves nas Configurações (Settings) começam com 'ey' (Anon Key).\n3. O URL termina em '.supabase.co'.`);
+                  alert(`Problema na Sincronização:\n\nDetalhe: ${syncErrorMessage}\n\nO que fazer?\n1. Verifique se o seu Supabase está ativo.\n2. Verifique se as chaves em Settings estão corretas.\n3. Se for um erro de "table not found", certifique-se de executar o script SQL do guia.`);
                 } else if (syncStatus === 'local') {
-                  alert(`O aplicativo está em "Modo Local".\n\nIsso acontece porque as chaves do Supabase não foram configuradas ou são inválidas.\n\nPara resolver:\n1. Vá nas Configurações do seu App no AI Studio.\n2. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.`);
+                  alert(`O aplicativo está funcionando em "Modo Local".\n\nNeste modo, os dados são salvos apenas no seu navegador.\nPara salvar na nuvem e acessar de outros dispositivos, configure o Supabase nas Configurações.`);
                 }
                 handleManualRefresh();
               }}
@@ -449,12 +464,11 @@ const App: React.FC = () => {
             }`} title={syncStatus === 'error' ? `Erro: ${syncErrorMessage}. Clique para ver detalhes.` : syncStatus === 'local' ? 'Clique para saber por que está em Modo Local' : 'Clique para forçar sincronização'}>
               {syncStatus === 'synced' ? <CheckCircle2 size={12} /> : 
                syncStatus === 'syncing' ? <RefreshCw size={12} className="animate-spin" /> : 
-               syncStatus === 'local' ? <AlertCircle size={12} /> :
                <AlertCircle size={12} />}
               <span className="hidden sm:inline">
                 {syncStatus === 'synced' ? 'Sincronizado' : 
                  syncStatus === 'syncing' ? 'Sincronizando...' : 
-                 syncStatus === 'local' ? 'Modo Local — Resolver' : 'Erro Nuvem — Tentar'}
+                 syncStatus === 'local' ? 'Modo Local' : 'Erro na Nuvem — Tentar'}
               </span>
             </button>
           </div>
@@ -477,10 +491,10 @@ const App: React.FC = () => {
                   case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} />;
                   case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} currentUser={currentUser || ''} />;
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;
-                  case 'pricing': return <PricingCalculator {...props} products={products} setProjects={setProjects} setTransactions={setTransactions} projectToEdit={projectToEdit} onClearEditProject={() => setProjectToEdit(null)} />;
+                  case 'pricing': return <PricingCalculator {...props} setCustomers={setCustomers} products={products} setProjects={setProjects} setTransactions={setTransactions} projectToEdit={projectToEdit} onClearEditProject={() => setProjectToEdit(null)} />;
                   case 'schedule': return <Schedule {...props} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
-                  case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
+                  case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} setCustomers={setCustomers} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
                   default: return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} />;
                 }

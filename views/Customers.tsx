@@ -16,7 +16,8 @@ import {
   Clock,
   Edit3,
   MessageCircle,
-  RefreshCw
+  RefreshCw,
+  DollarSign
 } from 'lucide-react';
 import { Customer, Project, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
@@ -77,12 +78,13 @@ export const Customers: React.FC<CustomersProps> = ({
         phone: newCustomer.phone || '',
         address: newCustomer.address || '',
         neighborhood: newCustomer.neighborhood || '',
-        zipCode: newCustomer.zipCode || ''
+        zipCode: newCustomer.zipCode || '',
+        creditBalance: newCustomer.creditBalance || 0
       };
       setCustomers([...customers, customer]);
     }
 
-    setNewCustomer({ name: '', birthDate: '', phone: '', address: '', neighborhood: '', zipCode: '' });
+    setNewCustomer({ name: '', birthDate: '', phone: '', address: '', neighborhood: '', zipCode: '', creditBalance: 0 });
     setEditingCustomerId(null);
     setShowForm(false);
   };
@@ -131,9 +133,7 @@ export const Customers: React.FC<CustomersProps> = ({
         {customers.map(customer => {
           const orderCount = projects.filter(p => p.customerId === customer.id).length;
           
-          const barterBalance = transactions
-            .filter(t => t.isExchange && t.customerId === customer.id)
-            .reduce((acc, t) => acc + (t.type === 'income' ? t.amount : -t.amount), 0);
+          const creditBalance = customer.creditBalance || 0;
 
           return (
             <div key={customer.id} className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-pink-50 group hover:shadow-xl transition-all flex flex-col">
@@ -142,10 +142,10 @@ export const Customers: React.FC<CustomersProps> = ({
                   <User size={24} className="md:w-7 md:h-7" />
                 </div>
                 <div className="flex gap-2">
-                  {barterBalance !== 0 && (
-                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-[9px] uppercase tracking-widest ${barterBalance > 0 ? 'bg-green-50 border-green-100 text-green-600' : 'bg-red-50 border-red-100 text-red-500'}`}>
-                      <RefreshCw size={10} className={barterBalance > 0 ? 'animate-spin-slow' : ''} />
-                      {barterBalance > 0 ? `Crédito: R$ ${barterBalance.toFixed(2)}` : `Débito: R$ ${Math.abs(barterBalance).toFixed(2)}`}
+                  {creditBalance !== 0 && (
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-[9px] uppercase tracking-widest ${creditBalance > 0 ? 'bg-green-50 border-green-100 text-green-600' : 'bg-red-50 border-red-100 text-red-500'}`}>
+                      <RefreshCw size={10} className={creditBalance > 0 ? 'animate-spin-slow' : ''} />
+                      {creditBalance > 0 ? `Crédito: R$ ${creditBalance.toFixed(2)}` : `Débito: R$ ${Math.abs(creditBalance).toFixed(2)}`}
                     </div>
                   )}
                   <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
@@ -363,6 +363,20 @@ export const Customers: React.FC<CustomersProps> = ({
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold text-sm md:text-base"
                     value={newCustomer.address}
                     onChange={e => setNewCustomer({...newCustomer, address: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                    <DollarSign size={12} /> Saldo de Crédito (R$)
+                  </label>
+                  <input 
+                    type="number" step="0.01"
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-400 outline-none font-bold text-sm md:text-base"
+                    value={newCustomer.creditBalance}
+                    onChange={e => setNewCustomer({...newCustomer, creditBalance: parseFloat(e.target.value) || 0})}
                   />
                 </div>
               </div>
