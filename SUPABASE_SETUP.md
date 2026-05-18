@@ -28,19 +28,30 @@ ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
 -- 3. Limpar políticas antigas (evita erro 42710)
 DROP POLICY IF EXISTS "user_data_select_policy" ON public.user_data;
 DROP POLICY IF EXISTS "user_data_all_policy" ON public.user_data;
+DROP POLICY IF EXISTS "user_data_public_select" ON public.user_data;
 
--- 4. Política para leitura (próprio usuário)
+-- 4. Política para leitura (próprio usuário autenticado)
 CREATE POLICY "user_data_select_policy" ON public.user_data 
 FOR SELECT 
+TO authenticated
 USING (lower(auth.jwt() ->> 'email') = lower(user_email));
 
--- 5. Política para todas as operações (próprio usuário)
+-- 5. Política para todas as operações (próprio usuário autenticado)
 CREATE POLICY "user_data_all_policy" ON public.user_data 
 FOR ALL 
+TO authenticated
 USING (lower(auth.jwt() ->> 'email') = lower(user_email))
 WITH CHECK (lower(auth.jwt() ->> 'email') = lower(user_email));
 
--- 6. Índice para performance
+-- 6. Política para leitura pública (Necessária para Catálogo e Acompanhamento de Pedidos)
+-- NOTA: Permite que QUALQUER UM veja o estado da conta se souber o e-mail. 
+-- Em produção, o ideal seria uma tabela separada para dados públicos.
+CREATE POLICY "user_data_public_select" ON public.user_data
+FOR SELECT
+TO anon
+USING (true);
+
+-- 7. Índice para performance
 CREATE INDEX IF NOT EXISTS idx_user_data_email_lower ON public.user_data (lower(user_email));
 
 ## 4. Ativar Autenticação Google (Opcional)

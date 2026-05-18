@@ -33,6 +33,7 @@ import { FinancialControl } from './views/FinancialControl';
 import { OrderHistory } from './views/OrderHistory';
 import { LoginView } from './views/LoginView';
 import { PublicCatalog } from './views/PublicCatalog';
+import { ProjectTracking } from './views/ProjectTracking';
 import { ContentCreator } from './views/ContentCreator';
 import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
@@ -52,6 +53,8 @@ const App: React.FC = () => {
     return true;
   });
   const [publicCatalogEmail, setPublicCatalogEmail] = useState<string | null>(null);
+  const [trackingProjectId, setTrackingProjectId] = useState<string | null>(null);
+  const [trackingUserEmail, setTrackingUserEmail] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'local'>('synced');
   const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
@@ -80,6 +83,15 @@ const App: React.FC = () => {
     const catalogEmail = params.get('catalog');
     if (catalogEmail) {
       setPublicCatalogEmail(catalogEmail);
+      setIsAuthChecking(false);
+      return;
+    }
+
+    const tId = params.get('track');
+    const uEmail = params.get('u');
+    if (tId && uEmail) {
+      setTrackingProjectId(tId);
+      setTrackingUserEmail(uEmail);
       setIsAuthChecking(false);
       return;
     }
@@ -394,6 +406,10 @@ const App: React.FC = () => {
     );
   }
 
+  if (trackingProjectId && trackingUserEmail) {
+    return <ProjectTracking projectId={trackingProjectId} userEmail={trackingUserEmail} />;
+  }
+
   if (publicCatalogEmail) {
     return <PublicCatalog userEmail={publicCatalogEmail} />;
   }
@@ -450,7 +466,18 @@ const App: React.FC = () => {
             <button 
               onClick={() => {
                 if (syncStatus === 'error' && syncErrorMessage) {
-                  alert(`Problema na Sincronização:\n\nDetalhe: ${syncErrorMessage}\n\nO que fazer?\n1. Verifique se o seu Supabase está ativo.\n2. Verifique se as chaves em Settings estão corretas.\n3. Se for um erro de "table not found", certifique-se de executar o script SQL do guia.`);
+                  const isRLS = syncErrorMessage.includes('Permission denied') || syncErrorMessage.includes('403') || syncErrorMessage.includes('row-level security');
+                  const isNotFound = syncErrorMessage.includes('relation "public.user_data" does not exist');
+                  
+                  let helpMsg = `Problema na Sincronização:\n\nDetalhe: ${syncErrorMessage}\n\nO que fazer?\n`;
+                  if (isNotFound) {
+                    helpMsg += "1. Sua tabela 'user_data' não foi encontrada. Vá ao SQL Editor do Supabase e execute o script do arquivo SUPABASE_SETUP.md.";
+                  } else if (isRLS) {
+                    helpMsg += "1. Erro de permissão (RLS). Certifique-se de que você configurou as políticas de segurança conforme o guia SUPABASE_SETUP.md (passo 3, sub-passos 4, 5 e 6).";
+                  } else {
+                    helpMsg += "1. Verifique se o seu Supabase está ativo.\n2. Verifique se as chaves em Settings (ícone engrenagem) estão corretas.\n3. Certifique-se de que o SQL foi executado corretamente.";
+                  }
+                  alert(helpMsg);
                 } else if (syncStatus === 'local') {
                   alert(`O aplicativo está funcionando em "Modo Local".\n\nNeste modo, os dados são salvos apenas no seu navegador.\nPara salvar na nuvem e acessar de outros dispositivos, configure o Supabase nas Configurações.`);
                 }
@@ -492,7 +519,7 @@ const App: React.FC = () => {
                   case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} currentUser={currentUser || ''} />;
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;
                   case 'pricing': return <PricingCalculator {...props} setCustomers={setCustomers} products={products} setProjects={setProjects} setTransactions={setTransactions} projectToEdit={projectToEdit} onClearEditProject={() => setProjectToEdit(null)} />;
-                  case 'schedule': return <Schedule {...props} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
+                  case 'schedule': return <Schedule {...props} currentUser={currentUser || ''} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} setCustomers={setCustomers} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
