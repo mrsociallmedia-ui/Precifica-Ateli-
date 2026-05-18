@@ -1554,23 +1554,28 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
 
       {/* MODAL NOVO LANÇAMENTO */}
       {showForm && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-full max-w-xl rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn overflow-hidden">
+          <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[95vh]">
             <div className={`absolute top-0 left-0 w-full h-2 ${newTransaction.type === 'income' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <button onClick={() => { setShowForm(false); setEditingTransactionId(null); }} className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors">
-              <X size={24} />
-            </button>
-            <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
-              <div className={`p-3 rounded-2xl ${newTransaction.type === 'income' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
-                {newTransaction.type === 'income' ? <ArrowUpCircle size={24} /> : <ArrowDownCircle size={24} />}
-              </div>
-              {editingTransactionId ? 'Editar Lançamento' : (newTransaction.type === 'income' ? 'Nova Entrada' : 'Nova Saída')}
-            </h3>
-            <form onSubmit={handleAddTransaction} className="space-y-6">
-               <div className="grid grid-cols-2 gap-4 bg-gray-50 p-2 rounded-2xl border border-gray-100 mb-4">
-                  <button type="button" onClick={() => setNewTransaction({...newTransaction, type: 'income'})} className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newTransaction.type === 'income' ? 'bg-green-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Entrada</button>
-                  <button type="button" onClick={() => setNewTransaction({...newTransaction, type: 'expense'})} className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newTransaction.type === 'expense' ? 'bg-red-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Saída</button>
-               </div>
+            
+            <div className="p-10 pb-4 flex items-center justify-between shrink-0">
+               <h3 className="text-3xl font-black text-gray-800 flex items-center gap-3">
+                  <div className={`p-3 rounded-2xl ${newTransaction.type === 'income' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
+                     {newTransaction.type === 'income' ? <ArrowUpCircle size={24} /> : <ArrowDownCircle size={24} />}
+                  </div>
+                  {editingTransactionId ? 'Editar Lançamento' : (newTransaction.type === 'income' ? 'Nova Entrada' : 'Nova Saída')}
+               </h3>
+               <button onClick={() => { setShowForm(false); setEditingTransactionId(null); }} className="text-gray-300 hover:text-gray-500 transition-colors">
+                  <X size={24} />
+               </button>
+            </div>
+
+            <div className="p-10 pt-2 overflow-y-auto custom-scrollbar flex-1">
+               <form onSubmit={handleAddTransaction} className="space-y-6 pb-2">
+                 <div className="grid grid-cols-2 gap-4 bg-gray-50 p-2 rounded-2xl border border-gray-100 mb-4">
+                    <button type="button" onClick={() => setNewTransaction({...newTransaction, type: 'income'})} className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newTransaction.type === 'income' ? 'bg-green-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Entrada</button>
+                    <button type="button" onClick={() => setNewTransaction({...newTransaction, type: 'expense'})} className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newTransaction.type === 'expense' ? 'bg-red-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Saída</button>
+                 </div>
                
                <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Descrição</label>
@@ -1792,6 +1797,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                   </button>
                </div>
             </form>
+           </div>
           </div>
         </div>
       )}
