@@ -26,11 +26,10 @@ import {
   AlertCircle,
   Users,
   Settings,
-  Info,
-  Cloud
+  Info
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
-import { supabase, isMock } from '../supabaseClient';
+import { supabase } from '../supabaseClient';
 
 interface SettingsViewProps {
   companyData: CompanyData;
@@ -250,87 +249,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           <div className="md:col-span-2 space-y-8">
-            {/* Nuvem & Sincronização */}
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border-4 border-blue-500 space-y-8 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform"></div>
-              
-              <div className="flex items-center justify-between border-b border-gray-50 pb-6">
-                <h4 className="font-black text-gray-800 flex items-center gap-4 uppercase text-sm tracking-widest">
-                  <div className="p-3 bg-blue-500 text-white rounded-2xl shadow-lg shadow-blue-100">
-                    <Cloud size={20} />
-                  </div>
-                  Nuvem & Sincronização
-                </h4>
-                {isMock ? (
-                  <span className="px-4 py-1.5 bg-yellow-50 text-yellow-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-yellow-100 flex items-center gap-2">
-                    <AlertCircle size={12} /> Modo Local (Mock)
-                  </span>
-                ) : (
-                  <span className="px-4 py-1.5 bg-green-50 text-green-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-green-100 flex items-center gap-2">
-                    <CheckCircle2 size={12} /> Conectado
-                  </span>
-                )}
-              </div>
-
-              <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100/50">
-                <div className="flex items-start gap-4">
-                  <div className="p-2 bg-white rounded-xl text-blue-500 shadow-sm">
-                    <Info size={18} />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-black text-blue-800">Precisa sincronizar seus dados?</p>
-                    <p className="text-xs font-medium text-blue-600 leading-relaxed">
-                      Para salvar seus dados na nuvem e acessar de qualquer lugar, você precisa configurar seu próprio projeto no Supabase.
-                      Siga o guia no arquivo <code className="bg-white px-1.5 py-0.5 rounded border border-blue-200 font-bold">SUPABASE_SETUP.md</code> para criar sua conta gratuita.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Supabase URL</label>
-                  <input 
-                    type="text" 
-                    placeholder="https://sua-url.supabase.co"
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none font-bold text-sm focus:ring-4 focus:ring-blue-50 transition-all placeholder:text-gray-300"
-                    defaultValue={localStorage.getItem('custom_supabase_url') || ''}
-                    onBlur={(e) => {
-                      const val = e.target.value.trim();
-                      if (val) localStorage.setItem('custom_supabase_url', val);
-                      else localStorage.removeItem('custom_supabase_url');
-                    }}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Supabase Anon Key</label>
-                  <input 
-                    type="password" 
-                    placeholder="eyJhbGciOiJIUzI1Ni..."
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none font-bold text-sm focus:ring-4 focus:ring-blue-50 transition-all placeholder:text-gray-300"
-                    defaultValue={localStorage.getItem('custom_supabase_key') || ''}
-                    onBlur={(e) => {
-                      const val = e.target.value.trim();
-                      if (val) localStorage.setItem('custom_supabase_key', val);
-                      else localStorage.removeItem('custom_supabase_key');
-                    }}
-                  />
-                </div>
-
-                <button 
-                  onClick={() => {
-                    if (confirm('Para aplicar as novas configurações de nuvem, o aplicativo precisa ser reiniciado. Deseja continuar?')) {
-                      window.location.reload();
-                    }
-                  }}
-                  className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-blue-100 flex items-center justify-center gap-3 transition-all hover:bg-blue-700 active:scale-95"
-                >
-                  <RefreshCw size={18} />
-                  Aplicar & Reiniciar
-                </button>
-              </div>
-            </div>
-
             {/* Perfil da Empresa */}
             <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-blue-50 space-y-8">
               <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">

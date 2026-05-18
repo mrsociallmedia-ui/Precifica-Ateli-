@@ -219,6 +219,7 @@ const App: React.FC = () => {
 
     try {
       setSyncStatus('syncing');
+      console.log(`Cloud Sync: Buscando dados para ${email}...`);
       const { data, error } = await supabase
         .from('user_data')
         .select('app_state')
@@ -226,9 +227,11 @@ const App: React.FC = () => {
         .maybeSingle();
 
       if (error) {
+        console.error("Cloud Sync Fetch Error:", error);
         if (error.message?.includes('relation "public.user_data" does not exist')) {
           console.warn("Tabela user_data não encontrada no Supabase. Siga as instruções em SUPABASE_SETUP.md");
-          setSyncStatus('local');
+          setSyncStatus('error');
+          setSyncErrorMessage('A tabela "user_data" não foi encontrada no seu banco de dados Supabase.');
           return;
         }
         throw error;
@@ -286,6 +289,7 @@ const App: React.FC = () => {
     };
 
     setSyncStatus('syncing');
+    console.log(`Cloud Sync: Salvando dados para ${currentUser}...`);
     try {
       const { error } = await supabase
         .from('user_data')
@@ -296,8 +300,10 @@ const App: React.FC = () => {
         }, { onConflict: 'user_email' });
 
       if (error) {
+        console.error("Cloud Sync Push Error:", error);
         if (error.message?.includes('relation "public.user_data" does not exist')) {
-          setSyncStatus('local');
+          setSyncStatus('error');
+          setSyncErrorMessage('A tabela "user_data" não foi encontrada no seu banco de dados Supabase.');
           return;
         }
         throw error;
@@ -485,19 +491,25 @@ const App: React.FC = () => {
               onClick={() => {
                 if (syncStatus === 'error' && syncErrorMessage) {
                   const isRLS = syncErrorMessage.includes('Permission denied') || syncErrorMessage.includes('403') || syncErrorMessage.includes('row-level security');
-                  const isNotFound = syncErrorMessage.includes('relation "public.user_data" does not exist');
+                  const isNotFound = syncErrorMessage.includes('user_data" não foi encontrada') || syncErrorMessage.includes('relation "public.user_data" does not exist') || syncErrorMessage.includes('404');
+                  const isConnection = syncErrorMessage.includes('Failed to fetch') || syncErrorMessage.includes('network');
                   
                   let helpMsg = `Problema na Sincronização:\n\nDetalhe: ${syncErrorMessage}\n\nO que fazer?\n`;
                   if (isNotFound) {
-                    helpMsg += "1. Sua tabela 'user_data' não foi encontrada. Vá ao SQL Editor do Supabase e execute o script do arquivo SUPABASE_SETUP.md.";
+                    helpMsg += "1. A tabela 'user_data' não foi encontrada no seu Supabase.\n2. Vá ao SQL Editor no painel do Supabase e execute o script que está no arquivo SUPABASE_SETUP.md (passo 3).";
                   } else if (isRLS) {
-                    helpMsg += "1. Erro de permissão (RLS). Certifique-se de que você configurou as políticas de segurança conforme o guia SUPABASE_SETUP.md (passo 3, sub-passos 4, 5 e 6).";
+                    helpMsg += "1. Erro de permissão (RLS). Você criou a tabela, mas não configurou as Políticas (Policies).\n2. Execute os passos 4, 5 e 6 do script SQL no arquivo SUPABASE_SETUP.md.";
+                  } else if (isConnection) {
+                    helpMsg += "1. Verifique sua conexão com a internet.\n2. Verifique se o seu projeto Supabase não está pausado ou excluído.";
                   } else {
-                    helpMsg += "1. Verifique se o seu Supabase está ativo.\n2. Verifique se as chaves em Settings (ícone engrenagem) estão corretas.\n3. Certifique-se de que o SQL foi executado corretamente.";
+                    helpMsg += "1. Verifique as chaves e URL no código ou em Settings (se houver).\n2. Certifique-se de que o SQL do arquivo SUPABASE_SETUP.md foi executado totalmente.\n3. Veja o console do navegador (F12) para erros técnicos.";
                   }
                   alert(helpMsg);
                 } else if (syncStatus === 'local') {
-                  alert(`O aplicativo está funcionando em "Modo Local".\n\nNeste modo, os dados são salvos apenas no seu navegador.\nPara salvar na nuvem e acessar de outros dispositivos, configure o Supabase nas Configurações.`);
+                  const msg = isMock ? 
+                    "O aplicativo está em MODO LOCAL porque as chaves do Supabase não foram detectadas ou são inválidas." :
+                    "O aplicativo está em MODO LOCAL. Entre com seu e-mail e senha para ativar a sincronização na nuvem.";
+                  alert(msg + "\n\nNo modo local, seus dados ficam salvos apenas neste navegador.");
                 }
                 handleManualRefresh();
               }}

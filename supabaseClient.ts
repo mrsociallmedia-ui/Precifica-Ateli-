@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 const normalizeUrl = (url: string) => {
   if (!url) return '';
   let cleanUrl = url.trim();
-  // Remove sufixo REST comum e barras finais
+  // Remove prefixos redundantes e sufixos REST comuns
   cleanUrl = cleanUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
   
   if (cleanUrl && !cleanUrl.startsWith('http')) {
@@ -16,23 +16,37 @@ const normalizeUrl = (url: string) => {
 
 const getRuntimeConfig = () => {
   if (typeof window === 'undefined') return { url: '', key: '' };
+  const url = localStorage.getItem('custom_supabase_url');
+  const key = localStorage.getItem('custom_supabase_key');
   return {
-    url: localStorage.getItem('custom_supabase_url') || '',
-    key: localStorage.getItem('custom_supabase_key') || ''
+    url: url && url.trim() ? url.trim() : '',
+    key: key && key.trim() ? key.trim() : ''
   };
 };
 
 const runtimeConfig = getRuntimeConfig();
 
+// Prioridade: LocalStorage > Env Vars > Defaults fornecidos pelo usuário
+// Nota: Em Vite/AI Studio, as variáveis podem estar no import.meta.env ou process.env dependendo da configuração
+const getEnv = (name: string) => {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[name]) return import.meta.env[name];
+  if (typeof process !== 'undefined' && process.env && process.env[name]) return process.env[name];
+  return '';
+};
+
+// URL e Chave fornecidas para integração
+const PRIMARY_URL = 'https://scnjxuzapasdfgevegds.supabase.co';
+const PRIMARY_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow';
+
 const SUPABASE_URL = normalizeUrl(
+  getEnv('VITE_SUPABASE_URL') || 
   runtimeConfig.url || 
-  import.meta.env.VITE_SUPABASE_URL || 
-  'https://scnjxuzapasdfgevegds.supabase.co'
+  PRIMARY_URL
 );
 const SUPABASE_KEY = (
+  getEnv('VITE_SUPABASE_ANON_KEY') || 
   runtimeConfig.key ||
-  import.meta.env.VITE_SUPABASE_ANON_KEY || 
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow'
+  PRIMARY_KEY
 ).trim();
 
 // Mock do Supabase para fallback caso as chaves falhem ou para facilitar testes locais
@@ -84,26 +98,31 @@ const createMockSupabase = () => {
 export let isMock = false;
 let supabaseInstance: any;
 
-console.log("Detectando configurações do Supabase...");
-console.log("URL configurada:", SUPABASE_URL ? "Sim" : "Não");
-console.log("Chave configurada:", SUPABASE_KEY ? "Sim" : "Não");
-if (SUPABASE_KEY && !SUPABASE_KEY.startsWith('ey') && !SUPABASE_KEY.startsWith('sb_')) {
-  console.warn("AVISO: A chave ANON_KEY do Supabase parece inválida.");
-}
+// Diagnóstico detalhado para o console
+const connectionDiagnostics = {
+  url: SUPABASE_URL,
+  isSupabaseDomain: SUPABASE_URL.includes('.supabase.co'),
+  hasKey: !!SUPABASE_KEY,
+  keyLength: SUPABASE_KEY?.length || 0,
+  isPrimary: SUPABASE_URL === PRIMARY_URL,
+};
 
 try {
   // Se houver uma URL válida e uma chave, tentamos o cliente real
-  if (SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.includes('.supabase.co')) {
+  const isUrlValid = SUPABASE_URL && !SUPABASE_URL.includes('example.com') && SUPABASE_URL.includes('.supabase.co');
+  const isKeyValid = SUPABASE_KEY && SUPABASE_KEY.length > 50;
+
+  if (isUrlValid && isKeyValid) {
     supabaseInstance = createClient(SUPABASE_URL, SUPABASE_KEY);
     isMock = false;
-    console.log("Supabase Client: Usando conexão real com a nuvem.");
+    console.log("🚀 Supabase: Conexão REAL ativa.", connectionDiagnostics);
   } else {
-    console.warn("Supabase Client: Usando modo local (Mock) por falta de chaves válidas.");
+    console.warn("⚠️ Supabase: Modo LOCAL (Mock) ativo.", connectionDiagnostics);
     supabaseInstance = createMockSupabase();
     isMock = true;
   }
 } catch (e) {
-  console.error("Erro crítico ao inicializar Supabase Client:", e);
+  console.error("❌ Supabase: Erro crítico na inicialização.", e);
   supabaseInstance = createMockSupabase();
   isMock = true;
 }
