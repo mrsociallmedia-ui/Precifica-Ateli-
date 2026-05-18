@@ -14,8 +14,26 @@ const normalizeUrl = (url: string) => {
   return cleanUrl;
 };
 
-const SUPABASE_URL = normalizeUrl(import.meta.env.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? process.env.VITE_SUPABASE_URL : '') || 'https://scnjxuzapasdfgevegds.supabase.co');
-const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || (typeof process !== 'undefined' ? process.env.VITE_SUPABASE_ANON_KEY : '') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow').trim();
+const getRuntimeConfig = () => {
+  if (typeof window === 'undefined') return { url: '', key: '' };
+  return {
+    url: localStorage.getItem('custom_supabase_url') || '',
+    key: localStorage.getItem('custom_supabase_key') || ''
+  };
+};
+
+const runtimeConfig = getRuntimeConfig();
+
+const SUPABASE_URL = normalizeUrl(
+  runtimeConfig.url || 
+  import.meta.env.VITE_SUPABASE_URL || 
+  'https://scnjxuzapasdfgevegds.supabase.co'
+);
+const SUPABASE_KEY = (
+  runtimeConfig.key ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY || 
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow'
+).trim();
 
 // Mock do Supabase para fallback caso as chaves falhem ou para facilitar testes locais
 const createMockSupabase = () => {

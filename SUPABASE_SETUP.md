@@ -13,7 +13,9 @@ No AI Studio, vá em **Settings** e adicione as seguintes variáveis (Segredos):
 - `VITE_SUPABASE_ANON_KEY`: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow`
 
 ## 3. Preparar o Banco de Dados (SQL)
-Vá até o **SQL Editor** no painel do Supabase e execute o seguinte script para criar as tabelas e políticas de segurança (RLS):
+1. No menu lateral esquerdo do Supabase, clique no ícone **SQL Editor** (parece um code `>_`).
+2. Clique no botão **+ New Query** ou **New Snippet** (no topo da lista de queries).
+3. Cole o script abaixo no editor que abrir e clique em **Run** (ou aperte `Cmd + Enter`).
 
 -- 1. Criar a tabela para armazenar os dados dos usuários
 CREATE TABLE IF NOT EXISTS public.user_data (

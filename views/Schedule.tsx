@@ -201,7 +201,20 @@ export const Schedule: React.FC<ScheduleProps> = ({
   const handleCopyTrackingLink = (project: Project) => {
     const url = `${window.location.origin}${window.location.pathname}?track=${project.id}&u=${encodeURIComponent(currentUser || '')}`;
     navigator.clipboard.writeText(url);
-    alert('Link de acompanhamento copiado para o cliente!');
+    alert('✅ Link de acompanhamento copiado com sucesso!');
+  };
+
+  const handleShareWhatsApp = (project: Project) => {
+    const url = `${window.location.origin}${window.location.pathname}?track=${project.id}&u=${encodeURIComponent(currentUser || '')}`;
+    const customer = customers.find(c => c.id === project.customerId);
+    const message = encodeURIComponent(`Olá ${customer?.name || ''}! Preparei um link especial para você acompanhar a produção do seu pedido: ${url}`);
+    
+    if (customer?.phone) {
+      window.open(`https://wa.me/55${customer.phone.replace(/\D/g, '')}?text=${message}`, '_blank');
+    } else {
+      navigator.clipboard.writeText(url);
+      alert('Link copiado! (Cliente sem telefone cadastrado)');
+    }
   };
 
   return (
@@ -407,9 +420,16 @@ export const Schedule: React.FC<ScheduleProps> = ({
                         <button 
                           onClick={() => handleCopyTrackingLink(project)}
                           className="p-3 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-2xl transition-all"
-                          title="Copiar Link de Acompanhamento"
+                          title="Copiar Link"
                         >
                           <ExternalLink size={14} />
+                        </button>
+                        <button 
+                          onClick={() => handleShareWhatsApp(project)}
+                          className="p-3 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-2xl transition-all"
+                          title="Enviar via WhatsApp"
+                        >
+                          <MessageCircle size={14} />
                         </button>
                         <button 
                           onClick={() => onEditProject(project)}
@@ -527,9 +547,16 @@ export const Schedule: React.FC<ScheduleProps> = ({
                                    <button 
                                       onClick={() => handleCopyTrackingLink(project)}
                                       className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
-                                      title="Copiar Tracking"
+                                      title="Copiar Link"
                                    >
                                       <ExternalLink size={14} />
+                                   </button>
+                                   <button 
+                                      onClick={() => handleShareWhatsApp(project)}
+                                      className="p-2 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-xl transition-all"
+                                      title="Enviar via WhatsApp"
+                                   >
+                                      <MessageCircle size={14} />
                                    </button>
                                    <button 
                                       onClick={() => onEditProject(project)}

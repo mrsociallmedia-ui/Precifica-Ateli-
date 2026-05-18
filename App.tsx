@@ -226,7 +226,6 @@ const App: React.FC = () => {
         .maybeSingle();
 
       if (error) {
-        // Se a tabela não existir ou outro erro de banco, tratamos como erro mas permitimos uso local
         if (error.message?.includes('relation "public.user_data" does not exist')) {
           console.warn("Tabela user_data não encontrada no Supabase. Siga as instruções em SUPABASE_SETUP.md");
           setSyncStatus('local');
@@ -248,19 +247,25 @@ const App: React.FC = () => {
         if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
         if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
         if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
+        setSyncStatus('synced');
+      } else {
+        // Se não houver dados na nuvem mas o usuário está logado, 
+        // consideramos 'synced' mas marcamos que precisamos fazer o primeiro push
+        setSyncStatus('synced');
+        // Agendar um push imediato para garantir que a nuvem tenha os dados iniciais
+        // Passamos 'true' para forçar o push mesmo antes do initializedRef.current ser setado no turn seguinte
+        setTimeout(() => pushCloudData(true), 500);
       }
-      setSyncStatus('synced');
     } catch (err: any) {
       console.error("Supabase Sync Error:", err);
-      // Se for erro de conexão ou permissão, marcamos como erro
       setSyncStatus('error');
       setSyncErrorMessage(err.message || 'Erro de conexão com a nuvem');
     }
   }, [loadLocalCache]);
 
-  const pushCloudData = useCallback(async () => {
+  const pushCloudData = useCallback(async (force: boolean = false) => {
     saveLocalCache();
-    if (!currentUser || !initializedRef.current) return;
+    if (!currentUser || (!initializedRef.current && !force)) return;
     if (!supabase || isMock) {
       setSyncStatus('local');
       return;
@@ -380,9 +385,22 @@ const App: React.FC = () => {
   const handleManualRefresh = async () => {
     if (currentUser) {
       setSyncStatus('syncing');
+      initializedRef.current = false; // Resetar para garantir que o fetch limpe o estado se necessário
       await fetchCloudData(currentUser);
+      initializedRef.current = true;
     }
   };
+
+  // Tentar reconectar automaticamente em caso de erro (a cada 60s)
+  useEffect(() => {
+    if (syncStatus === 'error' && isAuthenticated && currentUser) {
+      const interval = setInterval(() => {
+        console.log("Tentando reconectar à nuvem automaticamente...");
+        fetchCloudData(currentUser);
+      }, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [syncStatus, isAuthenticated, currentUser, fetchCloudData]);
 
   const navItems = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard, color: 'text-pink-500' },
