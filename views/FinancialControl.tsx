@@ -92,6 +92,10 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
     customerId: ''
   });
 
+  const [installments, setInstallments] = useState(1);
+  const [installmentAmount, setInstallmentAmount] = useState<number | ''>('');
+  const [frequency, setFrequency] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
+
   const handlePartialPayment = (t: Transaction) => {
     setSelectedTransaction(t);
     setPartialAmount('');
@@ -331,28 +335,52 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       setEditingTransactionId(null);
     } else {
       const isEx = newTransaction.category === 'Permuta' || newTransaction.isExchange || false;
-      const transaction: Transaction = {
-        id: `manual_${Date.now()}`,
-        description: newTransaction.description!,
-        amount: Number(newTransaction.amount),
-        type: isEx ? 'income' : (newTransaction.type as 'income' | 'expense'),
-        category: newTransaction.category || 'Geral',
-        paymentMethod: isEx ? 'Permuta' : (newTransaction.paymentMethod || 'Dinheiro'),
-        date: newTransaction.date || new Date().toISOString().split('T')[0],
-        status: newTransaction.status as 'pending' | 'paid' || 'paid',
-        isExchange: isEx,
-        customerId: newTransaction.customerId
-      };
-      setTransactions([transaction, ...transactions]);
+      const numInstallments = installments > 0 ? installments : 1;
+      const generatedTransactions: Transaction[] = [];
 
-      // LÓGICA DE CRÉDITO PARA PERMUTA
-      if (isEx && transaction.customerId) {
-        setCustomers(prev => prev.map(c => 
-          c.id === transaction.customerId 
-            ? { ...c, creditBalance: (c.creditBalance || 0) + transaction.amount }
-            : c
-        ));
+      for (let i = 0; i < numInstallments; i++) {
+        const transactionDate = new Date((newTransaction.date || new Date().toISOString().split('T')[0]) + 'T12:00:00');
+        
+        if (i > 0) {
+          if (frequency === 'weekly') {
+            transactionDate.setDate(transactionDate.getDate() + (i * 7));
+          } else if (frequency === 'monthly') {
+            transactionDate.setMonth(transactionDate.getMonth() + i);
+          } else if (frequency === 'yearly') {
+            transactionDate.setFullYear(transactionDate.getFullYear() + i);
+          }
+        }
+
+        const transaction: Transaction = {
+          id: i === 0 ? `manual_${Date.now()}` : `manual_${Date.now()}_${i}`,
+          description: numInstallments > 1 
+            ? `${newTransaction.description!} (${i + 1}/${numInstallments})` 
+            : newTransaction.description!,
+          amount: installments > 1 ? Number(installmentAmount) : Number(newTransaction.amount),
+          type: isEx ? 'income' : (newTransaction.type as 'income' | 'expense'),
+          category: newTransaction.category || 'Geral',
+          paymentMethod: isEx ? 'Permuta' : (newTransaction.paymentMethod || 'Dinheiro'),
+          date: transactionDate.toISOString().split('T')[0],
+          status: newTransaction.status as 'pending' | 'paid' || 'paid',
+          isExchange: isEx,
+          customerId: newTransaction.customerId
+        };
+        generatedTransactions.push(transaction);
+
+        // LÓGICA DE CRÉDITO PARA PERMUTA (Apenas para o montante total ou para cada parcela?)
+        // Se for permuta e parcelado, geralmente o crédito total é dado no início ou conforme as parcelas vencem.
+        // Mas a lógica atual aplica o crédito no momento do cadastro.
+        // Vou aplicar o crédito para cada transação gerada se for permuta.
+        if (isEx && transaction.customerId) {
+          setCustomers(prev => prev.map(c => 
+            c.id === transaction.customerId 
+              ? { ...c, creditBalance: (c.creditBalance || 0) + transaction.amount }
+              : c
+          ));
+        }
       }
+
+      setTransactions([...generatedTransactions, ...transactions]);
     }
 
     setShowForm(false);
@@ -362,6 +390,9 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       status: 'paid',
       customerId: ''
     });
+    setInstallments(1);
+    setInstallmentAmount('');
+    setFrequency('monthly');
   };
 
   const handlePrintClosure = () => {
@@ -955,8 +986,13 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
               setEditingTransactionId(null);
               setNewTransaction({ 
                 description: '', amount: 0, type: 'income', category: 'Venda', paymentMethod: 'Pix', 
-                date: new Date().toISOString().split('T')[0] 
+                date: new Date().toISOString().split('T')[0],
+                status: 'paid',
+                customerId: ''
               });
+              setInstallments(1);
+              setInstallmentAmount('');
+              setFrequency('monthly');
               setShowForm(true);
             }}
             className="bg-green-500 hover:bg-green-600 text-white font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg active:scale-95"
@@ -1556,8 +1592,21 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
 
                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Valor (R$)</label>
-                    <input type="number" step="0.01" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-blue-600" value={newTransaction.amount} onChange={e => setNewTransaction({...newTransaction, amount: parseFloat(e.target.value) || 0})} />
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Valor Total (R$)</label>
+                    <input 
+                        type="number" 
+                        step="0.01" 
+                        required 
+                        className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-blue-600" 
+                        value={newTransaction.amount} 
+                        onChange={e => {
+                           const total = parseFloat(e.target.value) || 0;
+                           setNewTransaction({...newTransaction, amount: total});
+                           if (installments > 0) {
+                              setInstallmentAmount(Number((total / installments).toFixed(2)));
+                           }
+                        }} 
+                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Data</label>
@@ -1567,7 +1616,32 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
 
                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Categoria</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center justify-between">
+                       Categoria
+                       <button 
+                          type="button"
+                          onClick={() => {
+                             const newCat = prompt('Digite o nome da nova categoria:');
+                             if (newCat && newCat.trim()) {
+                                const trimmed = newCat.trim();
+                                if (!categories.includes(trimmed)) {
+                                   setCategories([...categories, trimmed]);
+                                }
+                                setNewTransaction({
+                                   ...newTransaction, 
+                                   category: trimmed,
+                                   isExchange: trimmed === 'Permuta',
+                                   type: trimmed === 'Permuta' ? 'income' : newTransaction.type,
+                                   paymentMethod: trimmed === 'Permuta' ? 'Permuta' : newTransaction.paymentMethod
+                                });
+                             }
+                          }}
+                          className="text-blue-500 hover:text-blue-600 flex items-center gap-1 transition-colors"
+                       >
+                          <PlusCircle size={10} />
+                          <span className="text-[8px]">Nova</span>
+                       </button>
+                    </label>
                     <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700" value={newTransaction.category} onChange={e => {
                       const category = e.target.value;
                       const isEx = category === 'Permuta';
@@ -1610,6 +1684,83 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                         </button>
                       </div>
                    </div>
+
+                   {!editingTransactionId && (
+                     <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 space-y-4">
+                        <div className="flex items-center justify-between">
+                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Lançamento Parcelado / Recorrente</label>
+                           {installments > 1 && <span className="px-2 py-0.5 bg-blue-100 text-blue-600 text-[8px] font-black uppercase rounded-md">Ativado</span>}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-center">
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Qtd. Parcelas</label>
+                              <div className="flex items-center bg-white border border-gray-200 rounded-xl overflow-hidden">
+                                 <button type="button" onClick={() => {
+                                    const next = Math.max(1, installments - 1);
+                                    setInstallments(next);
+                                    if (newTransaction.amount) {
+                                       setInstallmentAmount(Number((Number(newTransaction.amount) / next).toFixed(2)));
+                                    }
+                                 }} className="p-3 text-gray-400 hover:bg-gray-50 transition-colors"><Trash2 size={14} /></button>
+                                 <input 
+                                    type="number" 
+                                    className="w-full text-center font-black text-gray-700 outline-none p-2" 
+                                    value={installments} 
+                                    onChange={e => {
+                                       const count = parseInt(e.target.value) || 1;
+                                       setInstallments(count);
+                                       if (newTransaction.amount) {
+                                          setInstallmentAmount(Number((Number(newTransaction.amount) / count).toFixed(2)));
+                                       }
+                                    }} 
+                                 />
+                                 <button type="button" onClick={() => {
+                                    const next = installments + 1;
+                                    setInstallments(next);
+                                    if (newTransaction.amount) {
+                                       setInstallmentAmount(Number((Number(newTransaction.amount) / next).toFixed(2)));
+                                    }
+                                 }} className="p-3 text-gray-400 hover:bg-gray-50 transition-colors"><Plus size={14} /></button>
+                              </div>
+                           </div>
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Valor da Parcela (R$)</label>
+                              <input 
+                                 type="number"
+                                 step="0.01"
+                                 className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-gray-700 text-center"
+                                 value={installmentAmount}
+                                 onChange={e => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setInstallmentAmount(val);
+                                    setNewTransaction({ ...newTransaction, amount: Number((val * installments).toFixed(2)) });
+                                 }}
+                              />
+                           </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Frequência</label>
+                              <select 
+                                 className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-gray-600 text-xs text-center"
+                                 value={frequency}
+                                 onChange={e => setFrequency(e.target.value as any)}
+                              >
+                                 <option value="weekly">Semanalmente</option>
+                                 <option value="monthly">Mensalmente</option>
+                                 <option value="yearly">Anualmente</option>
+                              </select>
+                           </div>
+                        </div>
+                        <p className="text-[9px] text-gray-400 italic text-center px-4">
+                           {installments > 1 
+                             ? `Serão gerados ${installments} lançamentos de R$ ${Number(installmentAmount).toFixed(2)} cada.`
+                             : 'Para lançamentos simples, mantenha "1" parcela.'}
+                        </p>
+                     </div>
+                   )}
 
                    <div className="flex items-center gap-3 px-2 py-3 bg-gray-50 rounded-2xl border border-gray-100">
                       <input 
