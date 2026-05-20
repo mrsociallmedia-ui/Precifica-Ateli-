@@ -38,7 +38,7 @@ async function startServer() {
   // API Route for Gemini content generation
   app.post("/api/generate", async (req: Request, res: Response) => {
     try {
-      const { prompt, model: modelName = "gemini-1.5-flash" } = req.body;
+      const { prompt, model: modelName = "gemini-3.5-flash" } = req.body;
       const apiKey = process.env.GEMINI_API_KEY;
 
       if (!apiKey) {
@@ -51,12 +51,22 @@ async function startServer() {
         return res.status(400).json({ error: "O prompt é obrigatório." });
       }
 
-      const genAI = new GoogleGenAI({ apiKey: apiKey.trim() });
+      // Configuração recomendada com httpOptions e User-Agent
+      const genAI = new GoogleGenAI({ 
+        apiKey: apiKey.trim(),
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
+          }
+        }
+      });
       
+      const targetModel = modelName === "gemini-1.5-flash" ? "gemini-3.5-flash" : modelName;
+
       let text = "";
       try {
         const response = await genAI.models.generateContent({
-          model: modelName,
+          model: targetModel,
           contents: prompt
         });
         text = response.text || "";

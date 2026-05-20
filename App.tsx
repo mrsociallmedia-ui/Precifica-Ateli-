@@ -19,7 +19,8 @@ import {
   CloudOff,
   CloudDownload,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Wand2
 } from 'lucide-react';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { Dashboard } from './views/Dashboard';
@@ -34,6 +35,7 @@ import { OrderHistory } from './views/OrderHistory';
 import { LoginView } from './views/LoginView';
 import { PublicCatalog } from './views/PublicCatalog';
 import { ProjectTracking } from './views/ProjectTracking';
+import { AIGenerator } from './views/AIGenerator';
 import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
@@ -416,6 +418,7 @@ const App: React.FC = () => {
     { id: 'products', label: 'Precificação', icon: Sparkles, color: 'text-yellow-600' },
     { id: 'inventory', label: 'Estoque', icon: Package, color: 'text-yellow-600' },
     { id: 'customers', label: 'Clientes', icon: Users, color: 'text-pink-500' },
+    { id: 'generator', label: 'Gerador IA', icon: Wand2, color: 'text-pink-500' },
     { id: 'settings', label: 'Configurações', icon: Settings, color: 'text-gray-600' },
   ];
 
@@ -549,6 +552,7 @@ const App: React.FC = () => {
                   case 'schedule': return <Schedule {...props} currentUser={currentUser || ''} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} setCustomers={setCustomers} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} setProjects={setProjects} />;
+                  case 'generator': return <AIGenerator {...props} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
                   default: return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} />;
                 }
