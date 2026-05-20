@@ -53,10 +53,11 @@ interface FinancialControlProps {
   paymentMethods: string[];
   setPaymentMethods: React.Dispatch<React.SetStateAction<string[]>>;
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
+  setProjects?: React.Dispatch<React.SetStateAction<Project[]>>;
 }
 
 export const FinancialControl: React.FC<FinancialControlProps> = ({ 
-  transactions, setTransactions, closures, setClosures, projects, customers, materials, platforms, companyData, categories, setCategories, paymentMethods, setPaymentMethods, setCustomers
+  transactions, setTransactions, closures, setClosures, projects, customers, materials, platforms, companyData, categories, setCategories, paymentMethods, setPaymentMethods, setCustomers, setProjects
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [showClosure, setShowClosure] = useState(false);
@@ -690,6 +691,47 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       alert('Selecione um cliente com movimentação de permuta.');
       return;
     }
+
+    const getItemUnitPrice = (item: any) => {
+      if (item.unitPrice && item.unitPrice > 0) return item.unitPrice;
+      
+      const itemVariableCost = (item.materials || []).reduce((acc: number, matItem: any) => {
+        const mat = materials.find((m: any) => m.id === matItem.materialId);
+        if (!mat) return acc;
+        const pricePerUnit = mat.price / mat.quantity;
+        let baseMaterialCost = 0;
+        let basePrintingCost = matItem.printingCost || 0;
+        if (matItem.usageType === 'multiple_per_unit') {
+          baseMaterialCost = pricePerUnit / (matItem.usageValue || 1);
+          basePrintingCost = basePrintingCost / (matItem.usageValue || 1);
+        } else if (matItem.usageType === 'multiple_units') {
+          baseMaterialCost = pricePerUnit * (matItem.usageValue || 1);
+          basePrintingCost = basePrintingCost * (matItem.usageValue || 1);
+        } else if (matItem.usageType === 'single') {
+          baseMaterialCost = pricePerUnit;
+        } else {
+          baseMaterialCost = pricePerUnit * matItem.quantity;
+        }
+        return acc + (baseMaterialCost + basePrintingCost);
+      }, 0);
+
+      const packaging = item.packagingCost || 0;
+      const unitVarCost = itemVariableCost + packaging;
+
+      const monthlyCapacityHours = (companyData.workHoursDaily || 1) * (companyData.workDaysMonthly || 1);
+      const hourlyFixedCost = monthlyCapacityHours > 0 
+        ? ((companyData.fixedCostsMonthly || 0) + (companyData.meiTax || 0)) / monthlyCapacityHours 
+        : 0;
+
+      const unitLaborCost = item.hoursToMake * companyData.hourlyRate;
+      const unitFixedCost = item.hoursToMake * hourlyFixedCost;
+
+      const itemBaseCost = item.manualBaseCost !== undefined ? item.manualBaseCost / (item.quantity || 1) : (unitVarCost + unitLaborCost);
+      const unitSubtotal = itemBaseCost + unitFixedCost;
+      const profit = unitSubtotal * ((item.profitMargin || 0) / 100);
+      
+      return unitSubtotal + profit;
+    };
     
     const content = barterCustomers.map(customerId => {
       const customer = customers.find(c => c.id === customerId);
@@ -763,9 +805,9 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
             <table>
               <thead>
                 <tr>
-                  <th>DATA</th>
-                  <th>MOVIMENTAÇÃO / PRODUTO</th>
-                  <th style="text-align: right">VALOR</th>
+                  <th style="width: 15%">DATA</th>
+                  <th style="width: 65%">MOVIMENTAÇÃO / PRODUTOS DETALHADOS</th>
+                  <th style="width: 20%; text-align: right">VALOR</th>
                 </tr>
               </thead>
               <tbody>
@@ -773,18 +815,30 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                   ...customerPaidTransactions.filter(t => t.type === 'expense').map(t => ({
                     date: t.date,
                     desc: t.description,
-                    amount: t.amount
+                    amount: t.amount,
+                    items: [] as any[]
                   })),
                   ...customerCompletedProjects.map(p => ({
                     date: p.deliveryDate || p.createdAt,
                     desc: `[PEDIDO] ${p.theme}`,
-                    amount: calculateProjectBreakdown(p, materials, platforms, companyData, transactions).finalPrice
+                    amount: calculateProjectBreakdown(p, materials, platforms, companyData, transactions).finalPrice,
+                    items: p.items || []
                   }))
                 ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(item => `
                   <tr>
                     <td>${new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
-                    <td>${item.desc}</td>
-                    <td class="text-red" style="text-align: right">R$ ${item.amount.toFixed(2)}</td>
+                    <td>
+                      <strong>${item.desc}</strong>
+                      ${item.items && item.items.length > 0 ? `
+                        <div style="font-size: 10px; color: #4a5568; margin-top: 6px; padding-left: 12px; border-left: 2px solid #e11d48; line-height: 1.5; font-family: inherit;">
+                          ${item.items.map((subItem: any) => {
+                            const unitPrice = getItemUnitPrice(subItem);
+                            return `• ${subItem.name} — ${subItem.quantity}x de R$ ${unitPrice.toFixed(2)} (Subtotal: R$ ${(unitPrice * subItem.quantity).toFixed(2)})`;
+                          }).join('<br>')}
+                        </div>
+                      ` : ''}
+                    </td>
+                    <td class="text-red" style="text-align: right; font-weight: bold; vertical-align: top;">R$ ${item.amount.toFixed(2)}</td>
                   </tr>
                 `).join('') || '<tr><td colspan="3" style="text-align:center; padding: 20px; color: #a0aec0;">Nenhum item abatido até o momento.</td></tr>'}
               </tbody>
@@ -819,10 +873,10 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
             <table>
               <thead>
                 <tr>
-                  <th>PREVISÃO</th>
-                  <th>DESCRIÇÃO / ITEM</th>
-                  <th style="text-align: right">VALOR</th>
-                  <th style="text-align: right">SITUAÇÃO</th>
+                  <th style="width: 15%">PREVISÃO</th>
+                  <th style="width: 50%">DESCRIÇÃO / ITENS</th>
+                  <th style="width: 15%; text-align: right">VALOR</th>
+                  <th style="width: 20%; text-align: right">SITUAÇÃO</th>
                 </tr>
               </thead>
               <tbody>
@@ -831,20 +885,32 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                     date: t.date,
                     desc: t.description,
                     amount: t.amount,
-                    status: t.type === 'income' ? 'Aguardando Crédito' : 'Aguardando Baixa'
+                    status: t.type === 'income' ? 'Aguardando Crédito' : 'Aguardando Baixa',
+                    items: [] as any[]
                   })),
                   ...customerPendingProjects.map(p => ({
                     date: p.deliveryDate || p.dueDate,
                     desc: `[PEDIDO] ${p.theme}`,
                     amount: calculateProjectBreakdown(p, materials, platforms, companyData, transactions).finalPrice,
-                    status: 'Aguardando Entrega'
+                    status: 'Aguardando Entrega',
+                    items: p.items || []
                   }))
                 ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(item => `
                   <tr>
                     <td>${new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
-                    <td>${item.desc}</td>
-                    <td style="text-align: right">R$ ${item.amount.toFixed(2)}</td>
-                    <td style="text-align: right">${item.status}</td>
+                    <td>
+                      <strong>${item.desc}</strong>
+                      ${item.items && item.items.length > 0 ? `
+                        <div style="font-size: 10px; color: #4a5568; margin-top: 6px; padding-left: 12px; border-left: 2px solid #718096; line-height: 1.5; font-family: inherit;">
+                          ${item.items.map((subItem: any) => {
+                            const unitPrice = getItemUnitPrice(subItem);
+                            return `• ${subItem.name} — ${subItem.quantity}x de R$ ${unitPrice.toFixed(2)} (Subtotal: R$ ${(unitPrice * subItem.quantity).toFixed(2)})`;
+                          }).join('<br>')}
+                        </div>
+                      ` : ''}
+                    </td>
+                    <td style="text-align: right; font-weight: bold; vertical-align: top;">R$ ${item.amount.toFixed(2)}</td>
+                    <td style="text-align: right; vertical-align: top;">${item.status}</td>
                   </tr>
                 `).join('') || '<tr><td colspan="4" style="text-align:center; padding: 20px; color: #a0aec0;">Nenhum lançamento pendente.</td></tr>'}
               </tbody>
@@ -914,6 +980,19 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       </html>
     `);
     printWindow.document.close();
+  };
+
+  const handleDeleteBarter = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    const customerName = customer?.name || 'Desconhecido';
+    
+    if (confirm(`Deseja realmente redefinir a permuta com o cliente "${customerName}"?\n\nEsta ação:\n1. Deletará permanentemente todos os lançamentos financeiros de permuta vinculados.\n2. Removerá a marcação de permuta nos pedidos correspondentes.`)) {
+      setTransactions(prev => prev.filter(t => !(t.isExchange && t.customerId === customerId)));
+      if (setProjects) {
+        setProjects(prev => prev.map(p => p.customerId === customerId ? { ...p, isExchange: false } : p));
+      }
+      alert('Saldos de permuta redefinidos com sucesso para este cliente!');
+    }
   };
 
   // Fixed missing deleteTransaction function
@@ -1104,6 +1183,13 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                       title="Relatório de Crédito"
                     >
                       <FileText size={12} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteBarter(item.customerId)}
+                      className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                      title="Excluir Permuta"
+                    >
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 </div>
