@@ -415,8 +415,12 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
 
       {/* MODAL DE DETALHES DO PRODUTO */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4 md:p-8 animate-fadeIn">
-          <div className="bg-white w-full max-w-6xl max-h-[95vh] rounded-[2rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-scaleIn relative">
+        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 md:p-8 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => setSelectedProduct(null)}
+          ></div>
+          <div className="bg-white w-full max-w-6xl max-h-[85vh] rounded-[2rem] shadow-2xl overflow-y-auto flex flex-col md:flex-row animate-scaleIn relative z-10 my-4">
             <button 
               onClick={() => setSelectedProduct(null)} 
               className="absolute top-4 right-4 md:top-6 md:right-6 text-gray-400 hover:text-gray-900 z-20 bg-white/80 backdrop-blur-sm p-2 rounded-full shadow-sm"
@@ -545,8 +549,12 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
 
       {/* MODAL DO CARRINHO */}
       {isCartOpen && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-50 flex items-center justify-end animate-fadeIn">
-          <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-slideInRight">
+        <div className="fixed inset-0 bg-black/10 z-50 flex items-center justify-end animate-fadeIn">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => setIsCartOpen(false)}
+          ></div>
+          <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col z-10 animate-slideInRight">
             <div className="p-8 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl"><ShoppingBag size={24} /></div>
@@ -641,7 +649,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
             {cart.map(item => (
               <div key={item.product.id} className="flex items-center justify-between py-4 border-b border-gray-100">
                 <div className="flex items-center gap-4">
-                  <span className="w-10 h-10 bg-pink-50 text-pink-600 rounded-xl flex items-center justify-center font-black text-sm">{item.quantity}x</span>
+                  <span className="w-12 h-12 bg-pink-50 text-pink-600 rounded-2xl flex items-center justify-center font-black text-base shrink-0">{item.quantity}x</span>
                   <span className="font-black text-gray-800 text-lg">{item.product.name}</span>
                 </div>
                 <span className="font-black text-gray-800 text-lg">R$ {(item.price * item.quantity).toFixed(2)}</span>

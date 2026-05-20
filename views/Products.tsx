@@ -504,8 +504,12 @@ export const Products: React.FC<ProductsProps> = ({
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-[90vw] h-[90vh] rounded-[3rem] p-10 shadow-2xl relative overflow-y-auto">
+        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => setShowForm(false)}
+          ></div>
+          <div className="bg-white w-[90vw] max-h-[85vh] rounded-[3rem] p-10 shadow-2xl relative overflow-y-auto z-10 animate-scaleIn my-4">
             <button onClick={() => setShowForm(false)} className="absolute top-8 right-8 text-gray-300 hover:text-gray-500"><X size={28} /></button>
             <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
               <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl">{editingProductId ? <Edit3 size={28} /> : <Plus size={28} />}</div>
@@ -1076,8 +1080,8 @@ export const Products: React.FC<ProductsProps> = ({
         </div>
       )}
       {showShareModal && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-[90vw] h-[90vh] rounded-[3rem] p-10 shadow-2xl relative overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-start justify-center p-4 z-50 animate-fadeIn overflow-y-auto pt-10 md:pt-16">
+          <div className="bg-white w-[90vw] max-h-[85vh] rounded-[3rem] p-10 shadow-2xl relative overflow-hidden flex flex-col my-4">
             <button onClick={() => setShowShareModal(false)} className="absolute top-8 right-8 text-gray-300 hover:text-gray-500 z-10"><X size={28} /></button>
             
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
@@ -1230,8 +1234,8 @@ export const Products: React.FC<ProductsProps> = ({
 
             {/* MODAL DE DETALHES DO PRODUTO (PREVIEW) */}
             {selectedProductPreview && (
-              <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-4 animate-fadeIn">
-                <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-scaleIn relative">
+              <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md z-[60] flex items-start justify-center p-4 animate-fadeIn overflow-y-auto pt-10 md:pt-16">
+                <div className="bg-white w-full max-w-4xl max-h-[85vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-scaleIn relative my-4">
                   <button 
                     onClick={() => setSelectedProductPreview(null)} 
                     className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 z-10 p-2"
@@ -1356,8 +1360,12 @@ export const Products: React.FC<ProductsProps> = ({
 
             {/* MODAL DO CARRINHO (PREVIEW) */}
             {isCartOpen && (
-              <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md z-50 flex items-center justify-end animate-fadeIn">
-                <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-slideInRight">
+              <div className="absolute inset-0 bg-black/10 z-50 flex items-center justify-end animate-fadeIn">
+                <div 
+                  className="absolute inset-0 bg-white/40 backdrop-blur-[2px]"
+                  onClick={() => setIsCartOpen(false)}
+                ></div>
+                <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col z-10 animate-slideInRight">
                   <div className="p-8 border-b border-gray-100 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl"><ShoppingBag size={24} /></div>
@@ -1452,7 +1460,7 @@ export const Products: React.FC<ProductsProps> = ({
                   {cart.map(item => (
                     <div key={item.product.id} className="flex items-center justify-between py-4 border-b border-gray-100">
                       <div className="flex items-center gap-4">
-                        <span className="w-10 h-10 bg-pink-50 text-pink-600 rounded-xl flex items-center justify-center font-black text-sm">{item.quantity}x</span>
+                        <span className="w-12 h-12 bg-pink-50 text-pink-600 rounded-2xl flex items-center justify-center font-black text-base shrink-0">{item.quantity}x</span>
                         <span className="font-black text-gray-800 text-lg">{item.product.name}</span>
                       </div>
                       <span className="font-black text-gray-800 text-lg">R$ {(item.price * item.quantity).toFixed(2)}</span>

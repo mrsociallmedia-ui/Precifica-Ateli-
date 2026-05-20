@@ -1307,8 +1307,12 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
 
       {/* MODAL FECHAMENTO DE CAIXA - COM MÃO DE OBRA E LUCRO REAL */}
       {showClosure && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => { setShowClosure(false); setClosureNotes(''); }}
+          ></div>
+          <div className="bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh] z-10 animate-scaleIn my-4">
             <div className="bg-blue-600 p-8 text-white flex justify-between items-center">
               <div>
                 <h3 className="text-2xl font-black">Fechamento de Caixa</h3>
@@ -1554,8 +1558,12 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
 
       {/* MODAL NOVO LANÇAMENTO */}
       {showForm && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn overflow-hidden">
-          <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[95vh]">
+        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => { setShowForm(false); setEditingTransactionId(null); }}
+          ></div>
+          <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] z-10 animate-scaleIn my-4">
             <div className={`absolute top-0 left-0 w-full h-2 ${newTransaction.type === 'income' ? 'bg-green-500' : 'bg-red-500'}`}></div>
             
             <div className="p-10 pb-4 flex items-center justify-between shrink-0">
@@ -1803,8 +1811,12 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       )}
       {/* MODAL PAGAMENTO PARCIAL */}
       {showPartialModal && selectedTransaction && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fadeIn">
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
+        <div className="fixed inset-0 bg-black/10 z-[60] animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => { setShowPartialModal(false); setSelectedTransaction(null); }}
+          ></div>
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">
             <div className="absolute top-0 left-0 w-full h-2 bg-yellow-500"></div>
             <button 
               onClick={() => { setShowPartialModal(false); setSelectedTransaction(null); }} 

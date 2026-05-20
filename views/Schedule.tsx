@@ -35,6 +35,15 @@ export const Schedule: React.FC<ScheduleProps> = ({
     isExchange?: boolean;
   } | null>(null);
 
+  const [paymentModalWidth, setPaymentModalWidth] = useState<'sm' | 'md' | 'lg'>(() => {
+    return (localStorage.getItem('payment_modal_width') as 'sm' | 'md' | 'lg') || 'sm';
+  });
+
+  const handleSetModalWidth = (size: 'sm' | 'md' | 'lg') => {
+    setPaymentModalWidth(size);
+    localStorage.setItem('payment_modal_width', size);
+  };
+
   const toggleMinimize = (projectId: string) => {
     setMinimizedProjects(prev => {
       const next = new Set(prev);
@@ -89,30 +98,27 @@ export const Schedule: React.FC<ScheduleProps> = ({
        const paidDate = new Date().toISOString();
        
        if (project) {
-           const shouldComplete = project.status !== 'completed' && confirm('Pagamento total recebido. Deseja finalizar (dar baixa) neste pedido agora?');
-           
            setProjects(prev => prev.map(p => {
                if (p.id === paymentModal.projectId) {
                    return {
                        ...p,
-                       status: shouldComplete ? 'completed' : p.status,
                        paidAt: paidDate
                    };
                }
                return p;
            }));
-
-           if (shouldComplete) {
-               alert('Pagamento registrado e pedido finalizado!');
-           } else {
-               alert('Pagamento registrado com sucesso!');
-           }
        }
-    } else {
-        alert('Pagamento registrado com sucesso!');
     }
     
+    alert('Pagamento registrado com sucesso!');
     setPaymentModal(null);
+  };
+
+  const handleDeleteTransaction = (id: string) => {
+    if (confirm('Deseja realmente excluir esta pendênica financeira?')) {
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      alert('Pendência excluída com sucesso!');
+    }
   };
 
   const updateStatus = (id: string, newStatus: Project['status']) => {
@@ -587,8 +593,12 @@ export const Schedule: React.FC<ScheduleProps> = ({
 
       {/* Modal Boletos */}
       {showBoletosModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => setShowBoletosModal(false)}
+          ></div>
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">
             <div className="bg-orange-500 p-8 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-2xl font-black">Pendência Financeiras</h3>
@@ -615,12 +625,21 @@ export const Schedule: React.FC<ScheduleProps> = ({
                         <p className="text-[9px] font-bold text-pink-500 uppercase mt-1">{getCustomerName(t.customerId)}</p>
                       )}
                     </div>
-                    <div className="text-right ml-4">
-                      <p className="text-base font-black text-gray-800">R$ {t.amount.toFixed(2)}</p>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase">{t.paymentMethod}</p>
-                      {isOverdue && (
-                        <p className="text-[8px] font-black text-red-500 uppercase mt-1">Vencido em {new Date(t.date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
-                      )}
+                    <div className="flex items-center gap-4 ml-4 shrink-0">
+                      <div className="text-right">
+                        <p className="text-base font-black text-gray-800">R$ {t.amount.toFixed(2)}</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase">{t.paymentMethod}</p>
+                        {isOverdue && (
+                          <p className="text-[8px] font-black text-red-500 uppercase mt-1">Vencido em {new Date(t.date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteTransaction(t.id)} 
+                        className="p-2.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-all shadow-sm flex items-center justify-center cursor-pointer"
+                        title="Excluir pendência"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
                 );
@@ -639,8 +658,12 @@ export const Schedule: React.FC<ScheduleProps> = ({
 
       {/* Modal Aniversariantes */}
       {showBirthdaysModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => setShowBirthdaysModal(false)}
+          ></div>
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">
             <div className="bg-pink-500 p-8 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-2xl font-black">Aniversariantes</h3>
@@ -687,32 +710,38 @@ export const Schedule: React.FC<ScheduleProps> = ({
 
       {/* Modal Pagamento */}
       {paymentModal && paymentModal.isOpen && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-            <div className="bg-green-500 p-8 text-white flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => setPaymentModal(null)}
+          ></div>
+          <div className={`bg-white w-full ${
+            paymentModalWidth === 'sm' ? 'max-w-[320px]' : paymentModalWidth === 'lg' ? 'max-w-[420px]' : 'max-w-[360px]'
+          } rounded-[2.2rem] shadow-2xl relative overflow-hidden z-10 flex flex-col animate-scaleIn my-4`}>
+            <div className="bg-green-500 p-6 text-white flex items-center justify-between shrink-0">
               <div>
-                <h3 className="text-2xl font-black">Receber Pagamento</h3>
-                <p className="text-green-100 font-bold text-xs uppercase tracking-widest truncate max-w-[200px]">{paymentModal.theme}</p>
+                <h3 className="text-lg font-black">Receber Pagamento</h3>
+                <p className="text-green-100 font-bold text-[9px] uppercase tracking-widest truncate max-w-[190px]">{paymentModal.theme}</p>
               </div>
-              <button onClick={() => setPaymentModal(null)} className="p-2 bg-white/20 hover:bg-white/40 rounded-full transition-all">
-                <X size={24} />
+              <button onClick={() => setPaymentModal(null)} className="p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-all">
+                <X size={18} />
               </button>
             </div>
-            <div className="p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Data do Recebimento</label>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Data do Recebimento</label>
                   <input 
                     type="date" 
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700"
+                    className="w-full p-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none font-bold text-gray-700 text-xs"
                     value={paymentModal.date}
                     onChange={(e) => setPaymentModal({ ...paymentModal, date: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Meio de Pagamento</label>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Meio de Pagamento</label>
                   <select 
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700"
+                    className="w-full p-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none font-bold text-gray-700 text-xs"
                     value={paymentModal.paymentMethod}
                     onChange={(e) => setPaymentModal({ ...paymentModal, paymentMethod: e.target.value })}
                   >
@@ -723,41 +752,43 @@ export const Schedule: React.FC<ScheduleProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 px-4 py-4 bg-gray-50 rounded-2xl border border-gray-100">
+              <div className="flex items-center gap-2.5 px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-100">
                 <input 
                   type="checkbox" 
                   id="modalIsExchange"
-                  className="w-5 h-5 rounded border-gray-300 text-pink-500 focus:ring-pink-500 cursor-pointer"
+                  className="w-4 h-4 rounded border-gray-300 text-pink-500 focus:ring-pink-500 cursor-pointer"
                   checked={paymentModal.isExchange || false}
                   onChange={e => setPaymentModal({...paymentModal, isExchange: e.target.checked})}
                 />
-                <label htmlFor="modalIsExchange" className="text-[10px] font-black text-gray-500 uppercase tracking-widest cursor-pointer flex-1">
-                  Este recebimento é uma <span className="text-pink-500">Permuta / Troca</span>
+                <label htmlFor="modalIsExchange" className="text-[9px] font-black text-gray-500 uppercase tracking-widest cursor-pointer flex-1">
+                  Este recebimento é uma <span className="text-pink-500">Permuta</span>
                 </label>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Valor a Receber</label>
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Valor a Receber</label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-green-500 font-black">R$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-500 font-black text-sm">R$</span>
                   <input 
                     type="number" 
                     step="0.01"
-                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-xl text-gray-700 focus:ring-2 focus:ring-green-200 transition-all"
+                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-xl outline-none font-black text-base text-gray-700 focus:ring-2 focus:ring-green-200 transition-all"
                     value={paymentModal.amount}
                     onChange={(e) => setPaymentModal({ ...paymentModal, amount: parseFloat(e.target.value) || 0 })}
                     max={paymentModal.maxAmount}
                   />
                 </div>
-                <p className="text-[10px] text-gray-400 font-bold text-right">Máximo Pendente: R$ {paymentModal.maxAmount.toFixed(2)}</p>
+                <p className="text-[9px] text-gray-400 font-bold text-right">Máximo Pendente: R$ {paymentModal.maxAmount.toFixed(2)}</p>
               </div>
               
               <button 
                 onClick={handleConfirmPayment}
-                className="w-full py-4 bg-green-500 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-lg shadow-green-100 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-green-500 text-white rounded-xl font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-lg shadow-green-100 flex items-center justify-center gap-2 text-xs"
               >
-                <CheckCircle2 size={18} /> Confirmar Recebimento
+                <CheckCircle2 size={16} /> Confirmar Recebimento
               </button>
+
+
             </div>
           </div>
         </div>

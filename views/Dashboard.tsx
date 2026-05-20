@@ -471,27 +471,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
               )}
             </div>
           </div>
-
-          {/* Card de Criador de Conteúdo IA */}
-          <div className="p-8 rounded-[3rem] border bg-gradient-to-br from-pink-500 to-purple-600 text-white hover:shadow-xl transition-all flex flex-col justify-between text-left group min-h-[220px] relative overflow-hidden">
-            <div className="absolute -top-10 -right-10 bg-white/10 w-40 h-40 rounded-full blur-2xl group-hover:scale-150 transition-transform"></div>
-            <div className="flex justify-between items-start relative z-10">
-              <div className="p-4 rounded-2xl shadow-sm w-fit bg-white/20 backdrop-blur-md">
-                <Instagram size={28} />
-              </div>
-              <button 
-                onClick={() => onNavigate?.('content_creator')}
-                className="text-[10px] font-black text-pink-600 bg-white px-4 py-2 rounded-full uppercase tracking-widest transition-all hover:scale-105 shadow-lg"
-              >
-                Criar Post IA
-              </button>
-            </div>
-            <div className="mt-4 relative z-10">
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Marketing Digital</p>
-              <h3 className="text-2xl font-black mt-1">Criador de Conteúdo</h3>
-              <p className="text-[10px] font-medium mt-2 text-white/80">Gere legendas e ideias para Posts, Reels e Stories com IA.</p>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -877,8 +856,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
 
       {/* Modal de Meta do Mês */}
       {isGoalModalOpen && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn overflow-y-auto">
-          <div className="bg-white rounded-[3rem] p-8 max-w-2xl w-full shadow-2xl relative my-8">
+        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => setIsGoalModalOpen(false)}
+          ></div>
+          <div className="bg-white rounded-[3rem] p-8 max-w-2xl w-full shadow-2xl relative my-4 z-10 animate-scaleIn">
             <button onClick={() => setIsGoalModalOpen(false)} className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 hover:text-pink-500 hover:bg-pink-50 rounded-full transition-colors">
               <X size={20} />
             </button>

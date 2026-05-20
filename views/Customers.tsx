@@ -245,8 +245,12 @@ export const Customers: React.FC<CustomersProps> = ({
 
       {/* Modal Histórico */}
       {historyCustomer && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-full max-w-3xl rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => setHistoryCustomer(null)}
+          ></div>
+          <div className="bg-white w-full max-w-3xl rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh] z-10 animate-scaleIn my-4">
             <div className="bg-pink-500 p-8 text-white">
               <button 
                 onClick={() => setHistoryCustomer(null)}
@@ -302,8 +306,12 @@ export const Customers: React.FC<CustomersProps> = ({
       )}
 
       {showForm && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white w-full max-w-2xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            onClick={() => setShowForm(false)}
+          ></div>
+          <div className="bg-white w-full max-w-2xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 shadow-2xl relative overflow-hidden max-h-[85vh] overflow-y-auto z-10 animate-scaleIn my-4">
             <div className={`absolute top-0 left-0 w-full h-2 ${editingCustomerId ? 'bg-blue-400' : 'bg-pink-400'}`}></div>
             <button 
               onClick={() => setShowForm(false)}

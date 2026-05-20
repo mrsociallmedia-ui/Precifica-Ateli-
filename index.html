@@ -71,6 +71,14 @@
             from { opacity: 0; transform: translateY(12px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        .animate-slideDown {
+            animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
         
         .shimmer-bg {
             position: relative;
@@ -113,6 +121,20 @@
         }
         .animate-pulse-soft {
             animation: pulse-soft 2s infinite;
+        }
+        .animate-scaleIn {
+            animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .animate-slideLeft {
+            animation: slideLeft 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes slideLeft {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
         }
     </style>
 <script type="importmap">
