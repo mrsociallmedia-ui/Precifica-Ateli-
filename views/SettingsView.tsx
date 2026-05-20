@@ -348,11 +348,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                            </div>
                          )}
                       </div>
-                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={() => openEditPlatform(p)} className="p-2 text-gray-300 hover:text-blue-500 transition-colors">
+                      <div className="flex gap-2">
+                         <button onClick={() => openEditPlatform(p)} className="p-2 text-gray-400 hover:text-blue-500 transition-colors" title="Editar canal">
                             <Edit3 size={16} />
                          </button>
-                         <button onClick={() => deletePlatform(p.id)} className="p-2 text-gray-200 hover:text-red-500 transition-colors">
+                         <button onClick={() => deletePlatform(p.id)} className="p-2 text-red-400 hover:text-red-600 transition-colors" title="Excluir canal">
                             <Trash2 size={16} />
                          </button>
                       </div>

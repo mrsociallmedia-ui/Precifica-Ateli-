@@ -79,6 +79,71 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
 
   const goalProgress = currentGoal ? Math.min((currentMonthIncome / currentGoal.goal) * 100, 100) : 0;
 
+  // Calcula o progresso real atual para cada meta de plataforma no mês vigente
+  const platformProgressList = useMemo(() => {
+    if (!currentGoal) return [];
+
+    let goals = currentGoal.platformGoals;
+    if (!goals || goals.length === 0) {
+      // Compatibilidade retroativa para registros antigos do banco
+      goals = [];
+      if (currentGoal.shopeeSalesGoal) {
+        goals.push({
+          platformId: 'shopee',
+          platformName: 'Shopee',
+          targetValue: currentGoal.shopeeSalesGoal,
+          targetType: 'units'
+        });
+      }
+      if (currentGoal.elo7SalesGoal) {
+        goals.push({
+          platformId: 'elo7',
+          platformName: 'Elo7',
+          targetValue: currentGoal.elo7SalesGoal,
+          targetType: 'units'
+        });
+      }
+    }
+
+    return goals.map(g => {
+      // Filtrar projetos ativos ou concluídos no mês e ano correntes que combinam com este canal
+      const matchingProjects = projects.filter(p => {
+        const isPlatformMatch = p.platformId === g.platformId || 
+                              (g.platformId.startsWith('custom_') && p.platformId === g.platformId);
+        
+        if (!isPlatformMatch) return false;
+        if (p.status === 'pending') return false; // ignorar orçamentos / cancelados
+
+        const pMonth = p.orderDate ? parseInt(p.orderDate.split('-')[1], 10) : 0;
+        const pYear = p.orderDate ? parseInt(p.orderDate.split('-')[0], 10) : 0;
+        return pMonth === currentMonth && pYear === currentYear;
+      });
+
+      let actualValue = 0;
+      if (g.targetType === 'money') {
+        // Faturamento real somando valor total dos projetos vendidos neste canal
+        actualValue = matchingProjects.reduce((acc, p) => {
+          const { finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
+          return acc + finalPrice;
+        }, 0);
+      } else {
+        // Quantidade total de unidades vendidas das peças do projeto
+        actualValue = matchingProjects.reduce((acc, p) => {
+          const itemsQty = p.items ? p.items.reduce((sum, item) => sum + (item.quantity || 0), 0) : 0;
+          return acc + itemsQty;
+        }, 0);
+      }
+
+      const progressPercent = g.targetValue > 0 ? Math.min((actualValue / g.targetValue) * 100, 100) : 0;
+
+      return {
+        ...g,
+        actualValue,
+        progressPercent
+      };
+    });
+  }, [currentGoal, projects, currentMonth, currentYear, materials, platforms, companyData, transactions]);
+
   const generateGrowthPlan = (goal: number) => {
     return `Plano de Crescimento para atingir R$ ${goal.toFixed(2)}:
 • Meta Semanal: R$ ${(goal / 4).toFixed(2)}
@@ -470,42 +535,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                   </div>
 
                   {/* Metas por Plataforma */}
-                  {((currentGoal.platformGoals && currentGoal.platformGoals.length > 0) || (currentGoal.shopeeSalesGoal || 0) > 0 || (currentGoal.elo7SalesGoal || 0) > 0) && (
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 max-h-48 overflow-y-auto">
-                      {currentGoal.platformGoals && currentGoal.platformGoals.length > 0 ? (
-                        currentGoal.platformGoals.map((g, idx) => (
-                          <div key={idx} className="flex items-center gap-2 bg-orange-50/70 p-2 rounded-xl border border-orange-100">
-                            <Store size={12} className="text-orange-600 shrink-0" />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[7px] font-black text-orange-400 uppercase leading-none truncate">{g.platformName}</p>
-                              <p className="text-[10px] font-black text-orange-700 leading-none mt-1">
-                                {g.targetType === 'money' ? `R$ ${g.targetValue.toFixed(2)}` : `${g.targetValue} un.`}
-                              </p>
-                            </div>
+                  {platformProgressList.length > 0 && (
+                    <div className="pt-3 border-t border-gray-100 space-y-4 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
+                      <p className="text-[9px] font-black uppercase tracking-wider text-orange-500">Metas por Plataforma</p>
+                      {platformProgressList.map((g, idx) => (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex justify-between items-end">
+                            <span className="text-[10px] font-black text-gray-700 truncate block max-w-[120px]">{g.platformName}</span>
+                            <span className="text-[10px] font-black text-orange-600">
+                              {g.targetType === 'money'
+                                ? `R$ ${g.actualValue.toFixed(0)} / R$ ${g.targetValue.toFixed(0)}`
+                                : `${g.actualValue} / ${g.targetValue} un.`}
+                            </span>
                           </div>
-                        ))
-                      ) : (
-                        <>
-                          {(currentGoal.shopeeSalesGoal || 0) > 0 && (
-                            <div className="flex items-center gap-2 bg-orange-50 p-2 rounded-xl border border-orange-100">
-                              <Store size={12} className="text-orange-600" />
-                              <div>
-                                <p className="text-[7px] font-black text-orange-400 uppercase leading-none">Shopee</p>
-                                <p className="text-[10px] font-black text-orange-700 leading-none mt-1">{currentGoal.shopeeSalesGoal} un.</p>
-                              </div>
-                            </div>
-                          )}
-                          {(currentGoal.elo7SalesGoal || 0) > 0 && (
-                            <div className="flex items-center gap-2 bg-blue-50 p-2 rounded-xl border border-blue-100">
-                              <Store size={12} className="text-blue-600" />
-                              <div>
-                                <p className="text-[7px] font-black text-blue-400 uppercase leading-none">Elo7</p>
-                                <p className="text-[10px] font-black text-blue-700 leading-none mt-1">{currentGoal.elo7SalesGoal} un.</p>
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      )}
+                          <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                            <div 
+                              className={`h-1.5 rounded-full transition-all duration-300 ${g.progressPercent >= 100 ? 'bg-green-500' : 'bg-orange-500'}`} 
+                              style={{ width: `${g.progressPercent}%` }}
+                            ></div>
+                          </div>
+                          <div className="flex justify-between text-[8px] font-bold text-gray-400">
+                            <span>{g.progressPercent.toFixed(1)}% alcançado</span>
+                            {g.progressPercent >= 100 && (
+                              <span className="text-green-500 flex items-center gap-0.5 font-extrabold">
+                                <CheckCircle2 size={8} /> Batida!
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
