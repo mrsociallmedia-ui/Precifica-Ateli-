@@ -242,7 +242,22 @@ ${customDescription || 'Artesanato geral feito com muito carinho, personalizado 
         })
       });
 
-      const data = await response.json();
+      let data: any = {};
+      const contentType = response.headers.get('content-type') || '';
+      
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const textError = await response.text();
+        console.error("Non-JSON API response read:", textError);
+        
+        if (textError.includes('page could not be found') || textError.includes('The page c')) {
+          throw new Error('O servidor backend está iniciando ou offline. Por favor, aguarde alguns instantes e tente novamente. Se persistir, utilize as "Configurações" do AI Studio para checar se reiniciou.');
+        }
+        
+        throw new Error(`Resposta inválida do servidor (${response.status} ${response.statusText}). Por favor, verifique se seu servidor está rodando ou verifique os logs do console.`);
+      }
+
       if (!response.ok) {
         throw new Error(data.error || 'Falha ao conectar com o serviço de IA.');
       }
