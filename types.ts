@@ -28,6 +28,13 @@ export interface Platform {
   shippingSubsidy?: number;
 }
 
+export interface PlatformGoal {
+  platformId: string;
+  platformName: string;
+  targetValue: number;
+  targetType: 'units' | 'money'; // 'units' (un) ou 'money' (R$)
+}
+
 export interface MonthlyGoal {
   id: string;
   month: number;
@@ -39,6 +46,7 @@ export interface MonthlyGoal {
   instagramStories?: number;
   shopeeSalesGoal?: number;
   elo7SalesGoal?: number;
+  platformGoals?: PlatformGoal[];
 }
 
 export interface CompanyData {

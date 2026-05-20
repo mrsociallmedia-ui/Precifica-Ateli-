@@ -30,10 +30,12 @@ import {
   MessageSquare,
   Send,
   RefreshCw,
-  Layout
+  Layout,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { generateContent } from '../lib/gemini';
-import { Project, Customer, Material, CompanyData, Platform, Transaction, Product, MonthlyGoal } from '../types';
+import { Project, Customer, Material, CompanyData, Platform, Transaction, Product, MonthlyGoal, PlatformGoal } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
 interface DashboardProps {
@@ -55,13 +57,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>('all');
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [goalInput, setGoalInput] = useState('');
-  const [instagramPostsInput, setInstagramPostsInput] = useState('');
-  const [instagramReelsInput, setInstagramReelsInput] = useState('');
-  const [instagramStoriesInput, setInstagramStoriesInput] = useState('');
-  const [shopeeSalesInput, setShopeeSalesInput] = useState('');
-  const [elo7SalesInput, setElo7SalesInput] = useState('');
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
-  const [aiContent, setAiContent] = useState('');
+  
+  // Dynamic platform goals states
+  const [platformGoalsList, setPlatformGoalsList] = useState<PlatformGoal[]>([]);
+  const [newPlatformId, setNewPlatformId] = useState('');
+  const [newPlatformCustomName, setNewPlatformCustomName] = useState('');
+  const [newPlatformValue, setNewPlatformValue] = useState('');
+  const [newPlatformType, setNewPlatformType] = useState<'units' | 'money'>('units');
+
   const todayStr = new Date().toISOString().split('T')[0];
 
   const currentMonth = new Date().getMonth() + 1;
@@ -82,7 +85,52 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
 • Meta Diária (20 dias úteis): R$ ${(goal / 20).toFixed(2)}
 • Ação 1: Foque nos produtos de maior margem (ex: topos de bolo complexos).
 • Ação 2: Reative 5 clientes antigos oferecendo um mimo na próxima compra.
-• Ação 3: Poste 3 stories por dia mostrando os bastidores da produção.`;
+• Ação 3: Diversifique seus canais de vendas e atinja mais clientes em suas plataformas preferidas!`;
+  };
+
+  const handleAddPlatformGoal = () => {
+    if (!newPlatformId) {
+      alert('Selecione uma plataforma.');
+      return;
+    }
+    const targetVal = parseFloat(newPlatformValue);
+    if (isNaN(targetVal) || targetVal <= 0) {
+      alert('Insira um valor de faturamento ou unidades válido.');
+      return;
+    }
+
+    let pName = '';
+    if (newPlatformId === 'custom') {
+      pName = newPlatformCustomName.trim();
+      if (!pName) {
+        alert('Digite o nome da plataforma personalizada.');
+        return;
+      }
+    } else {
+      const foundPlat = platforms.find(p => p.id === newPlatformId);
+      pName = foundPlat ? foundPlat.name : newPlatformId;
+    }
+
+    if (platformGoalsList.some(item => item.platformId === newPlatformId && item.platformName === pName && item.targetType === newPlatformType)) {
+      alert('Já existe uma meta cadastrada para esta plataforma com o mesmo tipo de faturamento/unidade.');
+      return;
+    }
+
+    const newGoalItem: PlatformGoal = {
+      platformId: newPlatformId === 'custom' ? `custom_${Date.now()}` : newPlatformId,
+      platformName: pName,
+      targetValue: targetVal,
+      targetType: newPlatformType
+    };
+
+    setPlatformGoalsList(prev => [...prev, newGoalItem]);
+    setNewPlatformId('');
+    setNewPlatformCustomName('');
+    setNewPlatformValue('');
+  };
+
+  const handleRemovePlatformGoal = (index: number) => {
+    setPlatformGoalsList(prev => prev.filter((_, idx) => idx !== index));
   };
 
   const handleSaveGoal = () => {
@@ -98,11 +146,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       year: currentYear,
       goal: goalValue,
       plan: generateGrowthPlan(goalValue),
-      instagramPosts: parseInt(instagramPostsInput) || 0,
-      instagramReels: parseInt(instagramReelsInput) || 0,
-      instagramStories: parseInt(instagramStoriesInput) || 0,
-      shopeeSalesGoal: parseInt(shopeeSalesInput) || 0,
-      elo7SalesGoal: parseInt(elo7SalesInput) || 0
+      platformGoals: platformGoalsList,
+      // Se houver shopee e elo7 na lista em unidades, salvamos no nível raiz de forma retrocompatível
+      shopeeSalesGoal: platformGoalsList.find(p => p.platformId === 'shopee' && p.targetType === 'units')?.targetValue || 0,
+      elo7SalesGoal: platformGoalsList.find(p => p.platformId === 'elo7' && p.targetType === 'units')?.targetValue || 0
     };
 
     const updatedGoals = companyData.monthlyGoals ? [...companyData.monthlyGoals.filter(g => g.id !== newGoal.id), newGoal] : [newGoal];
@@ -110,30 +157,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
     setCompanyData(prev => ({ ...prev, monthlyGoals: updatedGoals }));
     setIsGoalModalOpen(false);
     setGoalInput('');
-    setInstagramPostsInput('');
-    setInstagramReelsInput('');
-    setInstagramStoriesInput('');
-    setShopeeSalesInput('');
-    setElo7SalesInput('');
-  };
-
-  const generateAIContent = async () => {
-    setIsGeneratingAI(true);
-    try {
-      const prompt = `Como uma especialista em marketing para artesãs de papelaria personalizada e topos de bolo, gere um calendário de conteúdo para o Instagram para este mês. 
-          Minhas metas são: ${instagramPostsInput} Posts, ${instagramReelsInput} Reels e ${instagramStoriesInput} Stories por dia.
-          O nome do meu ateliê é ${companyData.name}.
-          Gere ideias criativas de temas para posts, reels e stories que ajudem a atrair clientes e converter vendas.
-          Formate como uma lista curta e inspiradora.`;
-
-      const text = await generateContent(prompt, 'gemini-3-flash-preview');
-      setAiContent(text || 'Não foi possível gerar conteúdo no momento.');
-    } catch (error: any) {
-      console.error('Erro ao gerar conteúdo com IA:', error);
-      alert('Erro ao conectar com a IA: ' + error.message);
-    } finally {
-      setIsGeneratingAI(false);
-    }
+    setPlatformGoalsList([]);
+    setNewPlatformId('');
+    setNewPlatformCustomName('');
+    setNewPlatformValue('');
   };
 
   const handleDeleteGoal = () => {
@@ -400,11 +427,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
               </div>
               <button onClick={() => { 
                 setGoalInput(currentGoal?.goal.toString() || ''); 
-                setInstagramPostsInput(currentGoal?.instagramPosts?.toString() || '');
-                setInstagramReelsInput(currentGoal?.instagramReels?.toString() || '');
-                setInstagramStoriesInput(currentGoal?.instagramStories?.toString() || '');
-                setShopeeSalesInput(currentGoal?.shopeeSalesGoal?.toString() || '');
-                setElo7SalesInput(currentGoal?.elo7SalesGoal?.toString() || '');
+                const initialGoalsList: PlatformGoal[] = [];
+                if (currentGoal?.platformGoals) {
+                  initialGoalsList.push(...currentGoal.platformGoals);
+                } else {
+                  if (currentGoal?.shopeeSalesGoal) {
+                    initialGoalsList.push({
+                      platformId: 'shopee',
+                      platformName: 'Shopee',
+                      targetValue: currentGoal.shopeeSalesGoal,
+                      targetType: 'units'
+                    });
+                  }
+                  if (currentGoal?.elo7SalesGoal) {
+                    initialGoalsList.push({
+                      platformId: 'elo7',
+                      platformName: 'Elo7',
+                      targetValue: currentGoal.elo7SalesGoal,
+                      targetType: 'units'
+                    });
+                  }
+                }
+                setPlatformGoalsList(initialGoalsList);
                 setIsGoalModalOpen(true); 
               }} className="text-[10px] font-black text-blue-500 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors">
                 {currentGoal ? 'Editar Meta' : 'Definir Meta'}
@@ -424,44 +468,43 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                       {goalProgress >= 100 && <span className="text-green-500 flex items-center gap-1"><CheckCircle2 size={10}/> Batida!</span>}
                     </p>
                   </div>
-                  
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-50">
-                    <div className="text-center">
-                      <Instagram size={14} className="mx-auto text-pink-500 mb-1" />
-                      <p className="text-[8px] font-black text-gray-400 uppercase">Posts</p>
-                      <p className="text-xs font-black text-gray-700">{currentGoal.instagramPosts || 0}</p>
-                    </div>
-                    <div className="text-center">
-                      <Video size={14} className="mx-auto text-purple-500 mb-1" />
-                      <p className="text-[8px] font-black text-gray-400 uppercase">Reels</p>
-                      <p className="text-xs font-black text-gray-700">{currentGoal.instagramReels || 0}</p>
-                    </div>
-                    <div className="text-center">
-                      <Image size={14} className="mx-auto text-orange-500 mb-1" />
-                      <p className="text-[8px] font-black text-gray-400 uppercase">Stories</p>
-                      <p className="text-xs font-black text-gray-700">{currentGoal.instagramStories || 0}</p>
-                    </div>
-                  </div>
 
-                  {((currentGoal.shopeeSalesGoal || 0) > 0 || (currentGoal.elo7SalesGoal || 0) > 0) && (
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50">
-                      {(currentGoal.shopeeSalesGoal || 0) > 0 && (
-                        <div className="flex items-center gap-2 bg-orange-50 p-2 rounded-xl border border-orange-100">
-                          <Store size={12} className="text-orange-600" />
-                          <div>
-                            <p className="text-[7px] font-black text-orange-400 uppercase leading-none">Shopee</p>
-                            <p className="text-[10px] font-black text-orange-700 leading-none mt-1">{currentGoal.shopeeSalesGoal} un.</p>
+                  {/* Metas por Plataforma */}
+                  {((currentGoal.platformGoals && currentGoal.platformGoals.length > 0) || (currentGoal.shopeeSalesGoal || 0) > 0 || (currentGoal.elo7SalesGoal || 0) > 0) && (
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 max-h-48 overflow-y-auto">
+                      {currentGoal.platformGoals && currentGoal.platformGoals.length > 0 ? (
+                        currentGoal.platformGoals.map((g, idx) => (
+                          <div key={idx} className="flex items-center gap-2 bg-orange-50/70 p-2 rounded-xl border border-orange-100">
+                            <Store size={12} className="text-orange-600 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[7px] font-black text-orange-400 uppercase leading-none truncate">{g.platformName}</p>
+                              <p className="text-[10px] font-black text-orange-700 leading-none mt-1">
+                                {g.targetType === 'money' ? `R$ ${g.targetValue.toFixed(2)}` : `${g.targetValue} un.`}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {(currentGoal.elo7SalesGoal || 0) > 0 && (
-                        <div className="flex items-center gap-2 bg-blue-50 p-2 rounded-xl border border-blue-100">
-                          <Store size={12} className="text-blue-600" />
-                          <div>
-                            <p className="text-[7px] font-black text-blue-400 uppercase leading-none">Elo7</p>
-                            <p className="text-[10px] font-black text-blue-700 leading-none mt-1">{currentGoal.elo7SalesGoal} un.</p>
-                          </div>
-                        </div>
+                        ))
+                      ) : (
+                        <>
+                          {(currentGoal.shopeeSalesGoal || 0) > 0 && (
+                            <div className="flex items-center gap-2 bg-orange-50 p-2 rounded-xl border border-orange-100">
+                              <Store size={12} className="text-orange-600" />
+                              <div>
+                                <p className="text-[7px] font-black text-orange-400 uppercase leading-none">Shopee</p>
+                                <p className="text-[10px] font-black text-orange-700 leading-none mt-1">{currentGoal.shopeeSalesGoal} un.</p>
+                              </div>
+                            </div>
+                          )}
+                          {(currentGoal.elo7SalesGoal || 0) > 0 && (
+                            <div className="flex items-center gap-2 bg-blue-50 p-2 rounded-xl border border-blue-100">
+                              <Store size={12} className="text-blue-600" />
+                              <div>
+                                <p className="text-[7px] font-black text-blue-400 uppercase leading-none">Elo7</p>
+                                <p className="text-[10px] font-black text-blue-700 leading-none mt-1">{currentGoal.elo7SalesGoal} un.</p>
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
@@ -886,107 +929,126 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                 </div>
               </div>
 
-              {/* Metas Instagram */}
-              <div className="bg-pink-50/50 p-6 rounded-[2rem] border border-pink-100">
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-xs font-black text-pink-600 uppercase tracking-widest flex items-center gap-2">
-                    <Instagram size={16} /> Instagram
-                  </h4>
-                  <button 
-                    onClick={generateAIContent}
-                    disabled={isGeneratingAI}
-                    className="flex items-center gap-2 px-4 py-2 bg-pink-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-pink-600 transition-all shadow-md disabled:opacity-50"
-                  >
-                    {isGeneratingAI ? <RefreshCw className="animate-spin" size={12} /> : <Sparkles size={12} />}
-                    Gerar Conteúdo com IA
-                  </button>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Posts</label>
-                    <input 
-                      type="number" 
-                      value={instagramPostsInput}
-                      onChange={(e) => setInstagramPostsInput(e.target.value)}
-                      className="w-full bg-white border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Reels</label>
-                    <input 
-                      type="number" 
-                      value={instagramReelsInput}
-                      onChange={(e) => setInstagramReelsInput(e.target.value)}
-                      className="w-full bg-white border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Stories/Dia</label>
-                    <input 
-                      type="number" 
-                      value={instagramStoriesInput}
-                      onChange={(e) => setInstagramStoriesInput(e.target.value)}
-                      className="w-full bg-white border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold outline-none"
-                    />
-                  </div>
-                </div>
-
-                {aiContent && (
-                  <div className="mt-6 p-6 bg-white rounded-3xl border border-pink-100 shadow-sm animate-fadeIn">
-                    <div className="flex justify-between items-center mb-3">
-                      <h5 className="text-[10px] font-black text-pink-500 uppercase tracking-widest flex items-center gap-2">
-                        <Sparkles size={12} /> Sugestões da IA:
-                      </h5>
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(aiContent);
-                          alert('Conteúdo copiado!');
-                        }}
-                        className="text-[8px] font-black text-pink-400 uppercase tracking-widest hover:text-pink-600 flex items-center gap-1"
-                      >
-                        <Layout size={10} /> Copiar
-                      </button>
-                    </div>
-                    <div className="text-xs text-gray-600 leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                      {aiContent}
-                    </div>
-                  </div>
-                )}
-              </div>
-
               {/* Metas de Vendas por Plataforma */}
               <div className="bg-orange-50/50 p-6 rounded-[2rem] border border-orange-100">
                 <h4 className="text-xs font-black text-orange-600 uppercase tracking-widest mb-4 flex items-center gap-2">
                   <Store size={16} /> Vendas por Plataforma
                 </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Meta Shopee (Un.)</label>
-                    <input 
-                      type="number" 
-                      value={shopeeSalesInput}
-                      onChange={(e) => setShopeeSalesInput(e.target.value)}
-                      className="w-full bg-white border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold outline-none"
-                    />
+
+                {/* List of currently added platform goals */}
+                {platformGoalsList.length > 0 ? (
+                  <div className="space-y-2 mb-6">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Metas Cadastradas para o Mês:</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {platformGoalsList.map((g, index) => (
+                        <div key={index} className="flex justify-between items-center bg-white p-3 rounded-xl border border-orange-100 shadow-sm animate-fadeIn">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-black text-gray-700 truncate">{g.platformName}</p>
+                            <p className="text-[10px] text-orange-600 font-bold">
+                              {g.targetType === 'money' ? `Meta: R$ ${g.targetValue.toFixed(2)}` : `Meta: ${g.targetValue} un.`}
+                            </p>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => handleRemovePlatformGoal(index)}
+                            className="p-1 px-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-2"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Meta Elo7 (Un.)</label>
-                    <input 
-                      type="number" 
-                      value={elo7SalesInput}
-                      onChange={(e) => setElo7SalesInput(e.target.value)}
-                      className="w-full bg-white border border-gray-100 rounded-2xl p-4 text-gray-800 font-bold outline-none"
-                    />
+                ) : (
+                  <p className="text-xs text-gray-400 italic mb-4">Nenhuma meta por plataforma cadastrada para este mês ainda.</p>
+                )}
+
+                {/* Form to add a new platform goal */}
+                <div className="bg-white p-4 rounded-2xl border border-orange-100/50 space-y-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-orange-600">Adicionar Meta por Plataforma</p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Selecione a Plataforma</label>
+                      <select
+                        value={newPlatformId}
+                        onChange={(e) => {
+                          setNewPlatformId(e.target.value);
+                          if (e.target.value !== 'custom') {
+                            setNewPlatformCustomName('');
+                          }
+                        }}
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold text-gray-700 focus:outline-none"
+                      >
+                        <option value="">-- Selecione --</option>
+                        {platforms.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                        <option value="custom">Outra (Personalizada)...</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Tipo de Meta</label>
+                      <div className="flex gap-1 bg-gray-50 p-1 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={() => setNewPlatformType('units')}
+                          className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${newPlatformType === 'units' ? 'bg-orange-400 text-white shadow-sm' : 'text-gray-400'}`}
+                        >
+                          Unidades (un)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewPlatformType('money')}
+                          className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${newPlatformType === 'money' ? 'bg-orange-400 text-white shadow-sm' : 'text-gray-400'}`}
+                        >
+                          Faturamento (R$)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {newPlatformId === 'custom' && (
+                    <div>
+                      <label className="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Nome da Plataforma Personalizada</label>
+                      <input
+                        type="text"
+                        value={newPlatformCustomName}
+                        onChange={(e) => setNewPlatformCustomName(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold text-gray-700 focus:outline-none placeholder-gray-300"
+                        placeholder="Ex: Mercado Livre, Site Próprio, WhatsApp..."
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 items-end">
+                    <div className="flex-1">
+                      <label className="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">
+                        {newPlatformType === 'money' ? 'Valor Restante/Meta (R$)' : 'Quantidade de Meta (Un.)'}
+                      </label>
+                      <input
+                        type="number"
+                        value={newPlatformValue}
+                        onChange={(e) => setNewPlatformValue(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold text-gray-700 focus:outline-none"
+                        placeholder={newPlatformType === 'money' ? 'Ex: 1500.00' : 'Ex: 50'}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddPlatformGoal}
+                      className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-xl flex items-center justify-center font-black transition-colors shadow-md shadow-orange-500/20"
+                    >
+                      <Plus size={18} />
+                    </button>
                   </div>
                 </div>
               </div>
 
               <div className="flex gap-4 mt-8 pt-4 border-t border-gray-50">
                 <button 
-                  onClick={() => {
-                    handleSaveGoal();
-                    setAiContent('');
-                  }}
+                  onClick={handleSaveGoal}
                   className="flex-1 bg-blue-500 text-white font-black py-4 rounded-2xl hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30"
                 >
                   Salvar Metas
