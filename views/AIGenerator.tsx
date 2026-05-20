@@ -390,64 +390,6 @@ ${customDescription || 'Artesanato geral feito com muito carinho, personalizado 
         </div>
       </div>
 
-      {/* Diagnostics / Status Block - Só exibe se estiver carregando ou apresentar alguma pendência */}
-      {(!serverStatus.checked || !serverStatus.online || !serverStatus.geminiConfigured) && (
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-3 w-3">
-              {!serverStatus.checked ? (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-              ) : serverStatus.online && serverStatus.geminiConfigured ? (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              ) : (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-              )}
-              
-              {!serverStatus.checked ? (
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
-              ) : serverStatus.online && serverStatus.geminiConfigured ? (
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-              ) : (
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
-              )}
-            </div>
-            <div>
-              <p className="text-xs font-black text-gray-700 uppercase tracking-wide">
-                {!serverStatus.checked ? (
-                  "Verificando integridade da IA..."
-                ) : serverStatus.online ? (
-                  serverStatus.geminiConfigured ? (
-                    "Servidor de IA Conectado & Ativo"
-                  ) : (
-                    "Servidor Online, mas GEMINI_API_KEY pendente"
-                  )
-                ) : (
-                  "Servidor de IA Offline ou Iniciando"
-                )}
-              </p>
-              <p className="text-[11px] text-gray-400 font-medium select-none">
-                {!serverStatus.checked ? (
-                  "Verificando status de comunicação com a engrenagem interna."
-                ) : serverStatus.online ? (
-                  serverStatus.geminiConfigured ? (
-                    "O backend integrado está funcionando normalmente e pronto para responder em formato JSON."
-                  ) : (
-                    "Chave não detectada. Por favor, cadastre no botão de engrenagem do AI Studio (canto superior direito)."
-                  )
-                ) : (
-                  `A comunicação falhou (${serverStatus.error || 'Erro de rede'}). O dev server backend está carregando ou reiniciando.`
-                )}
-              </p>
-            </div>
-          </div>
-
-          {serverStatus.checked && (!serverStatus.online || !serverStatus.geminiConfigured) && (
-            <div className="text-xs text-rose-600 font-black bg-rose-50 px-3.5 py-1.5 rounded-xl border border-rose-100 flex items-center gap-1.5 self-stretch md:self-auto justify-center select-none">
-              ⚠️ Pendente nas Configurações
-            </div>
-          )}
-        </div>
-      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
         {/* Panel Form Fields */}
