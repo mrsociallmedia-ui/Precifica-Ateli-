@@ -66,7 +66,7 @@ async function startServer() {
   // API Route for Gemini content generation
   app.post("/api/generate", async (req: Request, res: Response) => {
     try {
-      const { prompt, model: modelName = "gemini-3.5-flash" } = req.body;
+      const { prompt, model: modelName = "gemini-3.5-flash", config } = req.body;
       const apiKey = process.env.GEMINI_API_KEY;
 
       if (!apiKey) {
@@ -95,7 +95,8 @@ async function startServer() {
       try {
         const response = await genAI.models.generateContent({
           model: targetModel,
-          contents: prompt
+          contents: prompt,
+          config: config
         });
         text = response.text || "";
       } catch (sdkError: any) {

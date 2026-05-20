@@ -117,7 +117,23 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({
   const parsedSections = useMemo(() => {
     if (!generatedResult) return null;
     
-    // Tentativa de separar Título, Corpo e Hashtags de forma limpa caso o Gemini use marcadores
+    // 1. Tenta tratar como resposta JSON estruturada
+    try {
+      const parsed = JSON.parse(generatedResult);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          title: String(parsed.title || '').trim(),
+          body: String(parsed.body || '').trim(),
+          hashtags: String(parsed.hashtags || '').trim(),
+          tips: String(parsed.tips || '').trim()
+        };
+      }
+    } catch (e) {
+      // Ignora erro e continua para o fallback de parsing manual por linhas
+      console.log("A resposta não é JSON estruturado, aplicando fallback de linhas", e);
+    }
+    
+    // 2. Fallback de tentativa de separar de forma limpa caso o Gemini use marcadores de texto
     const result = {
       title: '',
       body: generatedResult,
@@ -169,7 +185,24 @@ export const AIGenerator: React.FC<AIGeneratorProps> = ({
   }, [generatedResult]);
 
   const handleCopy = (text: string, section: 'all' | 'body' | 'hashtags' | 'title') => {
-    navigator.clipboard.writeText(text);
+    let textToCopy = text;
+    if (section === 'all' && parsedSections) {
+      const parts = [];
+      if (parsedSections.title) {
+        parts.push(`📝 TÍTULO:\n${parsedSections.title}`);
+      }
+      if (parsedSections.body) {
+        parts.push(parsedSections.body);
+      }
+      if (parsedSections.hashtags) {
+        parts.push(parsedSections.hashtags);
+      }
+      if (parsedSections.tips) {
+        parts.push(`⚡ DICA DE OURO / SUGESTÃO:\n${parsedSections.tips}`);
+      }
+      textToCopy = parts.join('\n\n');
+    }
+    navigator.clipboard.writeText(textToCopy);
     setCopiedSection(section);
     setTimeout(() => setCopiedSection(null), 2000);
   };
@@ -238,7 +271,32 @@ ${customDescription || 'Artesanato geral feito com muito carinho, personalizado 
         },
         body: JSON.stringify({
           prompt: promptText,
-          model: 'gemini-3.5-flash'
+          model: 'gemini-3.5-flash',
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: 'OBJECT',
+              properties: {
+                title: { 
+                  type: 'STRING', 
+                  description: 'Título curto sugerido de até 8 palavras ou assunto principal' 
+                },
+                body: { 
+                  type: 'STRING', 
+                  description: 'Conteúdo textual principal: legenda rica para rede social, roteiro descritivo, descrição elegante para catálogo, ou cadastro detalhado de produto para e-commerce. Deve ser acolhedor, voltado ao valor afetivo do artesanato' 
+                },
+                hashtags: { 
+                  type: 'STRING', 
+                  description: 'Hashtags do instagram, do Facebook, ou palavras-chave de e-commerce separadas por virgula' 
+                },
+                tips: { 
+                  type: 'STRING', 
+                  description: 'Conselho prático de fotografia, engajamento ou sugestão de produção para o post' 
+                }
+              },
+              required: ['title', 'body', 'hashtags', 'tips']
+            }
+          }
         })
       });
 
@@ -656,8 +714,14 @@ ${customDescription || 'Artesanato geral feito com muito carinho, personalizado 
                     </div>
                   </div>
 
-                  <div className="p-6 text-xs text-gray-600 whitespace-pre-wrap leading-relaxed select-all selection:bg-blue-50">
-                    {generatedResult}
+                  <div className="p-6 text-xs text-gray-600 whitespace-pre-wrap leading-relaxed select-all selection:bg-blue-50 space-y-4">
+                    {parsedSections?.title && (
+                      <h4 className="font-bold text-gray-800 text-sm">{parsedSections.title}</h4>
+                    )}
+                    <div>{parsedSections?.body}</div>
+                    {parsedSections?.hashtags && (
+                      <div className="text-blue-600 font-medium mt-2">{parsedSections.hashtags}</div>
+                    )}
                   </div>
 
                   <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center text-xs">
@@ -694,8 +758,11 @@ ${customDescription || 'Artesanato geral feito com muito carinho, personalizado 
                     <p className="text-purple-400 font-black uppercase text-[10px] tracking-widest mb-2 select-none">
                       Amostra de Resumo da Peça
                     </p>
+                    {parsedSections?.title && (
+                      <h4 className="font-bold text-gray-800 text-sm mb-2">{parsedSections.title}</h4>
+                    )}
                     <div className="text-xs text-gray-600 italic whitespace-pre-wrap leading-relaxed select-all font-medium select-all selection:bg-purple-50">
-                      {generatedResult}
+                      {parsedSections?.body}
                     </div>
                   </div>
 
