@@ -176,6 +176,36 @@ export const Schedule: React.FC<ScheduleProps> = ({
   const currentMonth = new Date().getMonth() + 1;
   const currentMonthName = new Date().toLocaleDateString('pt-BR', { month: 'long' });
 
+  // Helper to get current week start (Monday) and end (Sunday) dates
+  const getCurrentWeekRange = () => {
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
+    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + distanceToMonday);
+    monday.setHours(0, 0, 0, 0);
+    
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    
+    return {
+      start: monday.toISOString().split('T')[0],
+      end: sunday.toISOString().split('T')[0]
+    };
+  };
+
+  const [printStartDate, setPrintStartDate] = useState<string>(() => {
+    const { start } = getCurrentWeekRange();
+    return start;
+  });
+  const [printEndDate, setPrintEndDate] = useState<string>(() => {
+    const { end } = getCurrentWeekRange();
+    return end;
+  });
+  const [filterPrintByDate, setFilterPrintByDate] = useState<boolean>(true);
+
   const monthlyBirthdays = useMemo(() => {
     return customers.filter(c => {
       if (!c.birthDate) return false;
@@ -224,9 +254,23 @@ export const Schedule: React.FC<ScheduleProps> = ({
   };
 
   const handlePrintApproved = () => {
-    const approvedProjects = projects.filter(p => p.status === 'approved');
+    let approvedProjects = projects.filter(p => p.status === 'approved');
+    
+    if (filterPrintByDate && printStartDate && printEndDate) {
+      approvedProjects = approvedProjects.filter(project => {
+        if (!project.deliveryDate) return false;
+        return project.deliveryDate >= printStartDate && project.deliveryDate <= printEndDate;
+      });
+    }
+
     if (approvedProjects.length === 0) {
-      alert('Não há pedidos aprovados para imprimir no momento!');
+      if (filterPrintByDate && printStartDate && printEndDate) {
+        const startFormatted = new Date(printStartDate + 'T12:00:00').toLocaleDateString('pt-BR');
+        const endFormatted = new Date(printEndDate + 'T12:00:00').toLocaleDateString('pt-BR');
+        alert(`Não há pedidos aprovados com entrega no período selecionado (${startFormatted} a ${endFormatted})!`);
+      } else {
+        alert('Não há pedidos aprovados para imprimir no momento!');
+      }
       return;
     }
 
@@ -236,143 +280,140 @@ export const Schedule: React.FC<ScheduleProps> = ({
       return;
     }
 
-    const content = approvedProjects.map(project => {
+    const rows = approvedProjects.map(project => {
       const { finalPrice, remainingBalance } = calculateProjectBreakdown(project, materials, platforms, companyData, transactions);
       const customer = customers.find(c => c.id === project.customerId);
       const customerName = customer?.name || 'Cliente Avulso';
       const customerPhone = customer?.phone || '';
-      const formattedOrderDate = project.orderDate ? new Date(project.orderDate + 'T12:00:00').toLocaleDateString('pt-BR') : new Date(project.createdAt).toLocaleDateString('pt-BR');
       const formattedDeliveryDate = project.deliveryDate ? new Date(project.deliveryDate + 'T12:00:00').toLocaleDateString('pt-BR') : 'A combinar';
       
-      const hours = project.items?.reduce((acc, i) => acc + (i.hoursToMake * i.quantity), 0).toFixed(1) || '0.0';
+      const cakeDetails = project.isCakeTopper && (project.celebrantName || project.celebrantAge || project.cakeSize)
+        ? `<div class="cake-badge">🎂 ${project.celebrantName || ''} ${project.celebrantAge ? `(${project.celebrantAge} anos)` : ''} ${project.cakeSize ? `• Bolo: ${project.cakeSize}` : ''}</div>`
+        : '';
+
+      const itemsList = project.items?.map(item => `
+        <div class="item-line">
+          <span class="item-qty">${item.quantity}x</span>
+          <span class="item-name">${item.name}</span>
+        </div>
+      `).join('') || '<span style="color: #a0aec0; font-size: 10px;">Sem itens</span>';
+
+      const obsHtml = project.observations 
+        ? `<div class="observation-text"><strong>Obs:</strong> ${project.observations}</div>` 
+        : '';
+
+      const balanceStatus = remainingBalance > 0 
+        ? `<span class="balance-text balance-pending">Falta R$ ${remainingBalance.toFixed(2)}</span>` 
+        : `<span class="balance-text balance-paid">Pago</span>`;
 
       return `
-        <div class="project-card">
-          <div class="card-header">
-            <div>
-              <span class="quote-badge">PEDIDO #${project.quoteNumber || 'S/N'}</span>
-              <h2 class="project-theme">${project.theme}</h2>
-            </div>
-            <div class="price-badge">R$ ${finalPrice.toFixed(2)}</div>
-          </div>
-          
-          <div class="info-grid">
-            <div class="info-item">
-              <span class="info-label">Cliente</span>
-              <span class="info-val">${customerName} ${customerPhone ? `(${customerPhone})` : ''}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Data de Entrega</span>
-              <span class="info-val highlight-delivery">${formattedDeliveryDate}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Data do Pedido</span>
-              <span class="info-val">${formattedOrderDate}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Tempo Est. Produção</span>
-              <span class="info-val">${hours} horas</span>
-            </div>
-          </div>
-
-          ${project.isCakeTopper && (project.celebrantName || project.celebrantAge || project.cakeSize) ? `
-            <div class="extra-box">
-              <span class="extra-title">🎂 Detalhes do Bolo</span>
-              <div class="extra-content">
-                ${project.celebrantName ? `<strong>Celebreitante / Tema:</strong> ${project.celebrantName} ${project.celebrantAge ? `(${project.celebrantAge} anos)` : ''}<br>` : ''}
-                ${project.cakeSize ? `<strong>Tamanho do Bolo:</strong> ${project.cakeSize}` : ''}
-              </div>
-            </div>
-          ` : ''}
-
-          <div class="section-title-print">📋 Itens a Produzir</div>
-          <table class="items-table">
-            <thead>
-              <tr>
-                <th style="width: 15%; text-align: center;">Qtd</th>
-                <th style="width: 85%;">Item / Descrição</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${project.items?.map(item => `
-                <tr>
-                  <td style="text-align: center; font-weight: bold; font-size: 13px;">${item.quantity}x</td>
-                  <td>${item.name}</td>
-                </tr>
-              `).join('') || '<tr><td colspan="2" style="text-align: center; color: #a0aec0;">Nenhum item cadastrado.</td></tr>'}
-            </tbody>
-          </table>
-
-          ${project.observations ? `
-            <div class="obs-box">
-              <strong>Observações:</strong><br>
-              ${project.observations}
-            </div>
-          ` : ''}
-
-          <div class="card-footer">
-            <span>Pagamento: ${remainingBalance > 0 ? `<strong class="status-warning">A Receber: R$ ${remainingBalance.toFixed(2)}</strong>` : '<strong class="status-success">Totalmente Pago</strong>'}</span>
+        <tr>
+          <td>
+            <span class="quote-num">#${project.quoteNumber || 'S/N'}</span>
+          </td>
+          <td>
+            <div class="client-name">${customerName}</div>
+            ${customerPhone ? `<span class="client-phone">${customerPhone}</span>` : ''}
+          </td>
+          <td>
+            <div class="theme-title">${project.theme}</div>
+            <span class="${project.deliveryDate ? 'delivery-date' : 'delivery-normal'}">Entrega: ${formattedDeliveryDate}</span>
+            ${cakeDetails}
+            ${obsHtml}
+          </td>
+          <td>
+            ${itemsList}
+          </td>
+          <td style="text-align: right;">
+            <div class="price-text">R$ ${finalPrice.toFixed(2)}</div>
+            ${balanceStatus}
             ${project.isExchange ? '<span class="exchange-badge">Permuta</span>' : ''}
-          </div>
-        </div>
+          </td>
+        </tr>
       `;
     }).join('');
 
     printWindow.document.write(`
       <html>
         <head>
-          <title>Fichas de Produção - Pedidos Aprovados</title>
+          <title>Resumo de Pedidos Aprovados - Cronograma</title>
           <meta charset="utf-8">
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-            body { font-family: 'Inter', -apple-system, sans-serif; padding: 20px; margin: 0; color: #1a202c; background: #fff; line-height: 1.5; }
-            .header-main { text-align: center; border-bottom: 2px solid #edf2f7; padding-bottom: 15px; margin-bottom: 25px; }
-            .company-name { font-size: 24px; font-weight: 900; color: #2d3748; text-transform: uppercase; margin: 0; }
-            .report-title { font-size: 14px; font-weight: 700; color: #3b82f6; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 5px; }
-            .report-date { font-size: 10px; color: #718096; margin-top: 4px; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+            body { font-family: 'Inter', -apple-system, sans-serif; padding: 15px; margin: 0; color: #1a202c; background: #fff; line-height: 1.25; font-size: 11px; }
             
-            .project-card { border: 2px solid #edf2f7; border-radius: 16px; padding: 24px; margin-bottom: 30px; page-break-inside: avoid; background: #fff; position: relative; }
-            .card-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #edf2f7; padding-bottom: 12px; margin-bottom: 15px; }
-            .project-theme { font-size: 18px; font-weight: 900; color: #2d3748; margin: 4px 0 0 0; }
-            .quote-badge { font-size: 10px; font-weight: 900; background: #ebf8ff; color: #2b6cb0; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; }
-            .price-badge { font-size: 16px; font-weight: 900; color: #2b6cb0; }
-            
-            .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 15px; }
-            .info-item { background: #f7fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #edf2f7; }
-            .info-label { font-size: 8px; font-weight: 700; color: #a0aec0; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px; }
-            .info-val { font-size: 12px; font-weight: bold; color: #2d3748; }
-            .highlight-delivery { color: #e53e3e; font-weight: 800; }
-            
-            .extra-box { background: #fffaf0; border: 1px solid #feebc8; padding: 12px 16px; border-radius: 12px; margin-bottom: 15px; }
-            .extra-title { font-size: 10px; font-weight: 900; color: #dd6b20; text-transform: uppercase; display: block; margin-bottom: 4px; }
-            .extra-content { font-size: 11px; color: #7b341e; }
-            
-            .section-title-print { font-size: 11px; font-weight: 900; color: #4a5568; background: #edf2f7; padding: 6px 12px; border-radius: 6px; margin: 15px 0 10px 0; text-transform: uppercase; }
-            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-            .items-table th { font-size: 9px; font-weight: 900; color: #718096; padding: 6px 10px; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; background: #f7fafc; }
-            .items-table td { padding: 8px 10px; border-bottom: 1px solid #edf2f7; font-size: 11px; color: #2d3748; }
-            
-            .obs-box { background: #f7fafc; border-left: 4px solid #4a5568; padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 11px; color: #4a5568; margin-top: 15px; margin-bottom: 15px; }
-            
-            .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #edf2f7; padding-top: 12px; margin-top: 15px; font-size: 11px; color: #718096; }
-            .status-warning { color: #dd6b20; }
-            .status-success { color: #38a169; }
-            .exchange-badge { font-size: 9px; font-weight: 800; background: #fdf2f8; color: #db2777; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; border: 1px solid #fbcfe8; }
-            
+            .header-main { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #edf2f7; padding-bottom: 8px; margin-bottom: 12px; }
+            .company-name { font-size: 16px; font-weight: 900; color: #2d3748; text-transform: uppercase; margin: 0; }
+            .report-title { font-size: 12px; font-weight: 700; color: #3b82f6; text-transform: uppercase; margin: 0; }
+            .report-date { font-size: 8px; color: #718096; margin-top: 2px; text-align: right; }
+
+            .summary-table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+            .summary-table th { font-size: 9px; font-weight: 900; color: #4a5568; padding: 6px 8px; border-bottom: 2px solid #cbd5e0; text-transform: uppercase; background: #f7fafc; text-align: left; }
+            .summary-table td { padding: 6px 8px; border-bottom: 1px solid #edf2f7; vertical-align: top; font-size: 10.5px; line-height: 1.35; }
+
+            .quote-num { font-weight: 800; color: #2b6cb0; font-family: monospace; font-size: 11px; background: #ebf8ff; padding: 2px 5px; border-radius: 4px; display: inline-block; }
+            .client-name { font-weight: 700; color: #2d3748; }
+            .client-phone { font-size: 9px; color: #718096; display: block; margin-top: 1px; }
+            .theme-title { font-weight: 700; color: #1a202c; font-size: 11px; }
+            .delivery-date { font-size: 9.5px; font-weight: 800; color: #e53e3e; margin-top: 2px; display: block; }
+            .delivery-normal { font-size: 9px; color: #4a5568; margin-top: 2px; display: block; }
+
+            .cake-badge { background: #fffaf0; border: 1px solid #feebc8; border-radius: 4px; padding: 2px 5px; font-size: 9px; color: #c05621; margin-top: 3px; display: inline-block; font-weight: 600; }
+            .item-line { display: flex; align-items: center; gap: 4px; font-size: 9.5px; margin-bottom: 2px; }
+            .item-qty { font-weight: 800; color: #2d3748; background: #edf2f7; padding: 0px 4px; border-radius: 3px; min-width: 16px; text-align: center; font-size: 9px; }
+            .item-name { color: #4a5568; }
+
+            .price-text { font-weight: 700; color: #2d3748; font-size: 11px; }
+            .balance-text { font-size: 9px; font-weight: 700; display: block; margin-top: 1px; }
+            .balance-pending { color: #dd6b20; }
+            .balance-paid { color: #38a169; }
+            .exchange-badge { font-size: 8px; font-weight: 800; background: #fdf2f8; color: #db2777; padding: 1px 4px; border-radius: 3px; text-transform: uppercase; border: 1px solid #fbcfe8; display: inline-block; margin-top: 3px; }
+
+            .observation-text { font-size: 8.5px; color: #718096; margin-top: 4px; line-height: 1.25; font-style: italic; border-left: 2px solid #cbd5e0; padding-left: 5px; max-width: 260px; }
+
             @media print {
-              body { padding: 10px; }
-              .project-card { border: 2px solid #ccc; page-break-after: always; margin-bottom: 0px; }
-              .project-card:last-child { page-break-after: avoid; }
+              body { padding: 0; }
+              .summary-table th { background: #f7fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              tr { page-break-inside: avoid; }
             }
           </style>
         </head>
         <body>
           <div class="header-main">
-            <h1 class="company-name">${companyData.name || 'Precifica Ateliê'}</h1>
-            <div class="report-title">Cronograma de Produção - Pedidos Aprovados</div>
-            <div class="report-date">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+            <div>
+              <h1 class="company-name">${companyData.name || 'Precifica Ateliê'}</h1>
+              <div class="report-title">Resumo de Produção - Pedidos Aprovados</div>
+              ${filterPrintByDate && printStartDate && printEndDate ? `
+                <div style="font-size: 10px; color: #4a5568; margin-top: 4px; font-weight: 600;">
+                  Período de Entrega: ${new Date(printStartDate + 'T12:00:00').toLocaleDateString('pt-BR')} a ${new Date(printEndDate + 'T12:00:00').toLocaleDateString('pt-BR')}
+                </div>
+              ` : `
+                <div style="font-size: 10px; color: #4a5568; margin-top: 4px; font-weight: 600;">
+                  Todos os pedidos sem filtro de período
+                </div>
+              `}
+            </div>
+            <div class="report-date">
+              Gerado em ${new Date().toLocaleString('pt-BR')}<br>
+              Total de Pedidos: <strong>${approvedProjects.length}</strong>
+            </div>
           </div>
-          ${content}
+          
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th style="width: 10%;">ID/Pedido</th>
+                <th style="width: 22%;">Cliente</th>
+                <th style="width: 33%;">Tema / Detalhes</th>
+                <th style="width: 22%;">Itens de Produção</th>
+                <th style="width: 13%; text-align: right;">Valores</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+          
           <script>
             window.onload = () => { setTimeout(() => { window.print(); }, 500); };
           </script>
@@ -406,13 +447,87 @@ export const Schedule: React.FC<ScheduleProps> = ({
                </button>
             </div>
             {projects.filter(p => p.status === 'approved').length > 0 && (
-               <button 
-                  onClick={handlePrintApproved}
-                  className="py-2.5 px-4 bg-blue-500 hover:bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
-                  title="Imprimir Todos os Pedidos Aprovados"
-               >
-                  <Printer size={12} className="stroke-[3px]" /> Imprimir Aprovados
-               </button>
+               <div className="flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200/60 p-2.5 rounded-2xl shadow-xs">
+                  <div className="flex items-center gap-2">
+                     <CalendarIcon size={14} className="text-slate-500" />
+                     <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Mapear Produção:</span>
+                  </div>
+                  
+                  {/* Toggle para usar ou não o filtro */}
+                  <button
+                     onClick={() => setFilterPrintByDate(!filterPrintByDate)}
+                     className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${filterPrintByDate ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}
+                  >
+                     {filterPrintByDate ? "Filtrar por Período" : "Todos Aprovados"}
+                  </button>
+
+                  {filterPrintByDate && (
+                     <>
+                        <div className="flex items-center gap-1.5">
+                           <input 
+                              type="date" 
+                              value={printStartDate} 
+                              onChange={(e) => setPrintStartDate(e.target.value)} 
+                              className="bg-white border border-gray-200 rounded-lg p-1 text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-700 font-sans"
+                           />
+                           <span className="text-gray-400 text-[10px] font-bold">até</span>
+                           <input 
+                              type="date" 
+                              value={printEndDate} 
+                              onChange={(e) => setPrintEndDate(e.target.value)} 
+                              className="bg-white border border-gray-200 rounded-lg p-1 text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-700 font-sans"
+                           />
+                        </div>
+
+                        {/* Quick Selection Buttons */}
+                        <div className="flex gap-1">
+                           <button
+                              type="button"
+                              onClick={() => {
+                                 const { start, end } = getCurrentWeekRange();
+                                 setPrintStartDate(start);
+                                 setPrintEndDate(end);
+                                 setFilterPrintByDate(true);
+                              }}
+                              className="bg-white hover:bg-gray-100 border border-gray-200 text-gray-600 px-2 py-1 text-[9px] font-bold rounded-lg transition-all cursor-pointer"
+                           >
+                              Esta Semana
+                           </button>
+                           <button
+                              type="button"
+                              onClick={() => {
+                                 const today = new Date();
+                                 const currentDay = today.getDay();
+                                 const distanceToNextMonday = currentDay === 0 ? 1 : 8 - currentDay;
+                                 
+                                 const nextMonday = new Date(today);
+                                 nextMonday.setDate(today.getDate() + distanceToNextMonday);
+                                 nextMonday.setHours(0,0,0,0);
+                                 
+                                 const nextSunday = new Date(nextMonday);
+                                 nextSunday.setDate(nextMonday.getDate() + 6);
+                                 nextSunday.setHours(23,59,59,999);
+                                 
+                                 setPrintStartDate(nextMonday.toISOString().split('T')[0]);
+                                 setPrintEndDate(nextSunday.toISOString().split('T')[0]);
+                                 setFilterPrintByDate(true);
+                              }}
+                              className="bg-white hover:bg-gray-100 border border-gray-200 text-gray-600 px-2 py-1 text-[9px] font-bold rounded-lg transition-all cursor-pointer"
+                           >
+                              Próx. Semana
+                           </button>
+                        </div>
+                     </>
+                  )}
+
+                  <button 
+                     onClick={handlePrintApproved}
+                     className="py-1.5 px-3.5 bg-blue-500 hover:bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer hover:scale-105 active:scale-95"
+                     title="Imprimir Pedidos Aprovados Selecionados"
+                  >
+                     <Printer size={12} className="stroke-[3px]" /> Imprimir
+                  </button>
+               </div>
             )}
           </div>
         </div>
