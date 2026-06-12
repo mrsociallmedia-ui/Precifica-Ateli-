@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3, ChevronDown, ChevronUp, MessageCircle, RefreshCw, LayoutGrid, List, ExternalLink } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3, ChevronDown, ChevronUp, MessageCircle, RefreshCw, LayoutGrid, List, ExternalLink, Printer } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -223,12 +223,171 @@ export const Schedule: React.FC<ScheduleProps> = ({
     }
   };
 
+  const handlePrintApproved = () => {
+    const approvedProjects = projects.filter(p => p.status === 'approved');
+    if (approvedProjects.length === 0) {
+      alert('Não há pedidos aprovados para imprimir no momento!');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor, ative a exibição de pop-ups neste navegador para imprimir.');
+      return;
+    }
+
+    const content = approvedProjects.map(project => {
+      const { finalPrice, remainingBalance } = calculateProjectBreakdown(project, materials, platforms, companyData, transactions);
+      const customer = customers.find(c => c.id === project.customerId);
+      const customerName = customer?.name || 'Cliente Avulso';
+      const customerPhone = customer?.phone || '';
+      const formattedOrderDate = project.orderDate ? new Date(project.orderDate + 'T12:00:00').toLocaleDateString('pt-BR') : new Date(project.createdAt).toLocaleDateString('pt-BR');
+      const formattedDeliveryDate = project.deliveryDate ? new Date(project.deliveryDate + 'T12:00:00').toLocaleDateString('pt-BR') : 'A combinar';
+      
+      const hours = project.items?.reduce((acc, i) => acc + (i.hoursToMake * i.quantity), 0).toFixed(1) || '0.0';
+
+      return `
+        <div class="project-card">
+          <div class="card-header">
+            <div>
+              <span class="quote-badge">PEDIDO #${project.quoteNumber || 'S/N'}</span>
+              <h2 class="project-theme">${project.theme}</h2>
+            </div>
+            <div class="price-badge">R$ ${finalPrice.toFixed(2)}</div>
+          </div>
+          
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Cliente</span>
+              <span class="info-val">${customerName} ${customerPhone ? `(${customerPhone})` : ''}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Data de Entrega</span>
+              <span class="info-val highlight-delivery">${formattedDeliveryDate}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Data do Pedido</span>
+              <span class="info-val">${formattedOrderDate}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Tempo Est. Produção</span>
+              <span class="info-val">${hours} horas</span>
+            </div>
+          </div>
+
+          ${project.isCakeTopper && (project.celebrantName || project.celebrantAge || project.cakeSize) ? `
+            <div class="extra-box">
+              <span class="extra-title">🎂 Detalhes do Bolo</span>
+              <div class="extra-content">
+                ${project.celebrantName ? `<strong>Celebreitante / Tema:</strong> ${project.celebrantName} ${project.celebrantAge ? `(${project.celebrantAge} anos)` : ''}<br>` : ''}
+                ${project.cakeSize ? `<strong>Tamanho do Bolo:</strong> ${project.cakeSize}` : ''}
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="section-title-print">📋 Itens a Produzir</div>
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 15%; text-align: center;">Qtd</th>
+                <th style="width: 85%;">Item / Descrição</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${project.items?.map(item => `
+                <tr>
+                  <td style="text-align: center; font-weight: bold; font-size: 13px;">${item.quantity}x</td>
+                  <td>${item.name}</td>
+                </tr>
+              `).join('') || '<tr><td colspan="2" style="text-align: center; color: #a0aec0;">Nenhum item cadastrado.</td></tr>'}
+            </tbody>
+          </table>
+
+          ${project.observations ? `
+            <div class="obs-box">
+              <strong>Observações:</strong><br>
+              ${project.observations}
+            </div>
+          ` : ''}
+
+          <div class="card-footer">
+            <span>Pagamento: ${remainingBalance > 0 ? `<strong class="status-warning">A Receber: R$ ${remainingBalance.toFixed(2)}</strong>` : '<strong class="status-success">Totalmente Pago</strong>'}</span>
+            ${project.isExchange ? '<span class="exchange-badge">Permuta</span>' : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Fichas de Produção - Pedidos Aprovados</title>
+          <meta charset="utf-8">
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+            body { font-family: 'Inter', -apple-system, sans-serif; padding: 20px; margin: 0; color: #1a202c; background: #fff; line-height: 1.5; }
+            .header-main { text-align: center; border-bottom: 2px solid #edf2f7; padding-bottom: 15px; margin-bottom: 25px; }
+            .company-name { font-size: 24px; font-weight: 900; color: #2d3748; text-transform: uppercase; margin: 0; }
+            .report-title { font-size: 14px; font-weight: 700; color: #3b82f6; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 5px; }
+            .report-date { font-size: 10px; color: #718096; margin-top: 4px; }
+            
+            .project-card { border: 2px solid #edf2f7; border-radius: 16px; padding: 24px; margin-bottom: 30px; page-break-inside: avoid; background: #fff; position: relative; }
+            .card-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #edf2f7; padding-bottom: 12px; margin-bottom: 15px; }
+            .project-theme { font-size: 18px; font-weight: 900; color: #2d3748; margin: 4px 0 0 0; }
+            .quote-badge { font-size: 10px; font-weight: 900; background: #ebf8ff; color: #2b6cb0; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; }
+            .price-badge { font-size: 16px; font-weight: 900; color: #2b6cb0; }
+            
+            .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 15px; }
+            .info-item { background: #f7fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #edf2f7; }
+            .info-label { font-size: 8px; font-weight: 700; color: #a0aec0; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px; }
+            .info-val { font-size: 12px; font-weight: bold; color: #2d3748; }
+            .highlight-delivery { color: #e53e3e; font-weight: 800; }
+            
+            .extra-box { background: #fffaf0; border: 1px solid #feebc8; padding: 12px 16px; border-radius: 12px; margin-bottom: 15px; }
+            .extra-title { font-size: 10px; font-weight: 900; color: #dd6b20; text-transform: uppercase; display: block; margin-bottom: 4px; }
+            .extra-content { font-size: 11px; color: #7b341e; }
+            
+            .section-title-print { font-size: 11px; font-weight: 900; color: #4a5568; background: #edf2f7; padding: 6px 12px; border-radius: 6px; margin: 15px 0 10px 0; text-transform: uppercase; }
+            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            .items-table th { font-size: 9px; font-weight: 900; color: #718096; padding: 6px 10px; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; background: #f7fafc; }
+            .items-table td { padding: 8px 10px; border-bottom: 1px solid #edf2f7; font-size: 11px; color: #2d3748; }
+            
+            .obs-box { background: #f7fafc; border-left: 4px solid #4a5568; padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 11px; color: #4a5568; margin-top: 15px; margin-bottom: 15px; }
+            
+            .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #edf2f7; padding-top: 12px; margin-top: 15px; font-size: 11px; color: #718096; }
+            .status-warning { color: #dd6b20; }
+            .status-success { color: #38a169; }
+            .exchange-badge { font-size: 9px; font-weight: 800; background: #fdf2f8; color: #db2777; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; border: 1px solid #fbcfe8; }
+            
+            @media print {
+              body { padding: 10px; }
+              .project-card { border: 2px solid #ccc; page-break-after: always; margin-bottom: 0px; }
+              .project-card:last-child { page-break-after: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header-main">
+            <h1 class="company-name">${companyData.name || 'Precifica Ateliê'}</h1>
+            <div class="report-title">Cronograma de Produção - Pedidos Aprovados</div>
+            <div class="report-date">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+          </div>
+          ${content}
+          <script>
+            window.onload = () => { setTimeout(() => { window.print(); }, 500); };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   return (
     <div className="space-y-10 animate-fadeIn pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black text-gray-800 tracking-tight">Cronograma <span className="text-blue-500">& Produção</span></h2>
-          <div className="flex items-center gap-4 mt-2">
+          <div className="flex flex-wrap items-center gap-4 mt-2">
             <p className="text-gray-400 font-medium">Acompanhe seus prazos e etapas do pedido.</p>
             <div className="flex items-center bg-gray-100 p-1 rounded-xl">
                <button 
@@ -246,6 +405,15 @@ export const Schedule: React.FC<ScheduleProps> = ({
                   <List size={16} />
                </button>
             </div>
+            {projects.filter(p => p.status === 'approved').length > 0 && (
+               <button 
+                  onClick={handlePrintApproved}
+                  className="py-2.5 px-4 bg-blue-500 hover:bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
+                  title="Imprimir Todos os Pedidos Aprovados"
+               >
+                  <Printer size={12} className="stroke-[3px]" /> Imprimir Aprovados
+               </button>
+            )}
           </div>
         </div>
         
@@ -306,7 +474,19 @@ export const Schedule: React.FC<ScheduleProps> = ({
           {(['pending', 'approved', 'in_progress', 'pending_payment', 'completed'] as const).map(status => (
             <div key={status} className="flex flex-col gap-6 min-w-[280px] flex-shrink-0 xl:min-w-0">
               <div className={`flex items-center justify-between px-6 py-4 rounded-3xl border ${statusColors[status]} shadow-sm`}>
-                <h3 className="font-black uppercase text-[10px] tracking-[0.15em]">{statusLabels[status]}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black uppercase text-[10px] tracking-[0.15em]">{statusLabels[status]}</h3>
+                  {status === 'approved' && projects.filter(p => p.status === 'approved').length > 0 && (
+                    <button
+                      onClick={handlePrintApproved}
+                      className="p-1 px-2.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-xl transition-all flex items-center gap-1 cursor-pointer hover:scale-105 active:scale-95 shadow-xs border border-blue-200"
+                      title="Imprimir todos os pedidos aprovados"
+                    >
+                      <Printer size={10} className="stroke-[3px]" />
+                      <span className="text-[8px] font-black uppercase tracking-wider">Imprimir</span>
+                    </button>
+                  )}
+                </div>
                 <span className="bg-white/80 px-2 py-0.5 rounded-full text-[10px] font-black shadow-sm">
                   {projects.filter(p => p.status === status).length}
                 </span>
