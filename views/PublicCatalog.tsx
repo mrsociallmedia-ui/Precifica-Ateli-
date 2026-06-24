@@ -316,7 +316,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
                       </div>
                     )}
                     <div className="absolute top-4 left-4">
-                      <span className="text-[10px] font-black text-gray-800 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
+                      <span className="text-[10px] font-black text-gray-800 bg-white/90 px-4 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
                         {p.category}
                       </span>
                     </div>
@@ -417,13 +417,13 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
       {selectedProduct && (
         <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 md:p-8 overflow-y-auto pt-10 md:pt-16">
           <div 
-            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            className="absolute inset-0 bg-white/40" 
             onClick={() => setSelectedProduct(null)}
           ></div>
           <div className="bg-white w-full max-w-6xl max-h-[85vh] rounded-[2rem] shadow-2xl overflow-y-auto flex flex-col md:flex-row animate-scaleIn relative z-10 my-4">
             <button 
               onClick={() => setSelectedProduct(null)} 
-              className="absolute top-4 right-4 md:top-6 md:right-6 text-gray-400 hover:text-gray-900 z-20 bg-white/80 backdrop-blur-sm p-2 rounded-full shadow-sm"
+              className="absolute top-4 right-4 md:top-6 md:right-6 text-gray-400 hover:text-gray-900 z-20 bg-white/80 p-2 rounded-full shadow-sm"
             >
               <X size={24} />
             </button>
@@ -551,7 +551,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
       {isCartOpen && (
         <div className="fixed inset-0 bg-black/10 z-50 flex items-center justify-end animate-fadeIn">
           <div 
-            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            className="absolute inset-0 bg-white/40" 
             onClick={() => setIsCartOpen(false)}
           ></div>
           <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col z-10 animate-slideInRight">

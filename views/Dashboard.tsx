@@ -379,7 +379,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       {currentGoal && goalProgress >= 100 && (
         <div className="bg-gradient-to-r from-green-400 to-emerald-500 p-6 rounded-[2rem] shadow-lg shadow-green-500/20 flex items-center justify-between animate-bounce">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
+            <div className="p-3 bg-white/20 rounded-2xl">
               <Sparkles className="text-white" size={28} />
             </div>
             <div>
@@ -957,9 +957,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
 
       {/* Modal de Meta do Mês */}
       {isGoalModalOpen && (
-        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+        <div className="fixed inset-0 bg-transparent z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
           <div 
-            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            className="absolute inset-0 bg-transparent" 
             onClick={() => setIsGoalModalOpen(false)}
           ></div>
           <div className="bg-white rounded-[3rem] p-8 max-w-2xl w-full shadow-2xl relative my-4 z-10 animate-scaleIn">

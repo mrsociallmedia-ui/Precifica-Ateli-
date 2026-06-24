@@ -247,7 +247,7 @@ export const Customers: React.FC<CustomersProps> = ({
       {historyCustomer && (
         <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
           <div 
-            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            className="absolute inset-0 bg-white/40" 
             onClick={() => setHistoryCustomer(null)}
           ></div>
           <div className="bg-white w-full max-w-3xl rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh] z-10 animate-scaleIn my-4">
@@ -308,7 +308,7 @@ export const Customers: React.FC<CustomersProps> = ({
       {showForm && (
         <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
           <div 
-            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            className="absolute inset-0 bg-white/40" 
             onClick={() => setShowForm(false)}
           ></div>
           <div className="bg-white w-full max-w-2xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 shadow-2xl relative overflow-hidden max-h-[85vh] overflow-y-auto z-10 animate-scaleIn my-4">

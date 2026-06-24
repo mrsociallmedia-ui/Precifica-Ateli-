@@ -888,9 +888,9 @@ export const Schedule: React.FC<ScheduleProps> = ({
 
       {/* Modal Boletos */}
       {showBoletosModal && (
-        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+        <div className="fixed inset-0 bg-transparent z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
           <div 
-            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            className="absolute inset-0 bg-transparent" 
             onClick={() => setShowBoletosModal(false)}
           ></div>
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">
@@ -953,9 +953,9 @@ export const Schedule: React.FC<ScheduleProps> = ({
 
       {/* Modal Aniversariantes */}
       {showBirthdaysModal && (
-        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+        <div className="fixed inset-0 bg-transparent z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
           <div 
-            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            className="absolute inset-0 bg-transparent" 
             onClick={() => setShowBirthdaysModal(false)}
           ></div>
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">
@@ -1005,20 +1005,20 @@ export const Schedule: React.FC<ScheduleProps> = ({
 
       {/* Modal Pagamento */}
       {paymentModal && paymentModal.isOpen && (
-        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+        <div className="fixed inset-0 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
           <div 
-            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            className="absolute inset-0 bg-transparent" 
             onClick={() => setPaymentModal(null)}
           ></div>
           <div className={`bg-white w-full ${
             paymentModalWidth === 'sm' ? 'max-w-[320px]' : paymentModalWidth === 'lg' ? 'max-w-[420px]' : 'max-w-[360px]'
-          } rounded-[2.2rem] shadow-2xl relative overflow-hidden z-10 flex flex-col animate-scaleIn my-4`}>
-            <div className="bg-green-500 p-6 text-white flex items-center justify-between shrink-0">
+          } rounded-[2.2rem] shadow-2xl relative overflow-hidden z-10 flex flex-col animate-scaleIn my-4 border border-gray-100`}>
+            <div className="bg-white border-b border-gray-100 p-6 text-gray-800 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="text-lg font-black">Receber Pagamento</h3>
-                <p className="text-green-100 font-bold text-[9px] uppercase tracking-widest truncate max-w-[190px]">{paymentModal.theme}</p>
+                <h3 className="text-lg font-black text-green-600">Receber Pagamento</h3>
+                <p className="text-gray-400 font-bold text-[9px] uppercase tracking-widest truncate max-w-[190px]">{paymentModal.theme}</p>
               </div>
-              <button onClick={() => setPaymentModal(null)} className="p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-all">
+              <button onClick={() => setPaymentModal(null)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-full transition-all">
                 <X size={18} />
               </button>
             </div>
@@ -1028,7 +1028,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
                   <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Data do Recebimento</label>
                   <input 
                     type="date" 
-                    className="w-full p-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none font-bold text-gray-700 text-xs"
+                    className="w-full p-2.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-gray-700 text-xs"
                     value={paymentModal.date}
                     onChange={(e) => setPaymentModal({ ...paymentModal, date: e.target.value })}
                   />
@@ -1036,7 +1036,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Meio de Pagamento</label>
                   <select 
-                    className="w-full p-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none font-bold text-gray-700 text-xs"
+                    className="w-full p-2.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-gray-700 text-xs"
                     value={paymentModal.paymentMethod}
                     onChange={(e) => setPaymentModal({ ...paymentModal, paymentMethod: e.target.value })}
                   >
@@ -1047,7 +1047,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white rounded-xl border border-gray-200">
                 <input 
                   type="checkbox" 
                   id="modalIsExchange"
@@ -1067,7 +1067,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
                   <input 
                     type="number" 
                     step="0.01"
-                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-xl outline-none font-black text-base text-gray-700 focus:ring-2 focus:ring-green-200 transition-all"
+                    className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl outline-none font-black text-base text-gray-700 focus:ring-2 focus:ring-green-200 transition-all"
                     value={paymentModal.amount}
                     onChange={(e) => setPaymentModal({ ...paymentModal, amount: parseFloat(e.target.value) || 0 })}
                     max={paymentModal.maxAmount}
@@ -1082,7 +1082,6 @@ export const Schedule: React.FC<ScheduleProps> = ({
               >
                 <CheckCircle2 size={16} /> Confirmar Recebimento
               </button>
-
 
             </div>
           </div>

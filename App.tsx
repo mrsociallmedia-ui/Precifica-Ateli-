@@ -36,15 +36,26 @@ import { LoginView } from './views/LoginView';
 import { PublicCatalog } from './views/PublicCatalog';
 import { ProjectTracking } from './views/ProjectTracking';
 import { AIGenerator } from './views/AIGenerator';
+import SupabaseIntegration from './views/SupabaseIntegration';
 import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 import { supabase, isMock } from './supabaseClient';
 
 const App: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [currentUser, setCurrentUser] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('last_user_email');
+    }
+    return null;
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return !!localStorage.getItem('last_user_email');
+    }
+    return false;
+  });
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(() => {
@@ -63,6 +74,7 @@ const App: React.FC = () => {
   
   const initializedRef = useRef(false);
   const syncTimeoutRef = useRef<any>(null);
+  const lastSyncedStateRef = useRef<string>("");
 
   // Estados principais da aplicação
   const [companyData, setCompanyData] = useState<CompanyData>(INITIAL_COMPANY_DATA);
@@ -120,12 +132,25 @@ const App: React.FC = () => {
           const email = session.user.email!.toLowerCase();
           setCurrentUser(email);
           setIsAuthenticated(true);
+          localStorage.setItem('last_user_email', email);
         } else {
-          setIsAuthenticated(false);
+          const lastUser = localStorage.getItem('last_user_email');
+          if (lastUser) {
+            setCurrentUser(lastUser);
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+          }
         }
       } catch (err) {
         console.error("Erro fatal ao validar sessão:", err);
-        setIsAuthenticated(false);
+        const lastUser = localStorage.getItem('last_user_email');
+        if (lastUser) {
+          setCurrentUser(lastUser);
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+        }
       } finally {
         setIsAuthChecking(false);
       }
@@ -139,11 +164,15 @@ const App: React.FC = () => {
         const email = session.user.email!.toLowerCase();
         setCurrentUser(email);
         setIsAuthenticated(true);
+        localStorage.setItem('last_user_email', email);
       } else {
-        setCurrentUser(null);
-        setIsAuthenticated(false);
-        setIsInitialLoadDone(false); // Resetar para novo login
-        initializedRef.current = false;
+        const lastUser = localStorage.getItem('last_user_email');
+        if (!lastUser) {
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+          setIsInitialLoadDone(false); // Resetar para novo login
+          initializedRef.current = false;
+        }
       }
     });
 
@@ -251,7 +280,10 @@ const App: React.FC = () => {
         if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
         if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
         if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
+        
+        lastSyncedStateRef.current = JSON.stringify(s);
         setSyncStatus('synced');
+        setSyncErrorMessage(null);
       } else {
         // Se não houver dados na nuvem mas o usuário está logado, 
         // consideramos 'synced' mas marcamos que precisamos fazer o primeiro push
@@ -289,6 +321,13 @@ const App: React.FC = () => {
       craft_pay_methods: paymentMethods,
     };
 
+    const serialized = JSON.stringify(appState);
+    if (!force && lastSyncedStateRef.current && serialized === lastSyncedStateRef.current) {
+      console.log("Cloud Sync: Nenhum dado alterado localmente. Pulando push.");
+      setSyncStatus('synced');
+      return;
+    }
+
     setSyncStatus('syncing');
     console.log(`Cloud Sync: Salvando dados para ${currentUser}...`);
     try {
@@ -309,6 +348,8 @@ const App: React.FC = () => {
         }
         throw error;
       }
+      
+      lastSyncedStateRef.current = serialized;
       setSyncStatus('synced');
       setSyncErrorMessage(null);
     } catch (err: any) {
@@ -330,7 +371,7 @@ const App: React.FC = () => {
         const channel = supabase
           .channel('user_data_realtime')
           .on('postgres_changes', { 
-            event: 'UPDATE', 
+            event: '*', 
             schema: 'public', 
             table: 'user_data', 
             filter: `user_email=eq.${currentUser.toLowerCase()}` 
@@ -338,7 +379,11 @@ const App: React.FC = () => {
             // Quando os dados mudam no banco (por outro dispositivo), atualizamos o estado local
             if (payload.new && payload.new.app_state) {
               const s = payload.new.app_state;
-              // Só atualizamos se houver conteúdo e evitamos o loop se o timestamp for igual
+              
+              // Evitar loops redundantes se o dado que chegou for exatamente igual ao que já temos localmente
+              const serializedPayload = JSON.stringify(s);
+              if (serializedPayload === lastSyncedStateRef.current) return;
+
               if (s.craft_company) setCompanyData(s.craft_company);
               if (s.craft_materials) setMaterials(s.craft_materials);
               if (s.craft_customers) setCustomers(s.craft_customers);
@@ -351,6 +396,7 @@ const App: React.FC = () => {
               if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
               if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
               
+              lastSyncedStateRef.current = serializedPayload;
               setSyncStatus('synced');
             }
           })
@@ -419,6 +465,7 @@ const App: React.FC = () => {
     { id: 'inventory', label: 'Estoque', icon: Package, color: 'text-yellow-600' },
     { id: 'customers', label: 'Clientes', icon: Users, color: 'text-pink-500' },
     { id: 'generator', label: 'Gerador IA', icon: Wand2, color: 'text-pink-500' },
+    { id: 'supabase', label: 'Nuvem Supabase', icon: Cloud, color: 'text-indigo-600' },
     { id: 'settings', label: 'Configurações', icon: Settings, color: 'text-gray-600' },
   ];
 
@@ -483,7 +530,7 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-16 bg-white/70 backdrop-blur-xl border-b border-pink-50 flex items-center justify-between px-6 z-10 shrink-0">
+        <header className="h-16 bg-white border-b border-pink-50 flex items-center justify-between px-6 z-10 shrink-0">
           <div className="flex items-center gap-4">
             <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-gray-50 hover:bg-pink-50 rounded-xl text-gray-400 transition-colors">
               {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
@@ -553,6 +600,7 @@ const App: React.FC = () => {
                   case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} setCustomers={setCustomers} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} setProjects={setProjects} />;
                   case 'generator': return <AIGenerator {...props} />;
+                  case 'supabase': return <SupabaseIntegration currentUser={currentUser} syncStatus={syncStatus} syncErrorMessage={syncErrorMessage} onRefresh={handleManualRefresh} onForceSync={() => pushCloudData(true)} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
                   default: return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} />;
                 }

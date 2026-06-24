@@ -10,7 +10,7 @@ Este aplicativo utiliza o **Supabase** para persistência de dados e autenticaç
 ## 2. Configurar Variáveis de Ambiente
 No AI Studio, vá em **Settings** e adicione as seguintes variáveis (Segredos):
 - `VITE_SUPABASE_URL`: `https://scnjxuzapasdfgevegds.supabase.co`
-- `VITE_SUPABASE_ANON_KEY`: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow`
+- `VITE_SUPABASE_ANON_KEY`: `sb_publishable_AlGWoYoW7lJtePDIiWwb2w_fXwMFqkj`
 
 ## 3. Preparar o Banco de Dados (SQL)
 1. No menu lateral esquerdo do Supabase, clique no ícone **SQL Editor** (parece um code `>_`).

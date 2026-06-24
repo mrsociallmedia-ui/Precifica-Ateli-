@@ -16,11 +16,16 @@ const normalizeUrl = (url: string) => {
 
 const getRuntimeConfig = () => {
   if (typeof window === 'undefined') return { url: '', key: '' };
-  const url = localStorage.getItem('custom_supabase_url');
-  const key = localStorage.getItem('custom_supabase_key');
+  let url = localStorage.getItem('custom_supabase_url');
+  let key = localStorage.getItem('custom_supabase_key');
+  
+  // Limpar valores inválidos de string comuns
+  if (url === 'null' || url === 'undefined' || (url && !url.trim())) url = null;
+  if (key === 'null' || key === 'undefined' || (key && !key.trim())) key = null;
+  
   return {
-    url: url && url.trim() ? url.trim() : '',
-    key: key && key.trim() ? key.trim() : ''
+    url: url ? url.trim() : '',
+    key: key ? key.trim() : ''
   };
 };
 
@@ -28,24 +33,30 @@ const runtimeConfig = getRuntimeConfig();
 
 // Prioridade: LocalStorage > Env Vars > Defaults fornecidos pelo usuário
 // Nota: Em Vite/AI Studio, as variáveis podem estar no import.meta.env ou process.env dependendo da configuração
-const getEnv = (name: string) => {
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[name]) return import.meta.env[name];
-  if (typeof process !== 'undefined' && process.env && process.env[name]) return process.env[name];
+const getSupabaseUrlEnv = () => {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL) return import.meta.env.VITE_SUPABASE_URL;
+  if (typeof process !== 'undefined' && process.env && process.env.VITE_SUPABASE_URL) return process.env.VITE_SUPABASE_URL;
+  return '';
+};
+
+const getSupabaseKeyEnv = () => {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY) return import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (typeof process !== 'undefined' && process.env && process.env.VITE_SUPABASE_ANON_KEY) return process.env.VITE_SUPABASE_ANON_KEY;
   return '';
 };
 
 // URL e Chave fornecidas para integração
 const PRIMARY_URL = 'https://scnjxuzapasdfgevegds.supabase.co';
-const PRIMARY_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow';
+const PRIMARY_KEY = 'sb_publishable_AlGWoYoW7lJtePDIiWwb2w_fXwMFqkj';
 
 const SUPABASE_URL = normalizeUrl(
-  getEnv('VITE_SUPABASE_URL') || 
   runtimeConfig.url || 
+  getSupabaseUrlEnv() || 
   PRIMARY_URL
 );
 const SUPABASE_KEY = (
-  getEnv('VITE_SUPABASE_ANON_KEY') || 
   runtimeConfig.key ||
+  getSupabaseKeyEnv() || 
   PRIMARY_KEY
 ).trim();
 
@@ -108,9 +119,10 @@ const connectionDiagnostics = {
 };
 
 try {
-  // Se houver uma URL válida e uma chave, tentamos o cliente real
-  const isUrlValid = SUPABASE_URL && !SUPABASE_URL.includes('example.com') && SUPABASE_URL.includes('.supabase.co');
-  const isKeyValid = SUPABASE_KEY && SUPABASE_KEY.length > 50;
+  // Se houver uma URL válida e uma chave, tentamos o cliente real.
+  // Aceitamos qualquer URL válida que comece com http (permitindo domínios customizados ou self-hosted) e sem example.com.
+  const isUrlValid = SUPABASE_URL && !SUPABASE_URL.includes('example.com') && SUPABASE_URL.startsWith('http');
+  const isKeyValid = SUPABASE_KEY && SUPABASE_KEY.length > 20;
 
   if (isUrlValid && isKeyValid) {
     supabaseInstance = createClient(SUPABASE_URL, SUPABASE_KEY);

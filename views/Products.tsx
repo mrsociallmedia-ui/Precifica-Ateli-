@@ -50,7 +50,7 @@ export const Products: React.FC<ProductsProps> = ({
         A descrição deve ser atraente para clientes, destacando o cuidado artesanal e a exclusividade. 
         Máximo de 3 parágrafos curtos. Use emojis se apropriado.`;
 
-      const text = await generateContent(prompt, 'gemini-3-flash-preview');
+      const text = await generateContent(prompt, 'gemini-3.5-flash');
 
       if (text) {
         setNewProduct(prev => ({ ...prev, description: text }));
@@ -461,9 +461,9 @@ export const Products: React.FC<ProductsProps> = ({
                   </div>
                 )}
                 <div className="absolute top-4 left-4 flex gap-2">
-                  <span className="text-[10px] font-black text-pink-500 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-pink-50">{p.category}</span>
+                  <span className="text-[10px] font-black text-pink-500 bg-white/90 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-pink-50">{p.category}</span>
                   {p.showInCatalog === false && (
-                    <span className="text-[10px] font-black text-gray-400 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-gray-100 flex items-center gap-1">
+                    <span className="text-[10px] font-black text-gray-400 bg-white/90 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-gray-100 flex items-center gap-1">
                       <EyeOff size={10} /> Oculto
                     </span>
                   )}
@@ -506,7 +506,7 @@ export const Products: React.FC<ProductsProps> = ({
       {showForm && (
         <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
           <div 
-            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            className="absolute inset-0 bg-white/40" 
             onClick={() => setShowForm(false)}
           ></div>
           <div className="bg-white w-[90vw] max-h-[85vh] rounded-[3rem] p-10 shadow-2xl relative overflow-y-auto z-10 animate-scaleIn my-4">
@@ -1080,7 +1080,7 @@ export const Products: React.FC<ProductsProps> = ({
         </div>
       )}
       {showShareModal && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-start justify-center p-4 z-50 animate-fadeIn overflow-y-auto pt-10 md:pt-16">
+        <div className="fixed inset-0 bg-gray-900/60 flex items-start justify-center p-4 z-50 animate-fadeIn overflow-y-auto pt-10 md:pt-16">
           <div className="bg-white w-[90vw] max-h-[85vh] rounded-[3rem] p-10 shadow-2xl relative overflow-hidden flex flex-col my-4">
             <button onClick={() => setShowShareModal(false)} className="absolute top-8 right-8 text-gray-300 hover:text-gray-500 z-10"><X size={28} /></button>
             
@@ -1168,12 +1168,12 @@ export const Products: React.FC<ProductsProps> = ({
                              <Package size={60} className="text-gray-200 group-hover:scale-110 transition-transform duration-500" />
                            )}
                            <div className="absolute top-4 right-4">
-                              <span className="text-[9px] font-black text-pink-500 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-pink-50">
+                              <span className="text-[9px] font-black text-pink-500 bg-white/90 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-pink-50">
                                 {p.category}
                               </span>
                            </div>
                            {p.minOrderQuantity && p.minOrderQuantity > 1 && (
-                             <div className="absolute bottom-4 left-4 bg-gray-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg text-[9px] font-black text-white uppercase tracking-widest">
+                             <div className="absolute bottom-4 left-4 bg-gray-900/80 px-3 py-1.5 rounded-lg text-[9px] font-black text-white uppercase tracking-widest">
                                 Pedido Mín: {p.minOrderQuantity} un
                              </div>
                            )}
@@ -1234,7 +1234,7 @@ export const Products: React.FC<ProductsProps> = ({
 
             {/* MODAL DE DETALHES DO PRODUTO (PREVIEW) */}
             {selectedProductPreview && (
-              <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md z-[60] flex items-start justify-center p-4 animate-fadeIn overflow-y-auto pt-10 md:pt-16">
+              <div className="absolute inset-0 bg-gray-900/60 z-[60] flex items-start justify-center p-4 animate-fadeIn overflow-y-auto pt-10 md:pt-16">
                 <div className="bg-white w-full max-w-4xl max-h-[85vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-scaleIn relative my-4">
                   <button 
                     onClick={() => setSelectedProductPreview(null)} 
@@ -1362,7 +1362,7 @@ export const Products: React.FC<ProductsProps> = ({
             {isCartOpen && (
               <div className="absolute inset-0 bg-black/10 z-50 flex items-center justify-end animate-fadeIn">
                 <div 
-                  className="absolute inset-0 bg-white/40 backdrop-blur-[2px]"
+                  className="absolute inset-0 bg-white/40"
                   onClick={() => setIsCartOpen(false)}
                 ></div>
                 <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col z-10 animate-slideInRight">

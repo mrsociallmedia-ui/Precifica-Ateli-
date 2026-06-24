@@ -535,10 +535,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
+
+
       {showPlatformForm && (
         <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
           <div 
-            className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" 
+            className="absolute inset-0 bg-white/40" 
             onClick={() => setShowPlatformForm(false)}
           ></div>
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">

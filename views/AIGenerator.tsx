@@ -27,7 +27,7 @@ interface AIGeneratorProps {
   companyData: CompanyData;
 }
 
-type GeneratorTab = 'instagram' | 'facebook' | 'catalog' | 'marketplace';
+type GeneratorTab = 'instagram' | 'facebook' | 'catalog' | 'marketplace' | 'assistant';
 
 const TONES = [
   { id: 'inspirador', name: '✏️ Afetuoso & Artesanal', desc: 'Foco no afeto, história do feito à mão e valor afetivo.' },
@@ -286,6 +286,18 @@ Estruture a resposta contendo exatamente:
 2. **Descrição do Produto**: Super organizada com marcadores/bullets (Tamanho, Benefício, Como encomendar).
 3. **Seção de FAQ rápido / Cuidados com a peça**: Como guardar, prazos de envio.
 4. **Palavras-chave recomendadas (Tags)**: Separadas por vírgulas.`;
+    } else if (activeTab === 'assistant') {
+      promptText += `Você é uma Consultora de Negócios e Mentora Estratégica de elite especializada em Gestão de Ateliês criativos, papelaria de luxo e artesanato afetivo.
+A artesã dona do ateliê "${companyData.name || 'Nosso Ateliê'}" tem a seguinte dúvida ou questão estratégica importante para resolver:
+"${customDescription || 'Como posso estruturar melhor meu ateliê para crescer de maneira sustentável e lucrativa?'}"
+
+Utilize os dados do ateliê para fornecer um guia operacional e estratégico extremamente personalizado, pé no chão, acolhedor e com dicas práticas passo a passo de aplicação rápida.
+
+Gere uma resposta estruturada de consultoria de forma altamente profissional. No JSON de resposta, use obrigatoriamente:
+- "title": O foco central ou tema da solução/conselho (título curto e encorajador de até 8 palavras)
+- "body": O corpo do conselho de negócios detalhado estruturado com parágrafos elegantes e listas com marcadores organizadas de fácil leitura.
+- "hashtags": Pilares estruturais ou palavras-chave representativas da estratégia recomendada (ex: #GestãoEficiente, #MarketingDeDiferenciação, #PreçoJusto).
+- "tips": Um "conselho de ouro" ou insight prático final rápido.`;
     }
 
     promptText += `\n\n=== CONTEXTO DO PRODUTO/PEÇA ===
@@ -400,7 +412,7 @@ ${customDescription || 'Artesanato geral feito com muito carinho, personalizado 
             <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">
               1. Escolha onde vai postar ou usar o texto
             </label>
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-5 xl:grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => { setActiveTab('instagram'); setGeneratedResult(''); }}
@@ -431,6 +443,14 @@ ${customDescription || 'Artesanato geral feito com muito carinho, personalizado 
                 className={`flex items-center gap-2.5 p-3.5 rounded-2xl border text-xs font-black uppercase tracking-wider transition-all justify-center ${activeTab === 'marketplace' ? 'bg-orange-50 border-orange-200 text-orange-600 shadow-sm shadow-orange-500/5' : 'bg-gray-50/50 border-gray-100 text-gray-400 hover:bg-gray-50'}`}
               >
                 <Store size={16} /> Plataformas
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setActiveTab('assistant'); setGeneratedResult(''); }}
+                className={`flex items-center gap-2.5 p-3.5 rounded-2xl border text-xs font-black uppercase tracking-wider transition-all justify-center col-span-2 md:col-span-1 xl:col-span-2 ${activeTab === 'assistant' ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm shadow-indigo-500/5' : 'bg-gray-50/50 border-gray-100 text-gray-400 hover:bg-gray-50'}`}
+              >
+                <Sparkles size={16} /> Consultoria IA
               </button>
             </div>
           </div>
@@ -486,13 +506,13 @@ ${customDescription || 'Artesanato geral feito com muito carinho, personalizado 
           {/* Details area */}
           <div className="space-y-2">
             <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">
-              3. O que você quer enfatizar na peça?
+              {activeTab === 'assistant' ? '2. O que você quer perguntar ao Gemini?' : '2. O que você quer enfatizar na peça?'}
             </label>
             <textarea
               value={customDescription}
               onChange={(e) => setCustomDescription(e.target.value)}
               className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-xs font-bold text-gray-700 focus:outline-none min-h-24 max-h-48 custom-scrollbar resize-none placeholder-gray-300"
-              placeholder="Ex: Topo de bolo lindo com tema de Ursinho Baloeiro, feito com papel fotográfico fosco de alta gramatura e relevo 3D especial..."
+              placeholder={activeTab === 'assistant' ? "Ex: Como calcular minhas horas de trabalho corretamente? ou Como fidelizar clientes após a primeira encomenda? ou Me dê ideias de novas peças lucrativas..." : "Ex: Topo de bolo lindo com tema de Ursinho Baloeiro, feito com papel fotográfico fosco de alta gramatura e relevo 3D especial..."}
             />
           </div>
 
@@ -600,52 +620,54 @@ ${customDescription || 'Artesanato geral feito com muito carinho, personalizado 
           </div>
 
           {/* CTA setup */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">
-                5. Chamda para Ação (CTA)
-              </label>
-              <select
-                value={selectedCta}
-                onChange={(e) => setSelectedCta(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold text-gray-600 focus:outline-none"
-              >
-                {CTAS.map(c => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {selectedCta === 'custom' && (
-              <div className="space-y-1.5 animate-fadeIn">
+          {activeTab !== 'assistant' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">
-                  Qual é o seu link ou CTA?
+                  4. Chamda para Ação (CTA)
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Clique no link azul do perfil!"
-                  value={customCtaText}
-                  onChange={(e) => setCustomCtaText(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold text-gray-700 focus:outline-none"
-                />
+                <select
+                  value={selectedCta}
+                  onChange={(e) => setSelectedCta(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold text-gray-600 focus:outline-none"
+                >
+                  {CTAS.map(c => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                </select>
               </div>
-            )}
-          </div>
+
+              {selectedCta === 'custom' && (
+                <div className="space-y-1.5 animate-fadeIn">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    Qual é o seu link ou CTA?
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Clique no link azul do perfil!"
+                    value={customCtaText}
+                    onChange={(e) => setCustomCtaText(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold text-gray-700 focus:outline-none"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           <button
             type="button"
             disabled={isGenerating}
             onClick={handleGenerate}
-            className={`w-full py-4 text-white rounded-2xl flex items-center justify-center gap-2 font-black uppercase text-xs tracking-widest shadow-lg transition-all active:scale-98 disabled:opacity-50 ${activeTab === 'instagram' ? 'bg-pink-500 hover:bg-pink-600 shadow-pink-500/10' : activeTab === 'facebook' ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/10' : activeTab === 'catalog' ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-600/10' : 'bg-orange-600 hover:bg-orange-700 shadow-orange-600/10'}`}
+            className={`w-full py-4 text-white rounded-2xl flex items-center justify-center gap-2 font-black uppercase text-xs tracking-widest shadow-lg transition-all active:scale-98 disabled:opacity-50 ${activeTab === 'instagram' ? 'bg-pink-500 hover:bg-pink-600 shadow-pink-500/10' : activeTab === 'facebook' ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/10' : activeTab === 'catalog' ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-600/10' : activeTab === 'assistant' ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/10' : 'bg-orange-600 hover:bg-orange-700 shadow-orange-600/10'}`}
           >
             {isGenerating ? (
               <>
-                <RefreshCw className="animate-spin" size={16} /> Criando com IA...
+                <RefreshCw className="animate-spin" size={16} /> {activeTab === 'assistant' ? 'Analisando Dúvida...' : 'Criando com IA...'}
               </>
             ) : (
               <>
-                <Sparkles size={16} /> Gerar Texto Personalizado
+                <Sparkles size={16} /> {activeTab === 'assistant' ? 'Obter Consultoria Estratégica' : 'Gerar Texto Personalizado'}
               </>
             )}
           </button>
@@ -904,6 +926,93 @@ ${customDescription || 'Artesanato geral feito com muito carinho, personalizado 
                       type="button"
                       onClick={() => handleCopy(generatedResult, 'all')}
                       className="flex items-center gap-1.5 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
+                    >
+                      {copiedSection === 'all' ? (
+                        <>
+                          <Check size={12} /> Copiado!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} /> Copiar Todos Blocos
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'assistant' && (
+                <div className="bg-white border border-gray-100 rounded-[2.5rem] shadow-sm animate-fadeIn">
+                  <div className="p-5 border-b border-gray-50 flex justify-between items-center bg-gray-50/20">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={18} className="text-indigo-600" />
+                      <span className="text-xs font-black uppercase tracking-wider text-gray-700">Conselho e Estratégia de Negócios</span>
+                    </div>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                    {parsedSections?.title && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-[#9ca3af] select-none">
+                          <span>Aconselhamento / Foco Central:</span>
+                          <button 
+                            onClick={() => handleCopy(parsedSections?.title || '', 'title')}
+                            className="text-[9px] hover:text-indigo-600 flex items-center gap-1 uppercase font-bold"
+                          >
+                            {copiedSection === 'title' ? 'Copiado!' : 'Copiar'}
+                          </button>
+                        </div>
+                        <p className="bg-indigo-50 border border-indigo-100 p-3 rounded-xl font-bold text-indigo-800 text-sm select-all">
+                          ✨ {parsedSections?.title || ''}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-[#9ca3af] select-none">
+                        <span>Análise e Passos Recomendados:</span>
+                        <button 
+                          onClick={() => handleCopy(parsedSections?.body || '', 'body')}
+                          className="text-[9px] hover:text-indigo-600 flex items-center gap-1 uppercase font-bold"
+                        >
+                          {copiedSection === 'body' ? 'Copiado!' : 'Copiar'}
+                        </button>
+                      </div>
+                      <div className="bg-gray-50 border border-gray-100 p-5 rounded-2xl text-xs font-medium text-gray-700 leading-relaxed whitespace-pre-wrap select-all selection:bg-indigo-100">
+                        {parsedSections?.body || ''}
+                      </div>
+                    </div>
+
+                    {parsedSections?.hashtags && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-[#9ca3af] select-none">
+                          <span>Pilares Estruturais da Solução:</span>
+                          <button 
+                            onClick={() => handleCopy(parsedSections?.hashtags || '', 'hashtags')}
+                            className="text-[9px] hover:text-indigo-600 flex items-center gap-1 uppercase font-bold"
+                          >
+                            {copiedSection === 'hashtags' ? 'Copiado!' : 'Copiar'}
+                          </button>
+                        </div>
+                        <p className="bg-indigo-50/50 border border-indigo-100/30 p-3 rounded-xl font-black text-indigo-700 text-xs select-all">
+                          {parsedSections?.hashtags || ''}
+                        </p>
+                      </div>
+                    )}
+
+                    {parsedSections?.tips && (
+                      <div className="bg-yellow-50/50 p-4 rounded-2xl border border-yellow-101/50 space-y-1">
+                        <span className="text-[10px] font-black text-yellow-800 uppercase tracking-widest">Dica de ouro do Consultor:</span>
+                        <p className="text-xs text-yellow-700 leading-relaxed font-semibold">{parsedSections.tips}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(generatedResult, 'all')}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
                     >
                       {copiedSection === 'all' ? (
                         <>
