@@ -69,6 +69,7 @@ const App: React.FC = () => {
   const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   
   const initializedRef = useRef(false);
   const syncTimeoutRef = useRef<any>(null);
@@ -424,13 +425,16 @@ const App: React.FC = () => {
     setIsAuthenticated(true);
   };
 
-  const handleLogout = async () => {
-    if (confirm('Deseja sair do ateliê?')) {
-      if (supabase) await supabase.auth.signOut();
-      setCurrentUser(null);
-      setIsAuthenticated(false);
-      window.location.reload(); 
-    }
+  const confirmLogout = async () => {
+    if (supabase) await supabase.auth.signOut();
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    setShowLogoutConfirm(false);
+    window.location.reload(); 
+  };
+
+  const handleLogout = () => {
+    setShowLogoutConfirm(true);
   };
 
   const handleManualRefresh = async () => {
@@ -612,6 +616,37 @@ const App: React.FC = () => {
              <p className="text-gray-800 font-black uppercase text-xs tracking-[0.3em] mb-2">Preparando seu Ateliê</p>
              <p className="text-gray-400 font-bold text-[10px] animate-pulse">Organizando gavetas e materiais...</p>
            </div>
+        </div>
+      )}
+
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] border border-gray-150 p-8 max-w-sm w-full shadow-2xl space-y-6">
+            <div className="text-center space-y-3">
+              <div className="mx-auto w-12 h-12 bg-red-50 border border-red-100 rounded-full flex items-center justify-center text-red-500 mb-2">
+                <AlertCircle size={24} />
+              </div>
+              <h3 className="text-lg font-black text-gray-800 tracking-tight">Deseja sair do ateliê?</h3>
+              <p className="text-xs text-gray-500 font-semibold leading-relaxed">
+                Você sairá da sua sessão atual. Seus dados locais permanecem seguros neste dispositivo.
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmLogout}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-sm transition-all"
+              >
+                Sair
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
