@@ -237,20 +237,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     {isSubmitting ? 'Acessando...' : 'Acessar Ateliê'}
                   </button>
 
-                  <div className="pt-4 text-center border-t border-gray-100/60 mt-4 space-y-4">
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Ainda não tem conta?</p>
-                      <button type="button" onClick={() => { setMode('register'); resetStates(); }} className="mt-1 text-xs font-black text-pink-600 hover:text-pink-700 transition-colors">
-                        Criar Novo Acesso Grátis
-                      </button>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quer testar sem cadastro?</p>
-                      <button type="button" onClick={handleLocalBypass} className="mt-1 text-xs font-black text-indigo-600 hover:text-indigo-700 transition-colors flex items-center justify-center gap-1.5 mx-auto">
-                        <CloudOff size={14} /> Usar Modo Local (Offline)
-                      </button>
-                    </div>
-                  </div>
+
                 </>
               )}
 

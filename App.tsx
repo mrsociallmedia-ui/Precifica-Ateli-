@@ -426,7 +426,14 @@ const App: React.FC = () => {
   };
 
   const confirmLogout = async () => {
-    if (supabase) await supabase.auth.signOut();
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.error("Erro ao fazer logout do Supabase:", err);
+      }
+    }
+    localStorage.removeItem('last_user_email');
     setCurrentUser(null);
     setIsAuthenticated(false);
     setShowLogoutConfirm(false);
