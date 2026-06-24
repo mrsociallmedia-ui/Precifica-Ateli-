@@ -1652,7 +1652,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
           <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] z-10 animate-scaleIn my-4">
             <div className={`absolute top-0 left-0 w-full h-2 ${newTransaction.type === 'income' ? 'bg-green-500' : 'bg-red-500'}`}></div>
             
-            <div className="p-10 pb-4 flex items-center justify-between shrink-0">
+            <div className="p-6 sm:p-10 pb-4 flex items-center justify-between shrink-0">
                <h3 className="text-3xl font-black text-gray-800 flex items-center gap-3">
                   <div className={`p-3 rounded-2xl ${newTransaction.type === 'income' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
                      {newTransaction.type === 'income' ? <ArrowUpCircle size={24} /> : <ArrowDownCircle size={24} />}
@@ -1664,7 +1664,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                </button>
             </div>
 
-            <div className="p-10 pt-2 overflow-y-auto custom-scrollbar flex-1">
+            <div className="p-6 sm:p-10 pt-2 overflow-y-auto custom-scrollbar flex-1">
                <form onSubmit={handleAddTransaction} className="space-y-6 pb-2">
                  <div className="grid grid-cols-2 gap-4 bg-gray-50 p-2 rounded-2xl border border-gray-100 mb-4">
                     <button type="button" onClick={() => setNewTransaction({...newTransaction, type: 'income'})} className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${newTransaction.type === 'income' ? 'bg-green-500 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Entrada</button>
@@ -1902,7 +1902,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
             className="absolute inset-0 bg-white/40" 
             onClick={() => { setShowPartialModal(false); setSelectedTransaction(null); }}
           ></div>
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">
+          <div className="bg-white w-full max-w-md rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">
             <div className="absolute top-0 left-0 w-full h-2 bg-yellow-500"></div>
             <button 
               onClick={() => { setShowPartialModal(false); setSelectedTransaction(null); }} 

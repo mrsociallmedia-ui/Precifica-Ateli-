@@ -14,9 +14,9 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => {
     if (typeof window !== 'undefined') {
-      return window.innerWidth >= 1024 ? 'grid' : 'table';
+      return window.innerWidth >= 1024 ? 'table' : 'grid';
     }
-    return 'table';
+    return 'grid';
   });
   
   const [newMaterial, setNewMaterial] = useState<Partial<Material>>({
@@ -271,7 +271,7 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
             className="absolute inset-0 bg-white/40" 
             onClick={() => setShowForm(false)}
           ></div>
-          <div className="bg-white w-full max-w-xl rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">
+          <div className="bg-white w-full max-w-xl rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">
             <div className={`absolute top-0 left-0 w-full h-2 ${editingMaterialId ? 'bg-blue-400' : 'bg-yellow-400'}`}></div>
             <button onClick={() => setShowForm(false)} className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors"><X size={24} /></button>
             <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">

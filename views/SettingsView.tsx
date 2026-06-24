@@ -543,7 +543,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             className="absolute inset-0 bg-white/40" 
             onClick={() => setShowPlatformForm(false)}
           ></div>
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">
+          <div className="bg-white w-full max-w-md rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative overflow-hidden z-10 animate-scaleIn my-4">
             <div className="absolute top-0 left-0 w-full h-2 bg-yellow-400"></div>
             <button onClick={() => setShowPlatformForm(false)} className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors">
               <X size={24} />

@@ -509,7 +509,7 @@ export const Products: React.FC<ProductsProps> = ({
             className="absolute inset-0 bg-white/40" 
             onClick={() => setShowForm(false)}
           ></div>
-          <div className="bg-white w-[90vw] max-h-[85vh] rounded-[3rem] p-10 shadow-2xl relative overflow-y-auto z-10 animate-scaleIn my-4">
+          <div className="bg-white w-[90vw] max-h-[85vh] rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative overflow-y-auto z-10 animate-scaleIn my-4">
             <button onClick={() => setShowForm(false)} className="absolute top-8 right-8 text-gray-300 hover:text-gray-500"><X size={28} /></button>
             <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
               <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl">{editingProductId ? <Edit3 size={28} /> : <Plus size={28} />}</div>
@@ -1081,7 +1081,7 @@ export const Products: React.FC<ProductsProps> = ({
       )}
       {showShareModal && (
         <div className="fixed inset-0 bg-gray-900/60 flex items-start justify-center p-4 z-50 animate-fadeIn overflow-y-auto pt-10 md:pt-16">
-          <div className="bg-white w-[90vw] max-h-[85vh] rounded-[3rem] p-10 shadow-2xl relative overflow-hidden flex flex-col my-4">
+          <div className="bg-white w-[90vw] max-h-[85vh] rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative overflow-hidden flex flex-col my-4">
             <button onClick={() => setShowShareModal(false)} className="absolute top-8 right-8 text-gray-300 hover:text-gray-500 z-10"><X size={28} /></button>
             
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">

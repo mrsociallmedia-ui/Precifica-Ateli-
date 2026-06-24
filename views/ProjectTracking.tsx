@@ -74,7 +74,7 @@ export const ProjectTracking: React.FC<ProjectTrackingProps> = ({ projectId, use
   if (error || !project) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white p-10 rounded-[2.5rem] shadow-xl max-w-sm w-full text-center">
+        <div className="bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[2.5rem] shadow-xl max-w-sm w-full text-center">
           <AlertCircle className="text-red-500 mx-auto mb-6" size={64} />
           <h2 className="text-2xl font-black text-gray-800 mb-2">Ops!</h2>
           <p className="text-gray-500 mb-8 font-medium">{error || 'Pedido não localizado.'}</p>
@@ -127,7 +127,7 @@ export const ProjectTracking: React.FC<ProjectTrackingProps> = ({ projectId, use
     <div className="min-h-screen bg-gray-50 p-4 md:p-8 animate-fadeIn">
       <div className="max-w-xl mx-auto">
         {/* Header da Empresa */}
-        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 mb-6 text-center">
+        <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-gray-100 mb-6 text-center">
            <div className="w-20 h-20 bg-pink-50 text-pink-500 rounded-3xl mx-auto mb-4 flex items-center justify-center shadow-inner">
               <Package size={40} />
            </div>
@@ -135,7 +135,7 @@ export const ProjectTracking: React.FC<ProjectTrackingProps> = ({ projectId, use
         </div>
 
         {/* Status do Pedido */}
-        <div className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-gray-50 mb-6 relative overflow-hidden">
+        <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-10 shadow-xl border border-gray-50 mb-6 relative overflow-hidden">
           <div className={`absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-purple-500`}></div>
           
           <div className="flex items-center justify-between mb-8">

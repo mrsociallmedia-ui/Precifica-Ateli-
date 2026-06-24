@@ -598,7 +598,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
 
       {/* Visualização de Filtro Dinâmico */}
       {activeFilter !== 'all' && (
-        <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-pink-50 animate-slideUp">
+        <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-xl border border-pink-50 animate-slideUp">
            <div className="flex items-center justify-between mb-10">
               <div className="flex items-center gap-4">
                  <div className={`p-4 text-white rounded-3xl shadow-xl ${activeFilter === 'pending' ? 'bg-purple-600' : activeFilter === 'receivable' ? 'bg-emerald-600' : activeFilter === 'quotes_pending' ? 'bg-blue-500' : 'bg-gray-900'}`}>
@@ -709,7 +709,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       {/* Grid Secundário: Ranking e Atividades */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         {/* Calendário Sazonal e Planejamento */}
-        <div className="lg:col-span-6 xl:col-span-7 bg-white p-10 rounded-[3rem] shadow-sm border border-pink-50">
+        <div className="lg:col-span-6 xl:col-span-7 bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] shadow-sm border border-pink-50">
            <div className="flex items-center justify-between mb-10">
               <div className="flex items-center gap-3">
                  <div className="p-4 bg-pink-500 text-white rounded-3xl shadow-lg shadow-pink-100">
@@ -737,7 +737,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                   const isUpcoming = diffDays > 0 && diffDays <= 60;
 
                   return (
-                    <div className={`p-10 rounded-[3rem] border transition-all flex flex-col gap-6 relative overflow-hidden bg-pink-50/30 border-pink-100 shadow-xl scale-[1.02]`}>
+                    <div className={`p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border transition-all flex flex-col gap-6 relative overflow-hidden bg-pink-50/30 border-pink-100 shadow-xl scale-[1.02]`}>
                        <div className="absolute top-0 right-0 bg-pink-500 text-white px-6 py-2 rounded-bl-3xl text-[10px] font-black uppercase tracking-widest animate-pulse">
                           Próxima Data Sazonal
                        </div>
@@ -796,7 +796,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
         </div>
 
         {/* Produtos Mais Vendidos */}
-        <div className="lg:col-span-6 xl:col-span-5 bg-white p-10 rounded-[3rem] shadow-sm border border-yellow-50">
+        <div className="lg:col-span-6 xl:col-span-5 bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] shadow-sm border border-yellow-50">
            <div className="flex items-center gap-3 mb-10">
               <div className="p-4 bg-yellow-400 text-yellow-900 rounded-3xl shadow-lg shadow-yellow-100">
                 <Star size={24} />
@@ -838,7 +838,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
         </div>
 
         {/* Atividade Recente (Resumo Financeiro e Entregas) */}
-        <div className="lg:col-span-12 bg-white p-10 rounded-[3rem] shadow-sm border border-pink-50">
+        <div className="lg:col-span-12 bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] shadow-sm border border-pink-50">
             <div className="flex items-center justify-between mb-10">
                 <h3 className="text-xl font-black text-gray-800 flex items-center gap-3">
                     <TrendingUp className="text-blue-500" /> Fluxo do Ateliê
