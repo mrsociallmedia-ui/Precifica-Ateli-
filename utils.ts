@@ -61,9 +61,14 @@ export const calculateProjectBreakdown = (
       } else {
         const itemBaseCost = (item.manualBaseCost !== undefined && item.manualBaseCost > 0) ? item.manualBaseCost : (totalItemVariableCost + itemLaborCost);
         const itemSubtotalBase = itemBaseCost + itemFixedCost;
-        const itemProfit = itemSubtotalBase * (item.profitMargin / 100);
+        
+        // Calcular o excedente específico deste item para incluir no preço sugerido
+        const itemExcedente = itemSubtotalBase * ((project.excedente || 0) / 100);
+        const itemTotalCostWithExcedente = itemSubtotalBase + itemExcedente;
+        
+        const itemProfit = itemTotalCostWithExcedente * (item.profitMargin / 100);
         totalCalculatedProfit += itemProfit;
-        totalManualPieceValue += (itemSubtotalBase + itemProfit);
+        totalManualPieceValue += (itemTotalCostWithExcedente + itemProfit);
       }
     });
   }
@@ -73,7 +78,6 @@ export const calculateProjectBreakdown = (
   const excedenteAmount = subtotalCosts * ((project.excedente || 0) / 100);
   
   // O Lucro final na decomposição será a diferença entre o Valor da Peça fixado e os custos somados
-  // Se não for manual, usamos o totalCalculatedProfit + excedente de lucro
   const basePieceValue = totalManualPieceValue;
   const totalInternalCosts = subtotalCosts + excedenteAmount;
   const finalProfit = Math.max(0, basePieceValue - totalInternalCosts);

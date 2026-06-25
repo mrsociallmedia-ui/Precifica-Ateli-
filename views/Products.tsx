@@ -664,7 +664,7 @@ export const Products: React.FC<ProductsProps> = ({
                              className="flex items-center gap-1.5 text-[9px] font-black text-pink-500 uppercase tracking-widest hover:text-pink-600 transition-colors" 
                            >
                              <Wand2 size={10} />
-                             Criar com IA
+                             criar descrição do produto com IA
                            </a>
                         </div>
                         <textarea 
@@ -724,20 +724,46 @@ export const Products: React.FC<ProductsProps> = ({
                         </div>
 
                         <div className="space-y-2">
-                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Preço de Venda (Opcional)</label>
+                           <div className="flex justify-between items-center">
+                              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Preço de Venda (Opcional)</label>
+                              {currentPreview && (
+                                 <span className="text-[10px] font-bold text-gray-500 bg-gray-50 px-2.5 py-0.5 rounded-full border border-gray-100">
+                                    Sugerido: R$ {currentPreview.finalPrice.toFixed(2)}
+                                 </span>
+                              )}
+                           </div>
                            <div className="relative">
                               <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                               <input 
                                  type="number" 
                                  step="0.01" 
-                                 className="w-full p-4 pl-12 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 focus:ring-2 focus:ring-pink-400 transition-all" 
+                                 className="w-full p-4 pl-12 pr-36 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 focus:ring-2 focus:ring-pink-400 transition-all" 
                                  placeholder={`Sugerido: R$ ${currentPreview?.finalPrice.toFixed(2)}`}
                                  value={newProduct.marketPrice === 0 ? '0' : (newProduct.marketPrice || '')} 
                                  onChange={e => setNewProduct({...newProduct, marketPrice: parseFloat(e.target.value) || 0})} 
                               />
+                              {newProduct.marketPrice && newProduct.marketPrice > 0 ? (
+                                 <button
+                                    type="button"
+                                    onClick={() => setNewProduct({...newProduct, marketPrice: 0})}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] font-black px-3 py-1.5 rounded-xl transition-all active:scale-95"
+                                 >
+                                    Limpar
+                                 </button>
+                              ) : (
+                                 currentPreview && (
+                                    <button
+                                       type="button"
+                                       onClick={() => setNewProduct({...newProduct, marketPrice: parseFloat(currentPreview.finalPrice.toFixed(2))})}
+                                       className="absolute right-3 top-1/2 -translate-y-1/2 bg-pink-100 hover:bg-pink-200 text-pink-600 text-[10px] font-black px-3 py-1.5 rounded-xl transition-all active:scale-95"
+                                    >
+                                       Usar Sugerido
+                                    </button>
+                                 )
+                              )}
                            </div>
                            <p className="text-[9px] text-gray-400 font-bold italic px-1">
-                              Se definido, este valor será usado como preço fixo no catálogo.
+                              Se definido, este valor será usado como preço fixo no catálogo. Deixe vazio ou clique em "Limpar" para usar o preço sugerido automaticamente.
                            </p>
 
                            {currentPreview && (
