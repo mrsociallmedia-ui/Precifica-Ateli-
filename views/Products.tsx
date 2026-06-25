@@ -657,24 +657,15 @@ export const Products: React.FC<ProductsProps> = ({
                      <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Descrição do Produto</label>
-                          <button 
-                            type="button"
-                            onClick={generateAIDescription}
-                            disabled={isGeneratingAIDescription || !newProduct.name}
-                            className="flex items-center gap-1.5 text-[9px] font-black text-pink-500 uppercase tracking-widest hover:text-pink-600 disabled:opacity-50 transition-colors"
-                          >
-                            {isGeneratingAIDescription ? (
-                              <>
-                                <RefreshCw size={10} className="animate-spin" />
-                                Criando...
-                              </>
-                            ) : (
-                              <>
-                                <Wand2 size={10} />
-                                Criar com IA
-                              </>
-                            )}
-                          </button>
+                          <a 
+                             href="https://ateli-legenda-fofa-113272526382.us-west1.run.app/" 
+                             target="_blank" 
+                             rel="noopener noreferrer" 
+                             className="flex items-center gap-1.5 text-[9px] font-black text-pink-500 uppercase tracking-widest hover:text-pink-600 transition-colors" 
+                           >
+                             <Wand2 size={10} />
+                             Criar com IA
+                           </a>
                         </div>
                         <textarea 
                           className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-medium text-gray-700 text-sm min-h-[100px] resize-none" 
