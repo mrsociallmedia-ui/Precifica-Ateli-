@@ -59,7 +59,7 @@ export const calculateProjectBreakdown = (
       if (item.unitPrice && item.unitPrice > 0) {
         totalManualPieceValue += item.unitPrice * item.quantity;
       } else {
-        const itemBaseCost = item.manualBaseCost !== undefined ? item.manualBaseCost : (totalItemVariableCost + itemLaborCost);
+        const itemBaseCost = (item.manualBaseCost !== undefined && item.manualBaseCost > 0) ? item.manualBaseCost : (totalItemVariableCost + itemLaborCost);
         const itemSubtotalBase = itemBaseCost + itemFixedCost;
         const itemProfit = itemSubtotalBase * (item.profitMargin / 100);
         totalCalculatedProfit += itemProfit;

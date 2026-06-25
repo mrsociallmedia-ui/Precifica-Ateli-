@@ -448,7 +448,21 @@ export const Products: React.FC<ProductsProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
         {filteredProducts.map(p => {
-          const mockProject = { items: [{ productId: p.id, name: p.name, quantity: 1, hoursToMake: p.minutesToMake / 60, materials: p.materials, profitMargin: p.profitMargin }], platformId: platforms[0]?.id || '', excedente: companyData.defaultExcedente };
+          const mockProject = { 
+            items: [{ 
+              productId: p.id, 
+              name: p.name, 
+              quantity: 1, 
+              hoursToMake: p.minutesToMake / 60, 
+              materials: p.materials, 
+              profitMargin: p.profitMargin,
+              manualBaseCost: p.manualBaseCost,
+              packagingCost: p.packagingCost,
+              unitPrice: p.marketPrice || 0
+            }], 
+            platformId: platforms[0]?.id || '', 
+            excedente: companyData.defaultExcedente 
+          };
           const breakdown = calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
           return (
             <div key={p.id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group flex flex-col overflow-hidden">
@@ -493,8 +507,9 @@ export const Products: React.FC<ProductsProps> = ({
                     <p className="text-sm font-black text-gray-700">R$ {(breakdown.variableCosts + breakdown.laborCosts + breakdown.fixedCosts + breakdown.excedente).toFixed(2)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[8px] font-black text-green-500 uppercase tracking-widest mb-1">Lucro</p>
-                    <p className="text-sm font-black text-gray-700">{p.profitMargin}%</p>
+                    <p className="text-[8px] font-black text-green-500 uppercase tracking-widest mb-1">Lucro Líquido</p>
+                    <p className="text-sm font-black text-green-600">R$ {breakdown.profit.toFixed(2)}</p>
+                    <p className="text-[9px] font-bold text-gray-400">{p.profitMargin.toFixed(0)}%</p>
                   </div>
                 </div>
               </div>
@@ -733,6 +748,20 @@ export const Products: React.FC<ProductsProps> = ({
                            <p className="text-[9px] text-gray-400 font-bold italic px-1">
                               Se definido, este valor será usado como preço fixo no catálogo.
                            </p>
+
+                           {currentPreview && (
+                              <div className="flex justify-between items-center bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mt-3 animate-fadeIn">
+                                 <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Lucro Líquido Estimado</span>
+                                 </div>
+                                 <span className="text-sm font-black text-emerald-600 font-mono">
+                                    R$ {currentPreview.profit.toFixed(2)} ({newProduct.profitMargin ? `${newProduct.profitMargin.toFixed(0)}%` : '30%'})
+                                 </span>
+                              </div>
+                           )}
+
+
                         </div>
                      </div>
 
