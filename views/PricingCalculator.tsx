@@ -911,7 +911,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                               type="number" 
                               className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl outline-none font-black text-white text-sm" 
                               placeholder="0,00"
-                              value={currentProject.mlCommissionPercentage || ''}
+                              value={currentProject.mlCommissionPercentage === 0 ? '0' : (currentProject.mlCommissionPercentage || '')}
                               onChange={e => setCurrentProject({...currentProject, mlCommissionPercentage: parseFloat(e.target.value) || 0})}
                            />
                         </div>
@@ -921,7 +921,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                               type="number" 
                               className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl outline-none font-black text-white text-sm" 
                               placeholder="0,00"
-                              value={currentProject.mlShippingCost || ''}
+                              value={currentProject.mlShippingCost === 0 ? '0' : (currentProject.mlShippingCost || '')}
                               onChange={e => setCurrentProject({...currentProject, mlShippingCost: parseFloat(e.target.value) || 0})}
                            />
                         </div>

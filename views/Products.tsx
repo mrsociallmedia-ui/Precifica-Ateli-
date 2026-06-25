@@ -632,7 +632,7 @@ export const Products: React.FC<ProductsProps> = ({
                                 step="0.01" 
                                 className="w-full p-4 pl-10 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 text-sm" 
                                 placeholder="digite o valor unitário da sua embalagem..." 
-                                value={newProduct.packagingCost || ''} 
+                                value={newProduct.packagingCost === 0 ? '0' : (newProduct.packagingCost || '')} 
                                 onChange={e => setNewProduct({...newProduct, packagingCost: parseFloat(e.target.value) || 0})} 
                               />
                            </div>
@@ -646,7 +646,7 @@ export const Products: React.FC<ProductsProps> = ({
                                 type="number" 
                                 className="w-full p-4 pl-10 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 text-sm" 
                                 placeholder="digite a quantidade de peças para compor o seu pedido mínimo..." 
-                                value={newProduct.minOrderQuantity || ''} 
+                                value={newProduct.minOrderQuantity === 0 ? '0' : (newProduct.minOrderQuantity || '')} 
                                 onChange={e => setNewProduct({...newProduct, minOrderQuantity: parseInt(e.target.value) || 1})} 
                               />
                            </div>
@@ -723,7 +723,7 @@ export const Products: React.FC<ProductsProps> = ({
                                  step="0.01" 
                                  className="w-full p-4 pl-12 bg-white border border-gray-100 rounded-2xl outline-none font-black text-blue-600 focus:ring-2 focus:ring-blue-400 transition-all" 
                                  placeholder="Opcional: defina o custo manual..."
-                                 value={newProduct.manualBaseCost || ''} 
+                                 value={newProduct.manualBaseCost === 0 ? '0' : (newProduct.manualBaseCost || '')} 
                                  onChange={e => setNewProduct({...newProduct, manualBaseCost: parseFloat(e.target.value) || 0})} 
                               />
                            </div>
@@ -741,7 +741,7 @@ export const Products: React.FC<ProductsProps> = ({
                                  step="0.01" 
                                  className="w-full p-4 pl-12 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 focus:ring-2 focus:ring-pink-400 transition-all" 
                                  placeholder={`Sugerido: R$ ${currentPreview?.finalPrice.toFixed(2)}`}
-                                 value={newProduct.marketPrice || ''} 
+                                 value={newProduct.marketPrice === 0 ? '0' : (newProduct.marketPrice || '')} 
                                  onChange={e => setNewProduct({...newProduct, marketPrice: parseFloat(e.target.value) || 0})} 
                               />
                            </div>
@@ -826,7 +826,7 @@ export const Products: React.FC<ProductsProps> = ({
                                       step="0.01" 
                                       className="w-full p-4 bg-white border border-yellow-100 rounded-2xl outline-none font-black text-gray-700 text-sm" 
                                       placeholder="0,00"
-                                      value={printingCost || ''} 
+                                      value={printingCost === 0 ? '0' : (printingCost || '')} 
                                       onChange={e => setPrintingCost(parseFloat(e.target.value) || 0)} 
                                     />
                                  </div>
@@ -954,7 +954,7 @@ export const Products: React.FC<ProductsProps> = ({
                                     type="number" 
                                     className="w-full p-4 pl-16 bg-slate-900/50 border border-slate-700 rounded-xl outline-none font-black text-white focus:ring-2 focus:ring-blue-500 transition-all text-lg font-['Quicksand']" 
                                     placeholder="0,00"
-                                    value={newProduct.mlCommissionPercentage || ''}
+                                    value={newProduct.mlCommissionPercentage === 0 ? '0' : (newProduct.mlCommissionPercentage || '')}
                                     onChange={e => {
                                        setNewProduct({...newProduct, mlCommissionPercentage: parseFloat(e.target.value) || 0});
                                        if (!isMLMode) setIsMLMode(true);
@@ -1018,7 +1018,7 @@ export const Products: React.FC<ProductsProps> = ({
                                  type="number" 
                                  className="w-full p-4 pl-16 bg-slate-900/50 border border-slate-700 rounded-xl outline-none font-black text-white focus:ring-2 focus:ring-blue-500 transition-all text-lg font-['Quicksand']" 
                                  placeholder="0,00"
-                                 value={newProduct.mlShippingCost || ''}
+                                 value={newProduct.mlShippingCost === 0 ? '0' : (newProduct.mlShippingCost || '')}
                                  onChange={e => {
                                     setNewProduct({...newProduct, mlShippingCost: parseFloat(e.target.value) || 0});
                                     if (!isMLMode) setIsMLMode(true);
