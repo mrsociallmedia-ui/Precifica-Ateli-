@@ -23,6 +23,14 @@ const getRuntimeConfig = () => {
   if (url === 'null' || url === 'undefined' || (url && !url.trim())) url = null;
   if (key === 'null' || key === 'undefined' || (key && !key.trim())) key = null;
   
+  // Validar formato básico dos inputs customizados. Se forem inválidos, descartamos para não sobrescrever as chaves reais padrão
+  if (url && (!url.startsWith('http') || url.length < 10)) {
+    url = null;
+  }
+  if (key && key.length < 20) {
+    key = null;
+  }
+  
   return {
     url: url ? url.trim() : '',
     key: key ? key.trim() : ''
@@ -47,7 +55,7 @@ const getSupabaseKeyEnv = () => {
 
 // URL e Chave fornecidas para integração
 const PRIMARY_URL = 'https://scnjxuzapasdfgevegds.supabase.co';
-const PRIMARY_KEY = 'sb_publishable_AlGWoYoW7lJtePDIiWwb2w_fXwMFqkj';
+const PRIMARY_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow';
 
 const SUPABASE_URL = normalizeUrl(
   runtimeConfig.url || 
@@ -83,7 +91,7 @@ const createMockSupabase = () => {
       // Simular evento de auth inicial se já houver algo no localStorage
       return { data: { subscription: { unsubscribe: () => {} } } };
     },
-    getSession: async () => ({ data: { session: null } })
+    getSession: async () => ({ data: { session: null }, error: null })
   };
 
   const mockFrom = (table: string) => ({
@@ -102,14 +110,23 @@ const createMockSupabase = () => {
     }
   });
 
-  return { auth: mockAuth, from: mockFrom, isMock: true };
+  return { 
+    auth: mockAuth, 
+    from: mockFrom, 
+    channel: (name: string) => ({
+      on: (event: string, config: any, callback: any) => ({
+        subscribe: () => {}
+      })
+    }),
+    removeChannel: (channel: any) => {},
+    isMock: true 
+  };
 };
 
 // Inicialização prioritária com as chaves reais fornecidas
 export let isMock = false;
 let supabaseInstance: any;
 
-// Diagnóstico detalhado para o console
 const connectionDiagnostics = {
   url: SUPABASE_URL,
   isSupabaseDomain: SUPABASE_URL.includes('.supabase.co'),
@@ -119,8 +136,6 @@ const connectionDiagnostics = {
 };
 
 try {
-  // Se houver uma URL válida e uma chave, tentamos o cliente real.
-  // Aceitamos qualquer URL válida que comece com http (permitindo domínios customizados ou self-hosted) e sem example.com.
   const isUrlValid = SUPABASE_URL && !SUPABASE_URL.includes('example.com') && SUPABASE_URL.startsWith('http');
   const isKeyValid = SUPABASE_KEY && SUPABASE_KEY.length > 20;
 
@@ -139,4 +154,4 @@ try {
   isMock = true;
 }
 
-export const supabase = supabaseInstance;
+export const supabase: any = supabaseInstance;

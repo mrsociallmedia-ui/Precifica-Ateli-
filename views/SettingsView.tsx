@@ -220,19 +220,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                 </a>
 
-                <a 
-                  href="mailto:mrsociallmedia@gmail.com"
-                  className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100 hover:bg-blue-100 transition-colors group"
-                >
-                  <div className="p-2 bg-blue-500 text-white rounded-xl shadow-sm group-hover:scale-110 transition-transform">
-                    <Mail size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none mb-1">E-mail</p>
-                    <p className="text-sm font-black text-gray-700 leading-none truncate w-32 md:w-full">mrsociallmedia@gmail.com</p>
-                  </div>
-                </a>
-
                 <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
                   <div className="flex items-center gap-2 mb-2 text-gray-400">
                      <CalendarDays size={14} />

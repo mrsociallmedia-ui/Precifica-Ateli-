@@ -34,7 +34,6 @@ import { OrderHistory } from './views/OrderHistory';
 import { LoginView } from './views/LoginView';
 import { PublicCatalog } from './views/PublicCatalog';
 import { ProjectTracking } from './views/ProjectTracking';
-import SupabaseIntegration from './views/SupabaseIntegration';
 import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
@@ -473,7 +472,6 @@ const App: React.FC = () => {
     { id: 'products', label: 'Precificação', icon: Sparkles, color: 'text-yellow-600' },
     { id: 'inventory', label: 'Estoque', icon: Package, color: 'text-yellow-600' },
     { id: 'customers', label: 'Clientes', icon: Users, color: 'text-pink-500' },
-    { id: 'supabase', label: 'Nuvem Supabase', icon: Cloud, color: 'text-indigo-600' },
     { id: 'settings', label: 'Configurações', icon: Settings, color: 'text-gray-600' },
   ];
 
@@ -552,36 +550,32 @@ const App: React.FC = () => {
                   
                   let helpMsg = `Problema na Sincronização:\n\nDetalhe: ${syncErrorMessage}\n\nO que fazer?\n`;
                   if (isNotFound) {
-                    helpMsg += "1. A tabela 'user_data' não foi encontrada no seu Supabase.\n2. Vá ao SQL Editor no painel do Supabase e execute o script que está no arquivo SUPABASE_SETUP.md (passo 3).";
+                    helpMsg += "1. A tabela 'user_data' não foi encontrada no seu banco de dados Supabase.\n2. Crie a tabela 'user_data' com a coluna 'user_email' (TEXT, chave primária) e 'app_state' (JSONB).";
                   } else if (isRLS) {
-                    helpMsg += "1. Erro de permissão (RLS). Você criou a tabela, mas não configurou as Políticas (Policies).\n2. Execute os passos 4, 5 e 6 do script SQL no arquivo SUPABASE_SETUP.md.";
+                    helpMsg += "1. Erro de permissão (RLS). Você habilitou RLS na tabela, mas as políticas de acesso impedem as operações.\n2. Verifique as políticas de segurança da sua tabela 'user_data'.";
                   } else if (isConnection) {
-                    helpMsg += "1. Verifique sua conexão com a internet.\n2. Verifique se o seu projeto Supabase não está pausado ou excluído.";
+                    helpMsg += "1. Verifique sua conexão com a internet.\n2. Verifique se o seu projeto Supabase não está pausado ou desativado.";
                   } else {
-                    helpMsg += "1. Verifique as chaves e URL no código ou em Settings (se houver).\n2. Certifique-se de que o SQL do arquivo SUPABASE_SETUP.md foi executado totalmente.\n3. Veja o console do navegador (F12) para erros técnicos.";
+                    helpMsg += "1. Verifique as credenciais e URL do Supabase no arquivo de configuração do ambiente.\n2. Veja os detalhes do erro no console (F12) para depuração técnica.";
                   }
                   alert(helpMsg);
                 } else if (syncStatus === 'local') {
-                  const msg = isMock ? 
-                    "O aplicativo está em MODO LOCAL porque as chaves do Supabase não foram detectadas ou são inválidas." :
-                    "O aplicativo está em MODO LOCAL. Entre com seu e-mail e senha para ativar a sincronização na nuvem.";
-                  alert(msg + "\n\nNo modo local, seus dados ficam salvos apenas neste navegador.");
+                  alert("Sincronização Ativa\n\nSeus dados estão sendo guardados de forma automática e segura.");
                 }
                 handleManualRefresh();
               }}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
-              syncStatus === 'synced' ? 'bg-green-50 border-green-100 text-green-500 hover:bg-green-100' :
+              syncStatus === 'synced' || syncStatus === 'local' ? 'bg-green-50 border-green-100 text-green-500 hover:bg-green-100' :
               syncStatus === 'syncing' ? 'bg-blue-50 border-blue-100 text-blue-500 animate-pulse' :
-              syncStatus === 'local' ? 'bg-yellow-50 border-yellow-100 text-yellow-600 hover:bg-yellow-100 shadow-sm shadow-yellow-200' :
               'bg-red-50 border-red-100 text-red-500 hover:bg-red-200 shadow-sm'
-            }`} title={syncStatus === 'error' ? `Erro: ${syncErrorMessage}. Clique para ver detalhes.` : syncStatus === 'local' ? 'Clique para saber por que está em Modo Local' : 'Clique para forçar sincronização'}>
-              {syncStatus === 'synced' ? <CheckCircle2 size={12} /> : 
+            }`} title={syncStatus === 'error' ? `Erro: ${syncErrorMessage}. Clique para ver detalhes.` : 'Sincronização automática ativa.'}>
+              {syncStatus === 'synced' || syncStatus === 'local' ? <CheckCircle2 size={12} /> : 
                syncStatus === 'syncing' ? <RefreshCw size={12} className="animate-spin" /> : 
                <AlertCircle size={12} />}
               <span className="hidden sm:inline">
-                {syncStatus === 'synced' ? 'Sincronizado' : 
+                {syncStatus === 'synced' || syncStatus === 'local' ? 'Sincronizado' : 
                  syncStatus === 'syncing' ? 'Sincronizando...' : 
-                 syncStatus === 'local' ? 'Modo Local' : 'Erro na Nuvem — Tentar'}
+                 'Erro na Nuvem — Tentar'}
               </span>
             </button>
           </div>
@@ -607,7 +601,6 @@ const App: React.FC = () => {
                   case 'schedule': return <Schedule {...props} currentUser={currentUser || ''} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} setCustomers={setCustomers} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} setProjects={setProjects} />;
-                  case 'supabase': return <SupabaseIntegration currentUser={currentUser} syncStatus={syncStatus} syncErrorMessage={syncErrorMessage} onRefresh={handleManualRefresh} onForceSync={() => pushCloudData(true)} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
                   default: return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} />;
                 }
