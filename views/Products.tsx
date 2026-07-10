@@ -312,6 +312,23 @@ export const Products: React.FC<ProductsProps> = ({
     }
   };
 
+  const handleDuplicateProduct = (product: Product) => {
+    const duplicated: Product = {
+      ...product,
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
+      name: `${product.name} (Cópia)`
+    };
+    setProducts(prev => {
+      const idx = prev.findIndex(p => p.id === product.id);
+      if (idx !== -1) {
+        const nextList = [...prev];
+        nextList.splice(idx + 1, 0, duplicated);
+        return nextList;
+      }
+      return [duplicated, ...prev];
+    });
+  };
+
   const resetForm = () => {
     setEditingProductId(null);
     setNewProduct({
@@ -489,7 +506,8 @@ export const Products: React.FC<ProductsProps> = ({
                       <h3 className="text-xl font-black text-gray-800">{p.name}</h3>
                    </div>
                    <div className="flex gap-2">
-                      <button onClick={() => { setEditingProductId(p.id); setNewProduct({...p}); setShowForm(true); }} className="p-2 text-pink-400 hover:bg-pink-50 rounded-xl transition-all"><Edit3 size={20} /></button>
+                      <button onClick={() => { setEditingProductId(p.id); setNewProduct({...p}); setShowForm(true); }} className="p-2 text-pink-400 hover:bg-pink-50 rounded-xl transition-all" title="Editar Peça"><Edit3 size={20} /></button>
+                       <button type="button" onClick={() => handleDuplicateProduct(p)} className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all" title="Duplicar Peça"><Copy size={20} /></button>
                       <button onClick={() => handleDeleteProduct(p.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
                    </div>
                 </div>
