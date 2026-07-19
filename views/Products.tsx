@@ -26,6 +26,59 @@ export const Products: React.FC<ProductsProps> = ({
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+
+  // Estados para Kit Festa
+  const [activeTab, setActiveTab] = useState<'pecas' | 'kits'>('pecas');
+  const [kitPartsList, setKitPartsList] = useState<{ productId: string; quantity: number }[]>([]);
+  const [selectedKitPartId, setSelectedKitPartId] = useState('');
+  const [kitPartQty, setKitPartQty] = useState(1);
+  const [kitPackagingCost, setKitPackagingCost] = useState(0);
+
+  const compileKitMaterials = (parts: { productId: string; quantity: number }[]) => {
+    const merged: ProjectItem[] = [];
+    parts.forEach(part => {
+      const prod = products.find(p => p.id === part.productId);
+      if (prod && prod.materials) {
+        prod.materials.forEach(mat => {
+          const existing = merged.find(m => m.materialId === mat.materialId && m.usageType === mat.usageType && m.usageValue === mat.usageValue);
+          if (existing) {
+            existing.quantity += mat.quantity * part.quantity;
+          } else {
+            merged.push({
+              ...mat,
+              quantity: mat.quantity * part.quantity
+            });
+          }
+        });
+      }
+    });
+    return merged;
+  };
+
+  const handleAddPartToKit = () => {
+    if (!selectedKitPartId) {
+      alert("Por favor, selecione uma peça.");
+      return;
+    }
+    if (!kitPartQty || kitPartQty <= 0) {
+      alert("Por favor, digite uma quantidade válida.");
+      return;
+    }
+    
+    // check if already added
+    const existingIdx = kitPartsList.findIndex(item => item.productId === selectedKitPartId);
+    if (existingIdx !== -1) {
+      setKitPartsList(prev => prev.map((item, idx) => 
+        idx === existingIdx ? { ...item, quantity: item.quantity + kitPartQty } : item
+      ));
+    } else {
+      setKitPartsList(prev => [...prev, { productId: selectedKitPartId, quantity: kitPartQty }]);
+    }
+    
+    // reset selection
+    setSelectedKitPartId('');
+    setKitPartQty(1);
+  };
   
   // Estados do Carrinho (Preview)
   const [cart, setCart] = useState<{product: Product, quantity: number, price: number}[]>([]);
@@ -280,6 +333,61 @@ export const Products: React.FC<ProductsProps> = ({
     e.preventDefault();
     if (!newProduct.name) return;
 
+    if (activeTab === 'kits') {
+      if (kitPartsList.length === 0) {
+        alert("Por favor, adicione pelo menos uma peça ao kit.");
+        return;
+      }
+      
+      const compiledMaterials = compileKitMaterials(kitPartsList);
+      
+      const totalMinutes = kitPartsList.reduce((acc, part) => {
+        const prod = products.find(p => p.id === part.productId);
+        return acc + (prod ? (prod.minutesToMake || 0) * part.quantity : 0);
+      }, 0);
+      
+      const totalManualBase = kitPartsList.reduce((acc, part) => {
+        const prod = products.find(p => p.id === part.productId);
+        return acc + (prod ? (prod.manualBaseCost || 0) * part.quantity : 0);
+      }, 0);
+
+      const kitProduct: Product = {
+        id: editingProductId || Date.now().toString(),
+        name: newProduct.name!,
+        description: newProduct.description || `Kit Festa contendo: ${kitPartsList.map(item => {
+          const p = products.find(prod => prod.id === item.productId);
+          return `${item.quantity}x ${p ? p.name : ''}`;
+        }).join(', ')}`,
+        image: newProduct.image || '',
+        images: newProduct.images || [],
+        category: 'Kits Festas',
+        minutesToMake: totalMinutes,
+        materials: compiledMaterials,
+        profitMargin: Number(newProduct.profitMargin) || companyData.defaultProfitMargin,
+        manualBaseCost: totalManualBase,
+        marketPrice: 0,
+        packagingCost: kitPackagingCost,
+        minOrderQuantity: 1,
+        showInCatalog: true,
+        isKit: true,
+        kitProducts: kitPartsList
+      };
+
+      if (editingProductId) {
+        setProducts(prev => prev.map(p => p.id === editingProductId ? kitProduct : p));
+      } else {
+        setProducts(prev => [kitProduct, ...prev]);
+      }
+      
+      if (!productCategories.includes('Kits Festas')) {
+        setProductCategories(prev => [...prev, 'Kits Festas']);
+      }
+      
+      setShowForm(false);
+      resetForm();
+      return;
+    }
+
     if (editingProductId) {
       setProducts(prev => prev.map(p => p.id === editingProductId ? { ...p, ...newProduct as Product } : p));
     } else {
@@ -339,6 +447,11 @@ export const Products: React.FC<ProductsProps> = ({
       mlShippingCost: 0
     });
     setIsMLMode(false);
+    setActiveTab('pecas');
+    setKitPartsList([]);
+    setSelectedKitPartId('');
+    setKitPartQty(1);
+    setKitPackagingCost(0);
   };
 
   const handleAddCategory = () => {
@@ -506,7 +619,20 @@ export const Products: React.FC<ProductsProps> = ({
                       <h3 className="text-xl font-black text-gray-800">{p.name}</h3>
                    </div>
                    <div className="flex gap-2">
-                      <button onClick={() => { setEditingProductId(p.id); setNewProduct({...p}); setShowForm(true); }} className="p-2 text-pink-400 hover:bg-pink-50 rounded-xl transition-all" title="Editar Peça"><Edit3 size={20} /></button>
+                      <button onClick={() => {
+                        setEditingProductId(p.id);
+                        setNewProduct({...p});
+                        if (p.isKit) {
+                          setActiveTab('kits');
+                          setKitPartsList(p.kitProducts || []);
+                          setKitPackagingCost(p.packagingCost || 0);
+                        } else {
+                          setActiveTab('pecas');
+                          setKitPartsList([]);
+                          setKitPackagingCost(0);
+                        }
+                        setShowForm(true);
+                      }} className="p-2 text-pink-400 hover:bg-pink-50 rounded-xl transition-all" title="Editar Peça"><Edit3 size={20} /></button>
                        <button type="button" onClick={() => handleDuplicateProduct(p)} className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all" title="Duplicar Peça"><Copy size={20} /></button>
                       <button onClick={() => handleDeleteProduct(p.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
                    </div>
@@ -542,14 +668,41 @@ export const Products: React.FC<ProductsProps> = ({
             className="absolute inset-0 bg-white/40" 
             onClick={() => setShowForm(false)}
           ></div>
-          <div className="bg-white w-[90vw] max-h-[85vh] rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative overflow-y-auto z-10 animate-scaleIn my-4">
-            <button onClick={() => setShowForm(false)} className="absolute top-8 right-8 text-gray-300 hover:text-gray-500"><X size={28} /></button>
-            <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center gap-3">
-              <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl">{editingProductId ? <Edit3 size={28} /> : <Plus size={28} />}</div>
-              {editingProductId ? 'Editar Peça' : 'Nova Peça'}
-            </h3>
+          <div className="bg-white w-[95vw] max-w-5xl max-h-[90vh] rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative overflow-y-auto z-10 animate-scaleIn my-4">
+            <div className="flex items-center gap-4 mb-6">
+              <button 
+                type="button" 
+                onClick={() => setShowForm(false)} 
+                className="p-3 bg-gray-50 hover:bg-gray-100 rounded-2xl text-gray-500 transition-all flex items-center justify-center border border-gray-100"
+                title="Voltar"
+              >
+                <ChevronRight size={24} className="rotate-180" />
+              </button>
+              <h3 className="text-xl md:text-2xl font-black text-gray-800">
+                Cadastro de Novos Itens para Precificação
+              </h3>
+            </div>
 
-            <form onSubmit={handleSaveProduct} className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            {/* Sub-tabs "Peças" and "Kits Festas" as requested */}
+            <div className="flex gap-6 border-b border-gray-100 pb-3 mb-8">
+              <button 
+                type="button" 
+                onClick={() => setActiveTab('pecas')}
+                className={`text-sm font-black uppercase tracking-wider pb-2 border-b-4 transition-all ${activeTab === 'pecas' ? 'text-pink-500 border-pink-500' : 'text-gray-400 border-transparent hover:text-gray-600'}`}
+              >
+                Peças
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setActiveTab('kits')}
+                className={`text-sm font-black uppercase tracking-wider pb-2 border-b-4 transition-all ${activeTab === 'kits' ? 'text-pink-500 border-pink-500' : 'text-gray-400 border-transparent hover:text-gray-600'}`}
+              >
+                Kits Festas
+              </button>
+            </div>
+
+            {activeTab === 'pecas' ? (
+              <form onSubmit={handleSaveProduct} className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                <div className="lg:col-span-7 space-y-8">
                   <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 space-y-6">
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -1140,6 +1293,158 @@ export const Products: React.FC<ProductsProps> = ({
                   </div>
                </div>
             </form>
+            ) : (
+              <form onSubmit={handleSaveProduct} className="space-y-8 animate-fadeIn">
+                {/* Adicionar Kit Festa Card */}
+                <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-black text-gray-800">Adicionar Kit Festa</h4>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500">Qual o nome do Kit Festa que irá precificar?</label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="digite o nome da sua peça que irá adicionar..." 
+                        className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" 
+                        value={newProduct.name || ''} 
+                        onChange={e => setNewProduct({...newProduct, name: e.target.value})} 
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500">Qual o Percentual de Lucro deste Kit?</label>
+                      <div className="flex rounded-2xl border border-gray-100 bg-white overflow-hidden">
+                        <div className="px-4 bg-gray-50 border-r border-gray-100 text-gray-400 font-bold flex items-center justify-center text-sm">
+                          %
+                        </div>
+                        <input 
+                          type="number" 
+                          required
+                          placeholder="digite o percentual de lucro..." 
+                          className="flex-1 p-4 bg-white outline-none font-black text-gray-700"
+                          value={newProduct.profitMargin || ''}
+                          onChange={e => setNewProduct({...newProduct, profitMargin: parseFloat(e.target.value) || 0})}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500">Custo de Embalagem do Kit (R$)</label>
+                      <div className="flex rounded-2xl border border-gray-100 bg-white overflow-hidden">
+                        <div className="px-4 bg-gray-50 border-r border-gray-100 text-gray-400 font-bold flex items-center justify-center text-sm">
+                          R$
+                        </div>
+                        <input 
+                          type="number" 
+                          step="0.01"
+                          placeholder="digite o custo de embalagem..." 
+                          className="flex-1 p-4 bg-white outline-none font-black text-gray-700"
+                          value={kitPackagingCost || ''}
+                          onChange={e => setKitPackagingCost(parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Adicionar Peças Card */}
+                  <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 space-y-6">
+                    <h4 className="text-lg font-black text-gray-800">Adicionar Peças</h4>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Peça</label>
+                        <select 
+                          value={selectedKitPartId}
+                          onChange={e => setSelectedKitPartId(e.target.value)}
+                          className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 appearance-none"
+                        >
+                          <option value="">digite o nome da peça para pesquisar...</option>
+                          {products.filter(p => !p.isKit).map(p => (
+                            <option key={p.id} value={p.id}>{p.name} (R$ {(p.marketPrice || 0).toFixed(2)})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Quantidade</label>
+                        <input 
+                          type="number"
+                          min="1"
+                          placeholder="quantidade..."
+                          value={kitPartQty || ''}
+                          onChange={e => setKitPartQty(parseInt(e.target.value) || 0)}
+                          className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700"
+                        />
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button 
+                          type="button"
+                          onClick={handleAddPartToKit}
+                          className="bg-gray-800 hover:bg-gray-900 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 text-xs uppercase tracking-wider transition-all"
+                        >
+                          <Plus size={14} /> Adicionar Peça
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Peças Card */}
+                  <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 space-y-6">
+                    <h4 className="text-lg font-black text-gray-800">Peças</h4>
+                    
+                    {kitPartsList.length === 0 ? (
+                      <div className="p-4 bg-amber-50 border border-amber-100 text-amber-800 rounded-2xl flex items-center gap-2 font-bold text-sm">
+                        <span>⚠️ Nenhuma peça adicionada</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[250px] overflow-y-auto">
+                        {kitPartsList.map((item, idx) => {
+                          const p = products.find(prod => prod.id === item.productId);
+                          return (
+                            <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
+                              <div>
+                                <p className="font-black text-gray-800 text-sm">{p ? p.name : 'Produto Desconhecido'}</p>
+                                <p className="text-xs font-bold text-gray-400">Quantidade: {item.quantity}x • R$ {p ? (p.marketPrice || 0).toFixed(2) : '0.00'} cada</p>
+                              </div>
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  setKitPartsList(prev => prev.filter((_, i) => i !== idx));
+                                }}
+                                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bottom row / footer */}
+                <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                  <div className="text-gray-500 font-bold text-sm">
+                    Custo da Embalagem: <span className="text-gray-800 font-black">R$ {kitPackagingCost.toFixed(2)}</span>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-8 py-4 rounded-2xl flex items-center gap-2 transition-all shadow-lg active:scale-95"
+                  >
+                    <PlusCircle size={18} /> Salvar Kit Festa
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

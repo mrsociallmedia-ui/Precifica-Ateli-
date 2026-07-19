@@ -149,6 +149,8 @@ export interface Product {
   mlCommissionPercentage?: number;
   mlShippingCost?: number;
   platformId?: string;
+  isKit?: boolean;
+  kitProducts?: { productId: string; quantity: number }[];
 }
 
 export interface Transaction {
