@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack, Repeat, FileText as FileIcon, Layers3, Share2, ExternalLink, QrCode, MessageSquare,
-  ShoppingCart, ShoppingBag, Minus, RefreshCw, MessageCircle, Wand2, Eye, EyeOff, Calculator
+  ShoppingCart, ShoppingBag, Minus, RefreshCw, MessageCircle, Wand2, Eye, EyeOff, Calculator, BarChart4, Receipt, AlertCircle, Store, Zap
 } from 'lucide-react';
 import { generateContent } from '../lib/gemini';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
@@ -500,6 +500,35 @@ export const Products: React.FC<ProductsProps> = ({
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const suggestedPreview = useMemo(() => {
+    if (!showForm) return null;
+    
+    // Determine platform for preview
+    let platformId = platforms[0]?.id || '';
+    if (isMLMode) {
+       const mlPlatform = platforms.find(p => p.name.toLowerCase().includes('mercado livre'));
+       if (mlPlatform) platformId = mlPlatform.id;
+    }
+
+    const mockProject = {
+      items: [{ 
+        productId: 'preview', 
+        name: newProduct.name || 'Preview', 
+        quantity: 1, 
+        hoursToMake: (newProduct.minutesToMake || 0) / 60, 
+        materials: newProduct.materials || [], 
+        profitMargin: newProduct.profitMargin || 30,
+        manualBaseCost: newProduct.manualBaseCost,
+        unitPrice: 0 // Forçado a 0 para calcular SEMPRE o preço sugerido fixo respeitando a margem
+      }],
+      platformId: platformId,
+      excedente: companyData.defaultExcedente,
+      mlCommissionPercentage: isMLMode ? newProduct.mlCommissionPercentage : undefined,
+      mlShippingCost: isMLMode ? newProduct.mlShippingCost : undefined
+    };
+    return calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
+  }, [newProduct.name, newProduct.minutesToMake, newProduct.materials, newProduct.profitMargin, newProduct.manualBaseCost, newProduct.mlCommissionPercentage, newProduct.mlShippingCost, materials, platforms, companyData, showForm, isMLMode]);
+
   const currentPreview = useMemo(() => {
     if (!showForm) return null;
     
@@ -528,25 +557,6 @@ export const Products: React.FC<ProductsProps> = ({
     };
     return calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
   }, [newProduct, materials, platforms, companyData, showForm, isMLMode]);
-
-  // Efeito para sincronizar a margem de lucro quando o preço de mercado ou custo é alterado
-  useEffect(() => {
-    if (newProduct.marketPrice && newProduct.marketPrice > 0 && currentPreview) {
-      // Usamos o custo base (materiais + mão de obra + fixos) do breakdown
-      // Mas se houver um custo manual, ele já foi considerado no breakdown.basePieceValue
-      const totalCosts = (currentPreview.variableCosts || 0) + (currentPreview.laborCosts || 0) + (currentPreview.fixedCosts || 0) + (currentPreview.excedente || 0);
-      
-      if (totalCosts > 0) {
-        const profit = newProduct.marketPrice - totalCosts;
-        const calculatedMargin = (profit / totalCosts) * 100;
-        const roundedMargin = Math.round(calculatedMargin * 100) / 100;
-        
-        if (Math.abs((newProduct.profitMargin || 0) - roundedMargin) > 0.1) {
-          setNewProduct(prev => ({ ...prev, profitMargin: roundedMargin }));
-        }
-      }
-    }
-  }, [newProduct.marketPrice, newProduct.manualBaseCost, currentPreview?.variableCosts, currentPreview?.laborCosts, currentPreview?.fixedCosts]);
 
   const isLengthMaterial = selectedMaterial?.unit === 'metro';
 
@@ -897,9 +907,9 @@ export const Products: React.FC<ProductsProps> = ({
                         <div className="space-y-2">
                            <div className="flex justify-between items-center">
                               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Preço de Venda (Opcional)</label>
-                              {currentPreview && (
+                              {suggestedPreview && (
                                  <span className="text-[10px] font-bold text-gray-500 bg-gray-50 px-2.5 py-0.5 rounded-full border border-gray-100">
-                                    Sugerido: R$ {currentPreview.finalPrice.toFixed(2)}
+                                    Sugerido: R$ {suggestedPreview.finalPrice.toFixed(2)}
                                  </span>
                               )}
                            </div>
@@ -909,7 +919,7 @@ export const Products: React.FC<ProductsProps> = ({
                                  type="number" 
                                  step="0.01" 
                                  className="w-full p-4 pl-12 pr-36 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 focus:ring-2 focus:ring-pink-400 transition-all" 
-                                 placeholder={`Sugerido: R$ ${currentPreview?.finalPrice.toFixed(2)}`}
+                                 placeholder={`Sugerido: R$ ${suggestedPreview?.finalPrice.toFixed(2)}`}
                                  value={newProduct.marketPrice === 0 ? '0' : (newProduct.marketPrice || '')} 
                                  onChange={e => setNewProduct({...newProduct, marketPrice: parseFloat(e.target.value) || 0})} 
                               />
@@ -922,10 +932,10 @@ export const Products: React.FC<ProductsProps> = ({
                                     Limpar
                                  </button>
                               ) : (
-                                 currentPreview && (
+                                 suggestedPreview && (
                                     <button
                                        type="button"
-                                       onClick={() => setNewProduct({...newProduct, marketPrice: parseFloat(currentPreview.finalPrice.toFixed(2))})}
+                                       onClick={() => setNewProduct({...newProduct, marketPrice: parseFloat(suggestedPreview.finalPrice.toFixed(2))})}
                                        className="absolute right-3 top-1/2 -translate-y-1/2 bg-pink-100 hover:bg-pink-200 text-pink-600 text-[10px] font-black px-3 py-1.5 rounded-xl transition-all active:scale-95"
                                     >
                                        Usar Sugerido
@@ -937,17 +947,25 @@ export const Products: React.FC<ProductsProps> = ({
                               Se definido, este valor será usado como preço fixo no catálogo. Deixe vazio ou clique em "Limpar" para usar o preço sugerido automaticamente.
                            </p>
 
-                           {currentPreview && (
-                              <div className="flex justify-between items-center bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mt-3 animate-fadeIn">
-                                 <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Lucro Líquido Estimado</span>
+                           {suggestedPreview && (() => {
+                              const totalCosts = (suggestedPreview.variableCosts || 0) + (suggestedPreview.laborCosts || 0) + (suggestedPreview.fixedCosts || 0) + (suggestedPreview.excedente || 0);
+                              const hasMarketPrice = Boolean(newProduct.marketPrice && newProduct.marketPrice > 0);
+                              const effectiveProfit = hasMarketPrice ? (currentPreview ? currentPreview.profit : ((newProduct.marketPrice || 0) - totalCosts)) : suggestedPreview.profit;
+                              const effectiveMargin = hasMarketPrice ? (totalCosts > 0 ? ((effectiveProfit / totalCosts) * 100) : 0) : (newProduct.profitMargin || 30);
+                              return (
+                                 <div className="flex justify-between items-center bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mt-3 animate-fadeIn">
+                                    <div className="flex items-center gap-2">
+                                       <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                       <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">
+                                          {hasMarketPrice ? 'Lucro Líquido Real (Preço Fixo)' : 'Lucro Líquido Estimado'}
+                                       </span>
+                                    </div>
+                                    <span className="text-sm font-black text-emerald-600 font-mono">
+                                       R$ {effectiveProfit.toFixed(2)} ({effectiveMargin.toFixed(0)}%)
+                                    </span>
                                  </div>
-                                 <span className="text-sm font-black text-emerald-600 font-mono">
-                                    R$ {currentPreview.profit.toFixed(2)} ({newProduct.profitMargin ? `${newProduct.profitMargin.toFixed(0)}%` : '30%'})
-                                 </span>
-                              </div>
-                           )}
+                              );
+                           })()}
 
 
                         </div>
@@ -1114,6 +1132,120 @@ export const Products: React.FC<ProductsProps> = ({
                      </div>
                   </div>
 
+                  {/* TABELA DE COMPOSIÇÃO FINANCEIRA DETALHADA */}
+                  {(() => {
+                     const bd = suggestedPreview || currentPreview;
+                     const baseVal = bd ? (bd.basePieceValue > 0 ? bd.basePieceValue : (bd.finalPrice > 0 ? bd.finalPrice : 1)) : 1;
+                     const variableCosts = bd ? bd.variableCosts : 0;
+                     const laborCosts = bd ? bd.laborCosts : 0;
+                     const fixedCosts = bd ? bd.fixedCosts : 0;
+                     const excedente = bd ? bd.excedente : 0;
+                     const platformFees = bd ? bd.platformFees : 0;
+                     const profit = bd ? bd.profit : 0;
+
+                     return (
+                        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6 animate-fadeIn">
+                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                              <h3 className="text-xs font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                                 <BarChart4 size={18} className="text-blue-500" /> Composição Financeira Detalhada
+                              </h3>
+                              <div className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest self-start sm:self-auto">
+                                 Total Base Peça: R$ {(bd ? (bd.basePieceValue > 0 ? bd.basePieceValue : bd.finalPrice) : 0).toFixed(2)}
+                              </div>
+                           </div>
+
+                           <div className="overflow-x-auto rounded-3xl border border-gray-100 shadow-sm bg-white">
+                              <table className="w-full text-left text-sm">
+                                 <thead className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                    <tr>
+                                       <th className="px-6 py-4">Categoria</th>
+                                       <th className="px-6 py-4 text-right">Valor (R$)</th>
+                                       <th className="px-6 py-4 text-right">Proporção (%)</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-gray-50 font-bold text-gray-600">
+                                    <tr className="hover:bg-gray-50/50 transition-colors">
+                                       <td className="px-6 py-4 flex items-center gap-3">
+                                          <div className="p-2 bg-yellow-50 text-yellow-500 rounded-xl"><Package size={14} /></div>
+                                          <span>Material (Custo Variável)</span>
+                                       </td>
+                                       <td className="px-6 py-4 text-right font-mono">R$ {variableCosts.toFixed(2)}</td>
+                                       <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                          {((variableCosts / baseVal) * 100).toFixed(1)}%
+                                       </td>
+                                    </tr>
+                                    <tr className="hover:bg-gray-50/50 transition-colors">
+                                       <td className="px-6 py-4 flex items-center gap-3">
+                                          <div className="p-2 bg-pink-50 text-pink-500 rounded-xl"><Clock size={14} /></div>
+                                          <span>Mão de Obra (Salário)</span>
+                                       </td>
+                                       <td className="px-6 py-4 text-right font-mono">R$ {laborCosts.toFixed(2)}</td>
+                                       <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                          {((laborCosts / baseVal) * 100).toFixed(1)}%
+                                       </td>
+                                    </tr>
+                                    <tr className="hover:bg-gray-50/50 transition-colors">
+                                       <td className="px-6 py-4 flex items-center gap-3">
+                                          <div className="p-2 bg-blue-50 text-blue-500 rounded-xl"><Receipt size={14} /></div>
+                                          <span>Custos Fixos (Estrutura)</span>
+                                       </td>
+                                       <td className="px-6 py-4 text-right font-mono">R$ {fixedCosts.toFixed(2)}</td>
+                                       <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                          {((fixedCosts / baseVal) * 100).toFixed(1)}%
+                                       </td>
+                                    </tr>
+                                    <tr className="hover:bg-gray-50/50 transition-colors">
+                                       <td className="px-6 py-4 flex items-center gap-3">
+                                          <div className="p-2 bg-gray-50 text-gray-500 rounded-xl"><AlertCircle size={14} /></div>
+                                          <span>Custos Variáveis / Segurança</span>
+                                       </td>
+                                       <td className="px-6 py-4 text-right font-mono">R$ {excedente.toFixed(2)}</td>
+                                       <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                          {((excedente / baseVal) * 100).toFixed(1)}%
+                                       </td>
+                                    </tr>
+                                    <tr className="hover:bg-gray-50/50 transition-colors">
+                                       <td className="px-6 py-4 flex items-center gap-3">
+                                          <div className="p-2 bg-orange-50 text-orange-500 rounded-xl"><Store size={14} /></div>
+                                          <div>
+                                             <span>Custo Meio de Venda (Taxas)</span>
+                                             {bd?.platformFeeDetails && (
+                                                <div className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1 flex flex-wrap gap-x-2">
+                                                   {bd.platformFeeDetails.commission > 0 && (
+                                                      <span>Comissão: R$ {bd.platformFeeDetails.commission.toFixed(2)}</span>
+                                                   )}
+                                                   {bd.platformFeeDetails.fixedFee > 0 && (
+                                                      <span>Fixa: R$ {bd.platformFeeDetails.fixedFee.toFixed(2)}</span>
+                                                   )}
+                                                   {bd.platformFeeDetails.shippingSubsidy > 0 && (
+                                                      <span>Subsídio: R$ {bd.platformFeeDetails.shippingSubsidy.toFixed(2)}</span>
+                                                   )}
+                                                </div>
+                                             )}
+                                          </div>
+                                       </td>
+                                       <td className="px-6 py-4 text-right font-mono">R$ {platformFees.toFixed(2)}</td>
+                                       <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                          {((platformFees / baseVal) * 100).toFixed(1)}%
+                                       </td>
+                                    </tr>
+                                    <tr className="bg-emerald-50/60">
+                                       <td className="px-6 py-4 flex items-center gap-3 font-black text-emerald-800">
+                                          <div className="p-2 bg-emerald-500 text-white rounded-xl"><Zap size={14} /></div>
+                                          <span>Lucro Líquido Real</span>
+                                       </td>
+                                       <td className="px-6 py-4 text-right font-black text-emerald-600 font-mono">R$ {profit.toFixed(2)}</td>
+                                       <td className="px-6 py-4 text-right text-[10px] font-black text-emerald-600">
+                                          {((profit / baseVal) * 100).toFixed(1)}%
+                                       </td>
+                                    </tr>
+                                 </tbody>
+                              </table>
+                           </div>
+                        </div>
+                     );
+                  })()}
+
                   {/* SEÇÃO MERCADO LIVRE */}
                   <div className="mt-8 p-10 bg-[#1e232e] rounded-[3rem] border border-slate-700/50 animate-fadeIn space-y-8 shadow-2xl relative overflow-hidden">
                      <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/5 rounded-full -mr-16 -mt-16 blur-2xl"></div>
@@ -1193,7 +1325,7 @@ export const Products: React.FC<ProductsProps> = ({
                                     )}
                                     <p className="text-[10px] font-medium text-slate-300">Frete Vendedor: <span className="text-white font-black">R$ {(newProduct.mlShippingCost || 0).toFixed(2)}</span></p>
                                  </div>
-                                 <p className="text-[11px] font-black text-blue-400 pt-1">Preço Final no ML Sugerido: R$ {currentPreview?.finalPrice.toFixed(2)}</p>
+                                 <p className="text-[11px] font-black text-blue-400 pt-1">Preço Final no ML Sugerido: R$ {suggestedPreview?.finalPrice.toFixed(2)}</p>
                               </div>
                            </div>
                         </div>
