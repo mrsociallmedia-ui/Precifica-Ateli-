@@ -20,8 +20,8 @@ export const calculateProjectBreakdown = (
 
   if (project.items && project.items.length > 0) {
     project.items.forEach(item => {
-      // 1. Calcular Custo de Materiais
-      const itemVariableCost = (item.materials || []).reduce((acc, matItem) => {
+      // 1. Calcular Custo de Materiais ou Custo Manual
+      const rawMaterialCost = (item.materials || []).reduce((acc, matItem) => {
         const mat = materials.find(m => m.id === matItem.materialId);
         if (!mat) return acc;
         
@@ -42,8 +42,13 @@ export const calculateProjectBreakdown = (
         }
 
         return acc + (baseMaterialCost + basePrintingCost);
-      }, 0) * item.quantity;
+      }, 0);
 
+      const baseMatCost = (item.manualBaseCost !== undefined && item.manualBaseCost > 0)
+        ? item.manualBaseCost
+        : rawMaterialCost;
+
+      const itemVariableCost = baseMatCost * item.quantity;
       const packagingTotal = (item.packagingCost || 0) * item.quantity;
       const totalItemVariableCost = itemVariableCost + packagingTotal;
 
@@ -59,7 +64,7 @@ export const calculateProjectBreakdown = (
       if (item.unitPrice && item.unitPrice > 0) {
         totalManualPieceValue += item.unitPrice * item.quantity;
       } else {
-        const itemBaseCost = (item.manualBaseCost !== undefined && item.manualBaseCost > 0) ? item.manualBaseCost : (totalItemVariableCost + itemLaborCost);
+        const itemBaseCost = totalItemVariableCost + itemLaborCost;
         const itemSubtotalBase = itemBaseCost + itemFixedCost;
         
         // Calcular o excedente específico deste item para incluir no preço sugerido
@@ -72,6 +77,8 @@ export const calculateProjectBreakdown = (
       }
     });
   }
+
+  totalVariableCosts += ((project as any).packagingCost || 0);
 
   // Despesas Variáveis (Excedente/Segurança) calculadas sobre o custo base
   const subtotalCosts = totalVariableCosts + totalLaborCosts + totalFixedCosts;

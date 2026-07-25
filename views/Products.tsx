@@ -588,22 +588,51 @@ export const Products: React.FC<ProductsProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
         {filteredProducts.map(p => {
-          const mockProject = { 
-            items: [{ 
-              productId: p.id, 
-              name: p.name, 
-              quantity: 1, 
-              hoursToMake: p.minutesToMake / 60, 
-              materials: p.materials, 
-              profitMargin: p.profitMargin,
-              manualBaseCost: p.manualBaseCost,
-              packagingCost: p.packagingCost,
-              unitPrice: p.marketPrice || 0
-            }], 
-            platformId: platforms[0]?.id || '', 
-            excedente: companyData.defaultExcedente 
-          };
+          let mockProject;
+          if (p.isKit && p.kitProducts && p.kitProducts.length > 0) {
+            mockProject = {
+              items: p.kitProducts.map(kp => {
+                const subP = products.find(prod => prod.id === kp.productId);
+                return {
+                  productId: kp.productId,
+                  name: subP?.name || 'Item do Kit',
+                  quantity: kp.quantity,
+                  hoursToMake: (subP?.minutesToMake || 0) / 60,
+                  materials: subP?.materials || [],
+                  profitMargin: subP?.profitMargin || p.profitMargin || 30,
+                  manualBaseCost: subP?.manualBaseCost,
+                  packagingCost: subP?.packagingCost,
+                  unitPrice: 0
+                };
+              }),
+              platformId: platforms[0]?.id || '',
+              excedente: companyData.defaultExcedente,
+              packagingCost: p.packagingCost || 0
+            };
+          } else {
+            mockProject = { 
+              items: [{ 
+                productId: p.id, 
+                name: p.name, 
+                quantity: 1, 
+                hoursToMake: (p.minutesToMake || 0) / 60, 
+                materials: p.materials || [], 
+                profitMargin: p.profitMargin || 30,
+                manualBaseCost: p.manualBaseCost,
+                packagingCost: p.packagingCost || 0,
+                unitPrice: 0
+              }], 
+              platformId: platforms[0]?.id || '', 
+              excedente: companyData.defaultExcedente 
+            };
+          }
+
           const breakdown = calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
+          const totalCost = breakdown.variableCosts + breakdown.laborCosts + breakdown.fixedCosts + breakdown.excedente;
+          const sellingPrice = (p.marketPrice && p.marketPrice > 0) ? p.marketPrice : breakdown.finalPrice;
+          const netProfit = (p.marketPrice && p.marketPrice > 0) ? Math.max(0, p.marketPrice - totalCost) : breakdown.profit;
+          const profitMarginPct = totalCost > 0 ? ((netProfit / totalCost) * 100) : (p.profitMargin || 30);
+
           return (
             <div key={p.id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group flex flex-col overflow-hidden">
               <div className="aspect-video bg-gray-50 relative overflow-hidden">
@@ -653,17 +682,17 @@ export const Products: React.FC<ProductsProps> = ({
                        {p.marketPrice > 0 ? 'P. Venda' : 'P. Sugerido'}
                     </p>
                     <p className="text-base font-black text-gray-800">
-                       R$ {(p.marketPrice > 0 ? p.marketPrice : breakdown.finalPrice).toFixed(2)}
+                       R$ {sellingPrice.toFixed(2)}
                     </p>
                   </div>
                   <div className="text-center">
                     <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1">Custo</p>
-                    <p className="text-sm font-black text-gray-700">R$ {(breakdown.variableCosts + breakdown.laborCosts + breakdown.fixedCosts + breakdown.excedente).toFixed(2)}</p>
+                    <p className="text-sm font-black text-gray-700">R$ {totalCost.toFixed(2)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[8px] font-black text-green-500 uppercase tracking-widest mb-1">Lucro Líquido</p>
-                    <p className="text-sm font-black text-green-600">R$ {breakdown.profit.toFixed(2)}</p>
-                    <p className="text-[9px] font-bold text-gray-400">{p.profitMargin.toFixed(0)}%</p>
+                    <p className="text-sm font-black text-green-600">R$ {netProfit.toFixed(2)}</p>
+                    <p className="text-[9px] font-bold text-gray-400">{profitMarginPct.toFixed(0)}%</p>
                   </div>
                 </div>
               </div>
