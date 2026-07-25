@@ -1149,9 +1149,6 @@ export const Products: React.FC<ProductsProps> = ({
                               <h3 className="text-xs font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
                                  <BarChart4 size={18} className="text-blue-500" /> Composição Financeira Detalhada
                               </h3>
-                              <div className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest self-start sm:self-auto">
-                                 Total Base Peça: R$ {(bd ? (bd.basePieceValue > 0 ? bd.basePieceValue : bd.finalPrice) : 0).toFixed(2)}
-                              </div>
                            </div>
 
                            <div className="overflow-x-auto rounded-3xl border border-gray-100 shadow-sm bg-white">
