@@ -715,7 +715,8 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
         return acc + (baseMaterialCost + basePrintingCost);
       }, 0);
 
-      const packaging = item.packagingCost || 0;
+      const minQty = (item.minOrderQuantity && item.minOrderQuantity > 0) ? item.minOrderQuantity : 1;
+      const packaging = (item.packagingCost || 0) / minQty;
       const unitVarCost = itemVariableCost + packaging;
 
       const monthlyCapacityHours = (companyData.workHoursDaily || 1) * (companyData.workDaysMonthly || 1);

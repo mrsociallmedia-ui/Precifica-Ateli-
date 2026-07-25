@@ -184,7 +184,7 @@ export const Products: React.FC<ProductsProps> = ({
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
-    name: '', category: productCategories[0] || 'Geral', description: '', minutesToMake: 60, materials: [],
+    name: '', category: productCategories[0] || 'Geral', description: '', minutesToMake: 0, materials: [],
     profitMargin: companyData.defaultProfitMargin, marketPrice: 0, manualBaseCost: 0, image: '', images: [], packagingCost: 0, minOrderQuantity: 1,
     showInCatalog: true,
     mlCommissionPercentage: 0,
@@ -440,7 +440,7 @@ export const Products: React.FC<ProductsProps> = ({
   const resetForm = () => {
     setEditingProductId(null);
     setNewProduct({
-      name: '', category: productCategories[0] || 'Geral', description: '', minutesToMake: 60, materials: [],
+      name: '', category: productCategories[0] || 'Geral', description: '', minutesToMake: 0, materials: [],
       profitMargin: companyData.defaultProfitMargin, marketPrice: 0, manualBaseCost: 0, image: '', images: [], packagingCost: 0, minOrderQuantity: 1,
       showInCatalog: true,
       mlCommissionPercentage: 0,
@@ -519,6 +519,8 @@ export const Products: React.FC<ProductsProps> = ({
         materials: newProduct.materials || [], 
         profitMargin: newProduct.profitMargin || 30,
         manualBaseCost: newProduct.manualBaseCost,
+        packagingCost: newProduct.packagingCost,
+        minOrderQuantity: newProduct.minOrderQuantity,
         unitPrice: 0 // Forçado a 0 para calcular SEMPRE o preço sugerido fixo respeitando a margem
       }],
       platformId: platformId,
@@ -527,7 +529,7 @@ export const Products: React.FC<ProductsProps> = ({
       mlShippingCost: isMLMode ? newProduct.mlShippingCost : undefined
     };
     return calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
-  }, [newProduct.name, newProduct.minutesToMake, newProduct.materials, newProduct.profitMargin, newProduct.manualBaseCost, newProduct.mlCommissionPercentage, newProduct.mlShippingCost, materials, platforms, companyData, showForm, isMLMode]);
+  }, [newProduct.name, newProduct.minutesToMake, newProduct.materials, newProduct.profitMargin, newProduct.manualBaseCost, newProduct.packagingCost, newProduct.minOrderQuantity, newProduct.mlCommissionPercentage, newProduct.mlShippingCost, materials, platforms, companyData, showForm, isMLMode]);
 
   const currentPreview = useMemo(() => {
     if (!showForm) return null;
@@ -548,6 +550,8 @@ export const Products: React.FC<ProductsProps> = ({
         materials: newProduct.materials || [], 
         profitMargin: newProduct.profitMargin || 30,
         manualBaseCost: newProduct.manualBaseCost,
+        packagingCost: newProduct.packagingCost,
+        minOrderQuantity: newProduct.minOrderQuantity,
         unitPrice: newProduct.marketPrice || 0
       }],
       platformId: platformId,
@@ -588,6 +592,13 @@ export const Products: React.FC<ProductsProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
         {filteredProducts.map(p => {
+          let platformId = platforms[0]?.id || '';
+          const isML = Boolean(p.mlCommissionPercentage || p.mlShippingCost);
+          if (isML) {
+             const mlPlatform = platforms.find(pl => pl.name.toLowerCase().includes('mercado livre'));
+             if (mlPlatform) platformId = mlPlatform.id;
+          }
+
           let mockProject;
           if (p.isKit && p.kitProducts && p.kitProducts.length > 0) {
             mockProject = {
@@ -602,12 +613,14 @@ export const Products: React.FC<ProductsProps> = ({
                   profitMargin: subP?.profitMargin || p.profitMargin || 30,
                   manualBaseCost: subP?.manualBaseCost,
                   packagingCost: subP?.packagingCost,
+                  minOrderQuantity: subP?.minOrderQuantity,
                   unitPrice: 0
                 };
               }),
-              platformId: platforms[0]?.id || '',
+              platformId: platformId,
               excedente: companyData.defaultExcedente,
-              packagingCost: p.packagingCost || 0
+              mlCommissionPercentage: p.mlCommissionPercentage,
+              mlShippingCost: p.mlShippingCost
             };
           } else {
             mockProject = { 
@@ -620,17 +633,20 @@ export const Products: React.FC<ProductsProps> = ({
                 profitMargin: p.profitMargin || 30,
                 manualBaseCost: p.manualBaseCost,
                 packagingCost: p.packagingCost || 0,
-                unitPrice: 0
+                minOrderQuantity: p.minOrderQuantity || 1,
+                unitPrice: p.marketPrice || 0
               }], 
-              platformId: platforms[0]?.id || '', 
-              excedente: companyData.defaultExcedente 
+              platformId: platformId, 
+              excedente: companyData.defaultExcedente,
+              mlCommissionPercentage: p.mlCommissionPercentage,
+              mlShippingCost: p.mlShippingCost
             };
           }
 
           const breakdown = calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
           const totalCost = breakdown.variableCosts + breakdown.laborCosts + breakdown.fixedCosts + breakdown.excedente;
           const sellingPrice = (p.marketPrice && p.marketPrice > 0) ? p.marketPrice : breakdown.finalPrice;
-          const netProfit = (p.marketPrice && p.marketPrice > 0) ? Math.max(0, p.marketPrice - totalCost) : breakdown.profit;
+          const netProfit = breakdown.profit;
           const profitMarginPct = totalCost > 0 ? ((netProfit / totalCost) * 100) : (p.profitMargin || 30);
 
           return (
@@ -834,35 +850,47 @@ export const Products: React.FC<ProductsProps> = ({
 
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-2">
-                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Embalagem de Envio</label>
+                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Embalagem de Envio (R$)</label>
                            <div className="relative">
                               <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
                               <input 
                                 type="number" 
                                 step="0.01" 
                                 className="w-full p-4 pl-10 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 text-sm" 
-                                placeholder="digite o valor unitário da sua embalagem..." 
+                                placeholder="Ex: 0.40" 
                                 value={newProduct.packagingCost === 0 ? '0' : (newProduct.packagingCost || '')} 
                                 onChange={e => setNewProduct({...newProduct, packagingCost: parseFloat(e.target.value) || 0})} 
                               />
                            </div>
-                           <p className="text-[9px] text-gray-400 font-bold italic px-1">Qual é o valor unitário da sua embalagem?</p>
+                           <p className="text-[9px] text-gray-400 font-bold italic px-1">Custo total da embalagem do pedido</p>
                         </div>
                         <div className="space-y-2">
-                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pedido Mínimo</label>
+                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pedido Mínimo (Unidades)</label>
                            <div className="relative">
                               <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
                               <input 
                                 type="number" 
                                 className="w-full p-4 pl-10 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 text-sm" 
-                                placeholder="digite a quantidade de peças para compor o seu pedido mínimo..." 
+                                placeholder="Ex: 10" 
                                 value={newProduct.minOrderQuantity === 0 ? '0' : (newProduct.minOrderQuantity || '')} 
                                 onChange={e => setNewProduct({...newProduct, minOrderQuantity: parseInt(e.target.value) || 1})} 
                               />
                            </div>
-                           <p className="text-[9px] text-gray-400 font-bold italic px-1">Qual será o seu pedido mínimo para essa Peça?</p>
+                           <p className="text-[9px] text-gray-400 font-bold italic px-1">Quantidade mínima de peças no pedido</p>
                         </div>
                      </div>
+
+                     {newProduct.packagingCost && newProduct.packagingCost > 0 && (
+                       <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200/60 text-xs font-medium text-amber-800 flex items-start gap-3">
+                         <Package size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                         <div>
+                           <p className="font-bold text-amber-900">Calculo da Embalagem por Peça:</p>
+                           <p className="text-amber-700 mt-0.5">
+                             R$ {(newProduct.packagingCost || 0).toFixed(2)} (embalagem) ÷ {newProduct.minOrderQuantity || 1} un (pedido mínimo) = <strong className="text-amber-900 font-black">R$ {((newProduct.packagingCost || 0) / (newProduct.minOrderQuantity && newProduct.minOrderQuantity > 0 ? newProduct.minOrderQuantity : 1)).toFixed(2)}</strong> somados ao custo total de cada peça.
+                           </p>
+                         </div>
+                       </div>
+                     )}
 
                      <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -1671,7 +1699,8 @@ export const Products: React.FC<ProductsProps> = ({
                         hoursToMake: p.minutesToMake / 60, 
                         materials: p.materials, 
                         profitMargin: p.profitMargin,
-                        packagingCost: p.packagingCost
+                        packagingCost: p.packagingCost,
+                        minOrderQuantity: p.minOrderQuantity
                       }], 
                       platformId: platforms[0]?.id || '', 
                       excedente: companyData.defaultExcedente 
@@ -1844,7 +1873,7 @@ export const Products: React.FC<ProductsProps> = ({
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Valor Unitário</p>
                           <p className="text-4xl font-black text-gray-800">
                             R$ {(selectedProductPreview.marketPrice > 0 ? selectedProductPreview.marketPrice : calculateProjectBreakdown({ 
-                              items: [{ productId: selectedProductPreview.id, name: selectedProductPreview.name, quantity: 1, hoursToMake: selectedProductPreview.minutesToMake / 60, materials: selectedProductPreview.materials, profitMargin: selectedProductPreview.profitMargin }], 
+                              items: [{ productId: selectedProductPreview.id, name: selectedProductPreview.name, quantity: 1, hoursToMake: selectedProductPreview.minutesToMake / 60, materials: selectedProductPreview.materials, profitMargin: selectedProductPreview.profitMargin, packagingCost: selectedProductPreview.packagingCost, minOrderQuantity: selectedProductPreview.minOrderQuantity }], 
                               platformId: platforms[0]?.id || '', 
                               excedente: companyData.defaultExcedente 
                             } as any, materials, platforms, companyData).finalPrice).toFixed(2)}
@@ -1866,7 +1895,7 @@ export const Products: React.FC<ProductsProps> = ({
                         <button 
                           onClick={() => {
                             const price = selectedProductPreview.marketPrice > 0 ? selectedProductPreview.marketPrice : calculateProjectBreakdown({ 
-                              items: [{ productId: selectedProductPreview.id, name: selectedProductPreview.name, quantity: 1, hoursToMake: selectedProductPreview.minutesToMake / 60, materials: selectedProductPreview.materials, profitMargin: selectedProductPreview.profitMargin }], 
+                              items: [{ productId: selectedProductPreview.id, name: selectedProductPreview.name, quantity: 1, hoursToMake: selectedProductPreview.minutesToMake / 60, materials: selectedProductPreview.materials, profitMargin: selectedProductPreview.profitMargin, packagingCost: selectedProductPreview.packagingCost, minOrderQuantity: selectedProductPreview.minOrderQuantity }], 
                               platformId: platforms[0]?.id || '', 
                               excedente: companyData.defaultExcedente 
                             } as any, materials, platforms, companyData).finalPrice;

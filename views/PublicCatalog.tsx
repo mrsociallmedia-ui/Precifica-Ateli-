@@ -291,7 +291,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
             {filteredProducts.map(p => {
               // Cálculo de preço sugerido caso não tenha preço de mercado definido
               const mockProject = { 
-                items: [{ productId: p.id, name: p.name, quantity: 1, hoursToMake: p.minutesToMake / 60, materials: p.materials, profitMargin: p.profitMargin }], 
+                items: [{ productId: p.id, name: p.name, quantity: 1, hoursToMake: p.minutesToMake / 60, materials: p.materials, profitMargin: p.profitMargin, packagingCost: p.packagingCost, minOrderQuantity: p.minOrderQuantity }], 
                 platformId: platforms[0]?.id || '', 
                 excedente: companyData?.defaultExcedente || 10 
               };
@@ -502,7 +502,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Valor Unitário</p>
                     <p className="text-4xl font-black text-gray-800">
                       R$ {(selectedProduct.marketPrice > 0 ? selectedProduct.marketPrice : calculateProjectBreakdown({ 
-                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin }], 
+                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin, packagingCost: selectedProduct.packagingCost, minOrderQuantity: selectedProduct.minOrderQuantity }], 
                         platformId: platforms[0]?.id || '', 
                         excedente: companyData?.defaultExcedente || 10 
                       } as any, materials, platforms, companyData!).finalPrice).toFixed(2)}
@@ -514,7 +514,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
                   <button 
                     onClick={() => {
                       const price = selectedProduct.marketPrice > 0 ? selectedProduct.marketPrice : calculateProjectBreakdown({ 
-                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin }], 
+                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin, packagingCost: selectedProduct.packagingCost, minOrderQuantity: selectedProduct.minOrderQuantity }], 
                         platformId: platforms[0]?.id || '', 
                         excedente: companyData?.defaultExcedente || 10 
                       } as any, materials, platforms, companyData!).finalPrice;
@@ -528,7 +528,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
                   <button 
                     onClick={() => {
                       const price = selectedProduct.marketPrice > 0 ? selectedProduct.marketPrice : calculateProjectBreakdown({ 
-                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin }], 
+                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin, packagingCost: selectedProduct.packagingCost, minOrderQuantity: selectedProduct.minOrderQuantity }], 
                         platformId: platforms[0]?.id || '', 
                         excedente: companyData?.defaultExcedente || 10 
                       } as any, materials, platforms, companyData!).finalPrice;

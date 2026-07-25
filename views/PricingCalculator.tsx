@@ -252,7 +252,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           materials: product.materials,
           profitMargin: product.profitMargin || companyData.defaultProfitMargin,
           manualBaseCost: product.manualBaseCost,
-          packagingCost: product.packagingCost
+          packagingCost: product.packagingCost,
+          minOrderQuantity: product.minOrderQuantity
         }],
         platformId: currentProject.platformId || platforms[0]?.id || '',
         excedente: companyData.defaultExcedente
@@ -269,7 +270,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       materials: [...product.materials],
       profitMargin: product.profitMargin || companyData.defaultProfitMargin,
       unitPrice: priceToUse,
-      packagingCost: product.packagingCost
+      packagingCost: product.packagingCost,
+      minOrderQuantity: product.minOrderQuantity
     };
 
     setCurrentProject({

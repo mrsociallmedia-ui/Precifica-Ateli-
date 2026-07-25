@@ -78,6 +78,7 @@ export interface ProjectItemEntry {
   unitPrice?: number; // Preço de venda fixado pelo artesão
   manualBaseCost?: number;
   packagingCost?: number;
+  minOrderQuantity?: number;
 }
 
 export interface ProjectItem {

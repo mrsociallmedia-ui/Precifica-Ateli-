@@ -49,7 +49,9 @@ export const calculateProjectBreakdown = (
         : rawMaterialCost;
 
       const itemVariableCost = baseMatCost * item.quantity;
-      const packagingTotal = (item.packagingCost || 0) * item.quantity;
+      const minQty = (item.minOrderQuantity && item.minOrderQuantity > 0) ? item.minOrderQuantity : 1;
+      const unitPackagingCost = (item.packagingCost || 0) / minQty;
+      const packagingTotal = unitPackagingCost * item.quantity;
       const totalItemVariableCost = itemVariableCost + packagingTotal;
 
       // 2. Calcular Custo de Mão de Obra e Custos Fixos
