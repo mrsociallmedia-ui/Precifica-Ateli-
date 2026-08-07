@@ -249,11 +249,13 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
     doc.save(`relatorio_pedidos_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
-  const formatDisplayDate = (dateStr?: string) => {
+  const formatDisplayDate = (dateStr?: string, timeStr?: string) => {
     if (!dateStr) return 'A combinar';
     try {
       const [year, month, day] = dateStr.split('-');
-      return `${day}/${month}/${year}`;
+      const formatted = `${day}/${month}/${year}`;
+      if (timeStr) return `${formatted} às ${timeStr}`;
+      return formatted;
     } catch (e) {
       return dateStr;
     }
@@ -315,7 +317,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
             <div style="background: #f0f9ff; padding: 25px; border-radius: 25px; border: 1px solid #e0f2fe;">
               <p style="margin: 0 0 10px 0; font-size: 10px; color: #0ea5e9; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Resumo do Pedido</p>
               <p style="margin: 0; font-weight: 800; color: #111827; font-size: 18px;">${proj.theme}</p>
-              <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">Data de Entrega: <span style="color: #0ea5e9;">${formatDisplayDate(proj.deliveryDate)}</span></p>
+              <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">Data de Entrega: <span style="color: #0ea5e9;">${formatDisplayDate(proj.deliveryDate, proj.deliveryTime)}</span></p>
             </div>
           </div>
           <div style="margin-bottom: 50px; border-radius: 25px; overflow: hidden; border: 1px solid #f3f4f6; box-shadow: 0 4px 15px rgba(0,0,0,0.02);">
@@ -670,7 +672,12 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                       <div className="flex items-center gap-2">
                         <Calendar size={14} className="text-gray-300" />
                         <span className="text-xs font-bold text-gray-600">
-                          {project.deliveryDate ? new Date(project.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'A combinar'}
+                          {project.deliveryDate ? (
+                            <>
+                              {new Date(project.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                              {project.deliveryTime && <span className="text-pink-600 font-bold ml-1">às {project.deliveryTime}</span>}
+                            </>
+                          ) : 'A combinar'}
                         </span>
                       </div>
                     </td>

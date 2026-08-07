@@ -133,6 +133,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     quoteNumber: '',
     orderDate: getLocalDate(),
     deliveryDate: '',
+    deliveryTime: '',
     customerId: '',
     platformId: platforms.find(p => p.feePercentage === 0)?.id || platforms[0]?.id || '',
     description: '',
@@ -174,6 +175,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         // Ensure dates are formatted correctly for input type="date"
         orderDate: projectToEdit.orderDate ? projectToEdit.orderDate.split('T')[0] : '',
         deliveryDate: projectToEdit.deliveryDate ? projectToEdit.deliveryDate.split('T')[0] : '',
+        deliveryTime: projectToEdit.deliveryTime || '',
       });
       setIsFormOpen(true);
       // Scroll to form
@@ -337,6 +339,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       dueDate: currentProject.deliveryDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       orderDate: currentProject.orderDate || getLocalDate(),
       deliveryDate: currentProject.deliveryDate || '',
+      deliveryTime: currentProject.deliveryTime || '',
       theme: currentProject.theme || '',
       celebrantName: currentProject.celebrantName || '',
       celebrantAge: currentProject.celebrantAge || '',
@@ -454,11 +457,12 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     resetForm();
   };
 
-  const formatDisplayDate = (dateStr?: string) => {
+  const formatDisplayDate = (dateStr?: string, timeStr?: string) => {
     if (!dateStr) return 'A combinar';
     const parts = dateStr.split('-');
-    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    return dateStr;
+    const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateStr;
+    if (timeStr) return `${formatted} às ${timeStr}`;
+    return formatted;
   };
 
   const handleWhatsAppShare = () => {
@@ -468,7 +472,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     }
 
     const customer = customers.find(c => c.id === currentProject.customerId);
-    const dateFormatted = formatDisplayDate(currentProject.deliveryDate);
+    const dateFormatted = formatDisplayDate(currentProject.deliveryDate, currentProject.deliveryTime);
 
     let message = `*Olá! Segue o Orçamento: ${companyData.name}*\n\n`;
     if (currentProject.quoteNumber) message += `🔖 *Nº Orçamento:* #${currentProject.quoteNumber}\n`;
@@ -563,7 +567,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             <div style="background: #f0f9ff; padding: 25px; border-radius: 25px; border: 1px solid #e0f2fe;">
               <p style="margin: 0 0 10px 0; font-size: 10px; color: #0ea5e9; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Resumo do Pedido</p>
               <p style="margin: 0; font-weight: 800; color: #111827; font-size: 18px;">${proj.theme}</p>
-              <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">Data de Entrega: <span style="color: #0ea5e9;">${formatDisplayDate(proj.deliveryDate)}</span></p>
+              <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">Data de Entrega: <span style="color: #0ea5e9;">${formatDisplayDate(proj.deliveryDate, proj.deliveryTime)}</span></p>
             </div>
           </div>
           <div style="margin-bottom: 50px; border-radius: 25px; overflow: hidden; border: 1px solid #f3f4f6; box-shadow: 0 4px 15px rgba(0,0,0,0.02);">
@@ -1004,7 +1008,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Data do Pedido</label>
                   <input 
@@ -1021,6 +1025,15 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600 focus:ring-2 focus:ring-pink-200" 
                     value={currentProject.deliveryDate} 
                     onChange={e => setCurrentProject({...currentProject, deliveryDate: e.target.value})} 
+                  />
+                </div>
+               <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Horário da Entrega</label>
+                  <input 
+                    type="time" 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-gray-600 focus:ring-2 focus:ring-pink-200" 
+                    value={currentProject.deliveryTime || ''} 
+                    onChange={e => setCurrentProject({...currentProject, deliveryTime: e.target.value})} 
                   />
                 </div>
             </div>

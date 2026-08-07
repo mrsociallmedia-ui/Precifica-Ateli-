@@ -285,7 +285,9 @@ export const Schedule: React.FC<ScheduleProps> = ({
       const customer = customers.find(c => c.id === project.customerId);
       const customerName = customer?.name || 'Cliente Avulso';
       const customerPhone = customer?.phone || '';
-      const formattedDeliveryDate = project.deliveryDate ? new Date(project.deliveryDate + 'T12:00:00').toLocaleDateString('pt-BR') : 'A combinar';
+      const formattedDeliveryDate = project.deliveryDate 
+        ? `${new Date(project.deliveryDate + 'T12:00:00').toLocaleDateString('pt-BR')}${project.deliveryTime ? ` às ${project.deliveryTime}` : ''}` 
+        : 'A combinar';
       
       const cakeDetails = project.isCakeTopper && (project.celebrantName || project.celebrantAge || project.cakeSize)
         ? `<div class="cake-badge">🎂 ${project.celebrantName || ''} ${project.celebrantAge ? `(${project.celebrantAge} anos)` : ''} ${project.cakeSize ? `• Bolo: ${project.cakeSize}` : ''}</div>`
@@ -687,6 +689,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
                           <CalendarIcon size={12} className="text-pink-400" /> 
                           <span className="text-[9px] uppercase tracking-widest text-gray-400">Entrega:</span>
                           {project.deliveryDate ? new Date(project.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'A combinar'}
+                          {project.deliveryTime && <span className="text-pink-600 font-extrabold ml-1">às {project.deliveryTime}</span>}
                         </div>
                       </div>
                       </>
@@ -830,6 +833,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
                                    <CalendarIcon size={14} className="text-pink-400" />
                                    <span className="text-[10px] font-bold text-gray-600">
                                       {project.deliveryDate ? new Date(project.deliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'A combinar'}
+                                      {project.deliveryTime && <span className="text-pink-600 font-bold ml-1">às {project.deliveryTime}</span>}
                                    </span>
                                 </div>
                              </td>

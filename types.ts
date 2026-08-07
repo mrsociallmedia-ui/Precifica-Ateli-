@@ -104,6 +104,7 @@ export interface Project {
   dueDate: string;
   orderDate: string;
   deliveryDate: string;
+  deliveryTime?: string;
   theme: string;
   celebrantName: string;
   celebrantAge: string;
