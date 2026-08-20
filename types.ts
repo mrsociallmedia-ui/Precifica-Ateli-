@@ -118,6 +118,9 @@ export interface Project {
   installments?: number;
   installmentAmount?: number;
   paymentMethod?: string;
+  firstInstallmentDate?: string;
+  installmentDates?: string[];
+  installmentFrequency?: 'monthly' | 'biweekly' | 'weekly' | 'custom';
   paidAt?: string;
   isCakeTopper?: boolean;
   cakeShape?: 'round' | 'square';
@@ -170,6 +173,9 @@ export interface Transaction {
   status?: 'pending' | 'paid';
   isExchange?: boolean;
   customerId?: string;
+  projectId?: string;
+  installmentNumber?: number;
+  totalInstallments?: number;
 }
 
 export interface CashClosure {

@@ -200,7 +200,9 @@ export const calculateProjectBreakdown = (
   
   if (transactions && project.id) {
     const projectTransactions = transactions.filter(t => 
-      t.type === 'income' && t.id.endsWith(`_${project.id}`)
+      t.type === 'income' && 
+      t.status !== 'pending' &&
+      (t.projectId === project.id || t.id.endsWith(`_${project.id}`) || t.id.includes(`_${project.id}_`))
     );
     
     const paidViaTransactions = projectTransactions.reduce((acc, t) => acc + t.amount, 0);

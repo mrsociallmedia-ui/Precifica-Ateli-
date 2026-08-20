@@ -129,6 +129,46 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     return `${year}-${month}-${day}`;
   };
 
+  // Helper para calcular datas de parcelas com base na data inicial e periodicidade
+  const generateInstallmentDates = (
+    startDate: string,
+    count: number,
+    freq: 'monthly' | 'biweekly' | 'weekly' | 'custom' = 'monthly'
+  ): string[] => {
+    const dates: string[] = [];
+    const start = startDate || getLocalDate();
+    const [y, m, d] = start.split('-').map(Number);
+
+    for (let i = 0; i < count; i++) {
+      if (i === 0) {
+        dates.push(start);
+      } else {
+        if (freq === 'weekly') {
+          const next = new Date(`${start}T12:00:00`);
+          next.setDate(next.getDate() + (i * 7));
+          dates.push(next.toISOString().split('T')[0]);
+        } else if (freq === 'biweekly') {
+          const next = new Date(`${start}T12:00:00`);
+          next.setDate(next.getDate() + (i * 15));
+          dates.push(next.toISOString().split('T')[0]);
+        } else {
+          // Mensal padrão (mesmo dia em meses subsequentes com proteção contra meses mais curtos)
+          const targetMonth = m - 1 + i;
+          const targetYear = y + Math.floor(targetMonth / 12);
+          const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+          const maxDaysInTargetMonth = new Date(targetYear, normalizedMonth + 1, 0).getDate();
+          const finalDay = Math.min(d, maxDaysInTargetMonth);
+          const nextDate = new Date(targetYear, normalizedMonth, finalDay);
+          const yStr = nextDate.getFullYear();
+          const mStr = String(nextDate.getMonth() + 1).padStart(2, '0');
+          const dStr = String(nextDate.getDate()).padStart(2, '0');
+          dates.push(`${yStr}-${mStr}-${dStr}`);
+        }
+      }
+    }
+    return dates;
+  };
+
   const initialProjectState: Partial<Project> = {
     theme: '',
     celebrantName: '',
@@ -156,6 +196,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     installments: 1,
     installmentAmount: 0,
     paymentMethod: 'Pix',
+    firstInstallmentDate: getLocalDate(),
+    installmentDates: [],
+    installmentFrequency: 'monthly',
     mlCommissionPercentage: 0,
     mlShippingCost: 0,
     isExchange: false,
@@ -185,6 +228,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         installments: projectToEdit.installments || 1,
         installmentAmount: projectToEdit.installmentAmount || 0,
         paymentMethod: projectToEdit.paymentMethod || 'Pix',
+        firstInstallmentDate: projectToEdit.firstInstallmentDate ? projectToEdit.firstInstallmentDate.split('T')[0] : (projectToEdit.orderDate ? projectToEdit.orderDate.split('T')[0] : getLocalDate()),
+        installmentDates: projectToEdit.installmentDates || [],
+        installmentFrequency: projectToEdit.installmentFrequency || 'monthly',
       });
       setIsFormOpen(true);
       // Scroll to form
@@ -193,9 +239,6 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       
       // Clear the edit state in parent so we don't re-trigger this on every render
       if (onClearEditProject) {
-        // We need to wait a bit or just clear it. 
-        // Actually, if we clear it immediately, App re-renders and passes null, 
-        // but we already set local state, so it's fine.
         onClearEditProject();
       }
     }
@@ -230,6 +273,63 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   const effectiveInstallmentAmount = currentProject.installmentAmount && currentProject.installmentAmount > 0
     ? currentProject.installmentAmount
     : autoInstallmentAmount;
+
+  // Cronograma de datas de vencimento das parcelas
+  const currentInstallmentDates = useMemo(() => {
+    const count = numInstallments;
+    const start = currentProject.firstInstallmentDate || currentProject.orderDate || getLocalDate();
+    const freq = currentProject.installmentFrequency || 'monthly';
+    const existing = currentProject.installmentDates || [];
+    
+    if (existing.length === count && existing.length > 0) {
+      return existing;
+    }
+    return generateInstallmentDates(start, count, freq);
+  }, [numInstallments, currentProject.firstInstallmentDate, currentProject.orderDate, currentProject.installmentFrequency, currentProject.installmentDates]);
+
+  const handleFirstInstallmentDateChange = (newDate: string) => {
+    const count = numInstallments;
+    const freq = currentProject.installmentFrequency || 'monthly';
+    const newDates = generateInstallmentDates(newDate, count, freq);
+    setCurrentProject(prev => ({
+      ...prev,
+      firstInstallmentDate: newDate,
+      installmentDates: newDates
+    }));
+  };
+
+  const handleInstallmentFrequencyChange = (newFreq: 'monthly' | 'biweekly' | 'weekly' | 'custom') => {
+    const count = numInstallments;
+    const start = currentProject.firstInstallmentDate || currentProject.orderDate || getLocalDate();
+    const newDates = generateInstallmentDates(start, count, newFreq);
+    setCurrentProject(prev => ({
+      ...prev,
+      installmentFrequency: newFreq,
+      installmentDates: newDates
+    }));
+  };
+
+  const handleSingleInstallmentDateChange = (index: number, newDate: string) => {
+    const updatedDates = [...currentInstallmentDates];
+    updatedDates[index] = newDate;
+    setCurrentProject(prev => ({
+      ...prev,
+      firstInstallmentDate: index === 0 ? newDate : (prev.firstInstallmentDate || updatedDates[0]),
+      installmentDates: updatedDates
+    }));
+  };
+
+  const handleSelectInstallments = (n: number) => {
+    const start = currentProject.firstInstallmentDate || currentProject.orderDate || getLocalDate();
+    const freq = currentProject.installmentFrequency || 'monthly';
+    const newDates = generateInstallmentDates(start, n, freq);
+    setCurrentProject(prev => ({
+      ...prev,
+      installments: n,
+      installmentAmount: 0,
+      installmentDates: newDates
+    }));
+  };
 
   const resetForm = () => {
     setCurrentProject({
@@ -381,6 +481,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       installments: currentProject.installments || 1,
       installmentAmount: currentProject.installmentAmount || 0,
       paymentMethod: currentProject.paymentMethod || 'Pix',
+      firstInstallmentDate: currentProject.firstInstallmentDate || currentInstallmentDates[0] || getLocalDate(),
+      installmentDates: currentInstallmentDates,
+      installmentFrequency: currentProject.installmentFrequency || 'monthly',
       mlCommissionPercentage: currentProject.mlCommissionPercentage || 0,
       mlShippingCost: currentProject.mlShippingCost || 0,
       isExchange: !!currentProject.isExchange,
@@ -420,6 +523,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         // Registra a transação de permuta
         const exchangeTransaction: Transaction = {
           id: `exchange_${Date.now()}_${newProj.id}`,
+          projectId: newProj.id,
           description: `Permuta Abatida: ${newProj.theme}${newProj.quoteNumber ? ` (#${newProj.quoteNumber})` : ''}`,
           amount: creditDeduction,
           type: 'expense',
@@ -432,13 +536,10 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         };
         setTransactions(prev => [exchangeTransaction, ...prev]);
 
-        // Se sobrou algo a pagar, a lógica de "Saldo Final" normal cuidará disso quando completado,
-        // mas aqui já informamos o usuário.
         if (remainingAfterCredit > 0) {
           alert(`Permuta aplicada! R$ ${creditDeduction.toFixed(2)} abatidos do crédito. Resta R$ ${remainingAfterCredit.toFixed(2)} a pagar.`);
         } else {
           alert(`Permuta aplicada! Valor total de R$ ${totalToPay.toFixed(2)} coberto pelo crédito do cliente.`);
-          // Se cobriu tudo, podemos até marcar como pago se o usuário desejar, mas vamos manter o status do projeto.
         }
       }
     }
@@ -447,6 +548,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     if (downPaymentIncrease > 0) {
       const signalTransaction: Transaction = {
         id: `signal_${Date.now()}_${newProj.id}`,
+        projectId: newProj.id,
         description: `Sinal: ${newProj.theme}${newProj.quoteNumber ? ` (#${newProj.quoteNumber})` : ''}`,
         amount: downPaymentIncrease,
         type: newProj.isExchange ? 'expense' : 'income',
@@ -454,33 +556,99 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         paymentMethod: newProj.isExchange ? 'Permuta' : 'Pix',
         date: new Date().toISOString().split('T')[0],
         isExchange: !!newProj.isExchange,
-        customerId: newProj.customerId
+        customerId: newProj.customerId,
+        status: 'paid'
       };
       setTransactions(prev => [signalTransaction, ...prev]);
     }
 
-    // 2. LANÇAMENTO DE SALDO FINAL (Ao completar o pedido)
-    if (newProj.status === 'completed' && (!oldProject || oldProject.status !== 'completed')) {
-      const finalTransaction: Transaction = {
-        id: `final_bal_${Date.now()}_${newProj.id}`,
-        description: `Saldo Final: ${newProj.theme}${newProj.quoteNumber ? ` (#${newProj.quoteNumber})` : ''}`,
-        amount: projBreakdown.remainingBalance, // Apenas o que falta pagar
+    // 3. AGENDAMENTO AUTOMÁTICO DE PARCELAS NO FINANCEIRO (Contas a Receber)
+    if (newProj.installments && newProj.installments > 1) {
+      const datesToSchedule = newProj.installmentDates && newProj.installmentDates.length === newProj.installments
+        ? newProj.installmentDates
+        : generateInstallmentDates(newProj.firstInstallmentDate || newProj.orderDate || getLocalDate(), newProj.installments, newProj.installmentFrequency || 'monthly');
+
+      const instVal = (newProj.installmentAmount && newProj.installmentAmount > 0)
+        ? newProj.installmentAmount
+        : Number(((newProj.downPayment && newProj.downPayment > 0 ? Math.max(0, projBreakdown.finalPrice - newProj.downPayment) : projBreakdown.finalPrice) / newProj.installments).toFixed(2));
+
+      // Gera os lançamentos individuais de cada parcela
+      const scheduledTransactions: Transaction[] = datesToSchedule.map((dateStr, idx) => ({
+        id: `inst_${newProj.id}_${idx + 1}`,
+        projectId: newProj.id,
+        installmentNumber: idx + 1,
+        totalInstallments: newProj.installments,
+        description: `Parcela (${idx + 1}/${newProj.installments}): ${newProj.theme}${newProj.quoteNumber ? ` (#${newProj.quoteNumber})` : ''}`,
+        amount: instVal,
         type: newProj.isExchange ? 'expense' : 'income',
         category: newProj.isExchange ? 'Permuta' : 'Venda',
-        paymentMethod: newProj.isExchange ? 'Permuta' : 'Pix',
-        date: new Date().toISOString().split('T')[0],
+        paymentMethod: newProj.isExchange ? 'Permuta' : (newProj.paymentMethod || 'Cartão de Crédito'),
+        date: dateStr || getLocalDate(),
+        status: 'pending',
         isExchange: !!newProj.isExchange,
         customerId: newProj.customerId
-      };
-      setTransactions(prev => [finalTransaction, ...prev]);
+      }));
+
+      // Atualiza o estado de transações: preserva parcelas já pagas caso esteja editando e remove pendentes antigas
+      setTransactions(prev => {
+        const existingPaidInstallments = prev.filter(t => 
+          (t.projectId === newProj.id || t.id.startsWith(`inst_${newProj.id}_`)) && t.status === 'paid'
+        );
+        
+        const withoutOldProjInst = prev.filter(t => 
+          !(t.projectId === newProj.id || t.id.startsWith(`inst_${newProj.id}_`))
+        );
+
+        const mergedScheduled = scheduledTransactions.map(st => {
+          const alreadyPaid = existingPaidInstallments.find(ep => ep.installmentNumber === st.installmentNumber || ep.id === st.id);
+          if (alreadyPaid) {
+            return { ...st, status: 'paid' as const, date: alreadyPaid.date };
+          }
+          return st;
+        });
+
+        return [...mergedScheduled, ...withoutOldProjInst];
+      });
+    } else {
+      // Se não for parcelado (1x à vista), limpa parcelas pendentes antigas deste projeto
+      setTransactions(prev => prev.filter(t => 
+        !(t.projectId === newProj.id && t.status === 'pending' && t.installmentNumber) &&
+        !t.id.startsWith(`inst_${newProj.id}_`)
+      ));
+
+      // Lançamento de Saldo Final se completado e à vista
+      if (newProj.status === 'completed' && (!oldProject || oldProject.status !== 'completed')) {
+        const finalTransaction: Transaction = {
+          id: `final_bal_${Date.now()}_${newProj.id}`,
+          projectId: newProj.id,
+          description: `Saldo Final: ${newProj.theme}${newProj.quoteNumber ? ` (#${newProj.quoteNumber})` : ''}`,
+          amount: projBreakdown.remainingBalance,
+          type: newProj.isExchange ? 'expense' : 'income',
+          category: newProj.isExchange ? 'Permuta' : 'Venda',
+          paymentMethod: newProj.isExchange ? 'Permuta' : 'Pix',
+          date: new Date().toISOString().split('T')[0],
+          isExchange: !!newProj.isExchange,
+          customerId: newProj.customerId,
+          status: 'paid'
+        };
+        setTransactions(prev => [finalTransaction, ...prev]);
+      }
     }
     
     if (isEdit) {
       setProjects(prev => prev.map(p => p.id === projectId ? newProj : p));
-      alert('Orçamento atualizado com sucesso!');
+      if (newProj.installments && newProj.installments > 1) {
+        alert(`Orçamento atualizado e ${newProj.installments} parcelas agendadas com sucesso no Financeiro!`);
+      } else {
+        alert('Orçamento atualizado com sucesso!');
+      }
     } else {
       setProjects(prev => [newProj, ...prev]);
-      alert('Orçamento salvo com sucesso!');
+      if (newProj.installments && newProj.installments > 1) {
+        alert(`Orçamento salvo e ${newProj.installments} parcelas agendadas com sucesso no Financeiro!`);
+      } else {
+        alert('Orçamento salvo com sucesso!');
+      }
     }
     
     resetForm();
@@ -535,6 +703,14 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         message += `\n💳 *Condição:* Entrada de R$ ${currentProject.downPayment.toFixed(2)} + ${numInstallments}x de R$ ${effectiveInstallmentAmount.toFixed(2)}${currentProject.paymentMethod ? ` (${currentProject.paymentMethod})` : ''}`;
       } else {
         message += `\n💳 *Condição:* ${numInstallments}x de R$ ${effectiveInstallmentAmount.toFixed(2)}${currentProject.paymentMethod ? ` (${currentProject.paymentMethod})` : ''}`;
+      }
+      if (currentInstallmentDates && currentInstallmentDates.length > 0) {
+        message += `\n🗓️ *Cronograma de Vencimento das Parcelas:*`;
+        currentInstallmentDates.forEach((d, idx) => {
+          const parts = d.split('-');
+          const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : d;
+          message += `\n  • ${idx + 1}ª Parcela (${formatted}): R$ ${effectiveInstallmentAmount.toFixed(2)}`;
+        });
       }
     } else if (currentProject.paymentMethod) {
       message += `\n💳 *Pagamento:* ${currentProject.paymentMethod} (À vista)`;
@@ -669,6 +845,17 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                         ${proj.downPayment && proj.downPayment > 0 ? `Entrada R$ ${proj.downPayment.toFixed(2)} + ` : ''}${proj.installments}x de R$ ${(proj.installmentAmount && proj.installmentAmount > 0 ? proj.installmentAmount : ((proj.downPayment && proj.downPayment > 0 ? Math.max(0, calcBreakdown.finalPrice - proj.downPayment) : calcBreakdown.finalPrice) / proj.installments)).toFixed(2)}
                       </span>
                     </div>
+                    ${proj.installmentDates && proj.installmentDates.length > 0 ? `
+                      <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.2); font-size: 9px; opacity: 0.9;">
+                        <div style="font-weight: 800; color: #f472b6; text-transform: uppercase; font-size: 8px; margin-bottom: 3px;">Vencimentos:</div>
+                        ${proj.installmentDates.map((d, i) => {
+                          const parts = d.split('-');
+                          const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : d;
+                          const instVal = proj.installmentAmount && proj.installmentAmount > 0 ? proj.installmentAmount : ((proj.downPayment && proj.downPayment > 0 ? Math.max(0, calcBreakdown.finalPrice - proj.downPayment) : calcBreakdown.finalPrice) / proj.installments!);
+                          return `<div style="display: flex; justify-content: space-between; padding: 1px 0;"><span>${i + 1}ª Parcela (${formatted}):</span><span style="font-weight: 700;">R$ ${instVal.toFixed(2)}</span></div>`;
+                        }).join('')}
+                      </div>
+                    ` : ''}
                   ` : (proj.paymentMethod ? `
                     <div style="margin-top: 8px; font-size: 10px; opacity: 0.7; text-align: right; text-transform: uppercase; letter-spacing: 1px;">
                       Pagamento: ${proj.paymentMethod} (À vista)
@@ -800,8 +987,24 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
     if (paymentText) {
       doc.setFontSize(9);
-      doc.setFont('helvetica', 'italic');
+      doc.setFont('helvetica', 'bold');
       doc.text(paymentText, 14, currentY);
+      currentY += 6;
+
+      if (numInst > 1 && project.installmentDates && project.installmentDates.length > 0) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text('Cronograma de Vencimento das Parcelas:', 14, currentY);
+        currentY += 5;
+        const instVal = project.installmentAmount || (finalPrice / numInst);
+        project.installmentDates.forEach((d, idx) => {
+          const parts = d.split('-');
+          const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : d;
+          doc.text(`• ${idx + 1}ª Parcela (${formatted}): R$ ${instVal.toFixed(2)}`, 18, currentY);
+          currentY += 4.5;
+        });
+        currentY += 2;
+      }
     }
 
     // Assinatura
@@ -1504,11 +1707,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                           <button
                             key={n}
                             type="button"
-                            onClick={() => setCurrentProject({
-                              ...currentProject, 
-                              installments: n,
-                              installmentAmount: 0
-                            })}
+                            onClick={() => handleSelectInstallments(n)}
                             className={`py-2 px-1 rounded-xl text-xs font-black transition-all ${
                               (currentProject.installments || 1) === n
                                 ? 'bg-pink-600 text-white shadow-sm shadow-pink-200 scale-[1.02]'
@@ -1526,11 +1725,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                         <select
                           className="flex-1 p-2 bg-gray-50 border border-gray-100 rounded-lg outline-none font-bold text-gray-700 text-xs focus:ring-2 focus:ring-pink-200"
                           value={currentProject.installments || 1}
-                          onChange={e => setCurrentProject({
-                            ...currentProject, 
-                            installments: parseInt(e.target.value) || 1,
-                            installmentAmount: 0
-                          })}
+                          onChange={e => handleSelectInstallments(parseInt(e.target.value) || 1)}
                         >
                           {Array.from({ length: 24 }, (_, i) => i + 1).map(n => (
                             <option key={n} value={n}>
@@ -1540,6 +1735,68 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                         </select>
                       </div>
                     </div>
+
+                    {/* DATAS E AGENDAMENTO DAS PARCELAS */}
+                    {numInstallments > 1 && (
+                      <div className="space-y-3 p-4 bg-purple-50/70 border border-purple-100 rounded-2xl">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-black text-purple-800 uppercase flex items-center gap-1.5">
+                            <Calendar size={13} className="text-purple-600" /> Vencimento das Parcelas
+                          </label>
+                          <span className="text-[9px] font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">
+                            Agendamento no Financeiro
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-gray-500 uppercase">1º Vencimento</label>
+                            <input
+                              type="date"
+                              className="w-full p-2.5 bg-white border border-purple-200 rounded-xl outline-none font-bold text-gray-800 text-xs focus:ring-2 focus:ring-purple-300"
+                              value={currentProject.firstInstallmentDate || currentInstallmentDates[0] || getLocalDate()}
+                              onChange={e => handleFirstInstallmentDateChange(e.target.value)}
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-gray-500 uppercase">Intervalo</label>
+                            <select
+                              className="w-full p-2.5 bg-white border border-purple-200 rounded-xl outline-none font-bold text-gray-800 text-xs focus:ring-2 focus:ring-purple-300"
+                              value={currentProject.installmentFrequency || 'monthly'}
+                              onChange={e => handleInstallmentFrequencyChange(e.target.value as any)}
+                            >
+                              <option value="monthly">Mensal (a cada 30 dias)</option>
+                              <option value="biweekly">Quinzenal (a cada 15 dias)</option>
+                              <option value="weekly">Semanal (a cada 7 dias)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Lista detalhada das datas calculadas */}
+                        <div className="space-y-1.5 pt-1">
+                          <span className="text-[9px] font-black text-purple-700 uppercase">Cronograma de Lançamentos:</span>
+                          <div className="max-h-36 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                            {currentInstallmentDates.map((dateVal, idx) => (
+                              <div key={idx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-purple-100 text-xs">
+                                <span className="font-black text-purple-700 text-[10px]">{idx + 1}ª Parcela:</span>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="date"
+                                    className="p-1 bg-purple-50/50 border border-purple-100 rounded text-[10px] font-bold text-gray-700 outline-none focus:ring-1 focus:ring-purple-300"
+                                    value={dateVal}
+                                    onChange={e => handleSingleInstallmentDateChange(idx, e.target.value)}
+                                  />
+                                  <span className="font-black text-pink-600 text-[10px]">
+                                    R$ {effectiveInstallmentAmount.toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Resumo visual do Parcelamento quando parcelado */}
                     {numInstallments > 1 && (
