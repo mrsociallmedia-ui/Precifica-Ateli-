@@ -59,7 +59,8 @@ import {
   Layers3,
   MessageSquare,
   BarChart4,
-  Wallet2
+  Wallet2,
+  CreditCard
 } from 'lucide-react';
 import { 
   Material, 
@@ -83,6 +84,7 @@ interface PricingCalculatorProps {
   companyData: CompanyData;
   projects: Project[];
   products: Product[];
+  paymentMethods?: string[];
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
@@ -97,6 +99,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   companyData, 
   projects,
   products,
+  paymentMethods = ['Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'Boleto', 'Transferência'],
   setProjects,
   setTransactions,
   setCustomers,
@@ -150,6 +153,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     discountPercentage: 0,
     discountAmount: 0,
     downPayment: 0,
+    installments: 1,
+    installmentAmount: 0,
+    paymentMethod: 'Pix',
     mlCommissionPercentage: 0,
     mlShippingCost: 0,
     isExchange: false,
@@ -176,6 +182,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         orderDate: projectToEdit.orderDate ? projectToEdit.orderDate.split('T')[0] : '',
         deliveryDate: projectToEdit.deliveryDate ? projectToEdit.deliveryDate.split('T')[0] : '',
         deliveryTime: projectToEdit.deliveryTime || '',
+        installments: projectToEdit.installments || 1,
+        installmentAmount: projectToEdit.installmentAmount || 0,
+        paymentMethod: projectToEdit.paymentMethod || 'Pix',
       });
       setIsFormOpen(true);
       // Scroll to form
@@ -204,6 +213,23 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   const breakdown = useMemo(() => {
     return calculateProjectBreakdown(currentProject, materials, platforms, companyData);
   }, [currentProject, materials, companyData, platforms]);
+
+  const baseForInstallments = useMemo(() => {
+    if (currentProject.downPayment && currentProject.downPayment > 0) {
+      return Math.max(0, breakdown.finalPrice - currentProject.downPayment);
+    }
+    return breakdown.finalPrice;
+  }, [breakdown.finalPrice, currentProject.downPayment]);
+
+  const numInstallments = currentProject.installments && currentProject.installments > 0 ? currentProject.installments : 1;
+  
+  const autoInstallmentAmount = useMemo(() => {
+    return Number((baseForInstallments / numInstallments).toFixed(2));
+  }, [baseForInstallments, numInstallments]);
+
+  const effectiveInstallmentAmount = currentProject.installmentAmount && currentProject.installmentAmount > 0
+    ? currentProject.installmentAmount
+    : autoInstallmentAmount;
 
   const resetForm = () => {
     setCurrentProject({
@@ -352,6 +378,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       discountPercentage: currentProject.discountPercentage || 0,
       discountAmount: currentProject.discountAmount || 0,
       downPayment: currentProject.downPayment || 0,
+      installments: currentProject.installments || 1,
+      installmentAmount: currentProject.installmentAmount || 0,
+      paymentMethod: currentProject.paymentMethod || 'Pix',
       mlCommissionPercentage: currentProject.mlCommissionPercentage || 0,
       mlShippingCost: currentProject.mlShippingCost || 0,
       isExchange: !!currentProject.isExchange,
@@ -501,6 +530,16 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       message += `\n⏳ *Falta:* R$ ${breakdown.remainingBalance.toFixed(2)}`;
     }
 
+    if (numInstallments > 1) {
+      if (currentProject.downPayment && currentProject.downPayment > 0) {
+        message += `\n💳 *Condição:* Entrada de R$ ${currentProject.downPayment.toFixed(2)} + ${numInstallments}x de R$ ${effectiveInstallmentAmount.toFixed(2)}${currentProject.paymentMethod ? ` (${currentProject.paymentMethod})` : ''}`;
+      } else {
+        message += `\n💳 *Condição:* ${numInstallments}x de R$ ${effectiveInstallmentAmount.toFixed(2)}${currentProject.paymentMethod ? ` (${currentProject.paymentMethod})` : ''}`;
+      }
+    } else if (currentProject.paymentMethod) {
+      message += `\n💳 *Pagamento:* ${currentProject.paymentMethod} (À vista)`;
+    }
+
     const phone = customer?.phone?.replace(/\D/g, '') || '';
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
@@ -618,11 +657,23 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                     ${calcBreakdown.shipping > 0 ? `<div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #6b7280; font-weight: 700;"><span>Frete:</span><span>+ R$ ${calcBreakdown.shipping.toFixed(2)}</span></div>` : ''}
                     ${calcBreakdown.totalDiscount > 0 ? `<div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #ef4444; font-weight: 700;"><span>Desconto:</span><span>- R$ ${calcBreakdown.totalDiscount.toFixed(2)}</span></div>` : ''}
                 </div>
-                <div style="background: #111827; border-radius: 25px; padding: 30px; color: white; margin-top: 10px;">
+                <div style="background: #111827; border-radius: 25px; padding: 25px 30px; color: white; margin-top: 10px;">
                   <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;">Total Geral</span>
                     <span style="font-weight: 900; font-size: 28px;">R$ ${calcBreakdown.finalPrice.toFixed(2)}</span>
                   </div>
+                  ${(proj.installments && proj.installments > 1) ? `
+                    <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.15); display: flex; justify-content: space-between; align-items: center;">
+                      <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #f472b6;">Condição</span>
+                      <span style="font-size: 12px; font-weight: 900; color: #fef08a;">
+                        ${proj.downPayment && proj.downPayment > 0 ? `Entrada R$ ${proj.downPayment.toFixed(2)} + ` : ''}${proj.installments}x de R$ ${(proj.installmentAmount && proj.installmentAmount > 0 ? proj.installmentAmount : ((proj.downPayment && proj.downPayment > 0 ? Math.max(0, calcBreakdown.finalPrice - proj.downPayment) : calcBreakdown.finalPrice) / proj.installments)).toFixed(2)}
+                      </span>
+                    </div>
+                  ` : (proj.paymentMethod ? `
+                    <div style="margin-top: 8px; font-size: 10px; opacity: 0.7; text-align: right; text-transform: uppercase; letter-spacing: 1px;">
+                      Pagamento: ${proj.paymentMethod} (À vista)
+                    </div>
+                  ` : '')}
                 </div>
             </div>
           </div>
@@ -726,9 +777,31 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`Referente a: ${project.theme}`, 14, 100);
+    
+    let currentY = 108;
     if (project.description) {
       const splitDescription = doc.splitTextToSize(`Descrição: ${project.description}`, 180);
-      doc.text(splitDescription, 14, 108);
+      doc.text(splitDescription, 14, currentY);
+      currentY += (splitDescription.length * 6) + 2;
+    }
+
+    // Condição de Pagamento
+    const numInst = project.installments || 1;
+    let paymentText = '';
+    if (numInst > 1) {
+      const instVal = project.installmentAmount || (finalPrice / numInst);
+      paymentText = `Condição de Pagamento: ${numInst}x de R$ ${instVal.toFixed(2)}${project.paymentMethod ? ` (${project.paymentMethod})` : ''}`;
+      if (project.downPayment && project.downPayment > 0) {
+        paymentText += ` - Entrada: R$ ${project.downPayment.toFixed(2)}`;
+      }
+    } else if (project.paymentMethod) {
+      paymentText = `Forma de Pagamento: ${project.paymentMethod} (À vista)`;
+    }
+
+    if (paymentText) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.text(paymentText, 14, currentY);
     }
 
     // Assinatura
@@ -1389,6 +1462,118 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                           />
                       </div>
                   </div>
+
+                  {/* CONDIÇÕES DE PAGAMENTO E PARCELAMENTO */}
+                  <div className="pt-4 border-t border-gray-100 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <CreditCard size={12} className="text-pink-500" /> Pagamento & Parcelas
+                      </h4>
+                      {numInstallments > 1 && (
+                        <span className="bg-pink-100 text-pink-600 text-[9px] font-black px-2 py-0.5 rounded-full">
+                          {numInstallments}x de R$ {effectiveInstallmentAmount.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Forma de Pagamento */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-gray-400 uppercase">Forma de Pagamento</label>
+                      <select
+                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none font-bold text-gray-700 text-xs focus:ring-2 focus:ring-pink-200"
+                        value={currentProject.paymentMethod || 'Pix'}
+                        onChange={e => setCurrentProject({...currentProject, paymentMethod: e.target.value})}
+                      >
+                        {paymentMethods.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Quantidade de Parcelas */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[9px] font-black text-gray-400 uppercase">Opção de Parcelamento</label>
+                        <span className="text-[10px] font-black text-pink-600">
+                          {numInstallments === 1 ? 'À vista (1x)' : `${numInstallments} parcelas`}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {[1, 2, 3, 4, 5, 6, 10, 12].map(n => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setCurrentProject({
+                              ...currentProject, 
+                              installments: n,
+                              installmentAmount: 0
+                            })}
+                            className={`py-2 px-1 rounded-xl text-xs font-black transition-all ${
+                              (currentProject.installments || 1) === n
+                                ? 'bg-pink-600 text-white shadow-sm shadow-pink-200 scale-[1.02]'
+                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-100'
+                            }`}
+                          >
+                            {n === 1 ? '1x À vista' : `${n}x`}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Select para outras quantidades de parcelas */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-[9px] font-bold text-gray-400 uppercase shrink-0">Mais opções:</span>
+                        <select
+                          className="flex-1 p-2 bg-gray-50 border border-gray-100 rounded-lg outline-none font-bold text-gray-700 text-xs focus:ring-2 focus:ring-pink-200"
+                          value={currentProject.installments || 1}
+                          onChange={e => setCurrentProject({
+                            ...currentProject, 
+                            installments: parseInt(e.target.value) || 1,
+                            installmentAmount: 0
+                          })}
+                        >
+                          {Array.from({ length: 24 }, (_, i) => i + 1).map(n => (
+                            <option key={n} value={n}>
+                              {n === 1 ? '1x - À Vista' : `${n}x parcelas`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Resumo visual do Parcelamento quando parcelado */}
+                    {numInstallments > 1 && (
+                      <div className="bg-gradient-to-br from-pink-50 to-purple-50 p-4 rounded-2xl border border-pink-100 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-pink-700">Valor da Parcela:</span>
+                          <span className="text-sm font-black text-pink-600">
+                            {numInstallments}x de R$ {effectiveInstallmentAmount.toFixed(2)}
+                          </span>
+                        </div>
+                        {currentProject.downPayment && currentProject.downPayment > 0 ? (
+                          <p className="text-[9px] font-bold text-pink-500/80 leading-tight">
+                            * Calculado sobre o saldo de R$ {baseForInstallments.toFixed(2)} (após entrada de R$ {currentProject.downPayment.toFixed(2)})
+                          </p>
+                        ) : null}
+
+                        {/* Ajuste manual opcional do valor da parcela */}
+                        <div className="pt-2 border-t border-pink-200/50 flex items-center justify-between gap-2">
+                          <label className="text-[9px] font-black text-pink-600 uppercase">Valor personalizado (R$):</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder={autoInstallmentAmount.toFixed(2)}
+                            className="w-24 p-1.5 bg-white border border-pink-200 rounded-lg outline-none font-black text-pink-700 text-xs text-right focus:ring-2 focus:ring-pink-300"
+                            value={currentProject.installmentAmount || ''}
+                            onChange={e => setCurrentProject({
+                              ...currentProject,
+                              installmentAmount: parseFloat(e.target.value) || 0
+                            })}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
               </div>
 
               {/* TOTAL DO ORÇAMENTO */}
@@ -1402,6 +1587,21 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                      <p className="text-xl font-black text-yellow-300">R$ {breakdown.downPayment.toFixed(2)}</p>
                      <p className="text-[10px] font-black opacity-70 uppercase tracking-[0.2em] mt-2">Saldo a Receber</p>
                      <p className="text-2xl font-black text-white">R$ {breakdown.remainingBalance.toFixed(2)}</p>
+                  </div>
+                )}
+                {numInstallments > 1 && (
+                  <div className="mt-4 pt-3 border-t border-white/20">
+                    <p className="text-[10px] font-black opacity-70 uppercase tracking-[0.2em]">Condição de Pagamento</p>
+                    <p className="text-xl font-black text-yellow-300">
+                      {currentProject.downPayment && currentProject.downPayment > 0 ? (
+                        <>Entrada R$ {currentProject.downPayment.toFixed(2)} + {numInstallments}x de R$ {effectiveInstallmentAmount.toFixed(2)}</>
+                      ) : (
+                        <>{numInstallments}x de R$ {effectiveInstallmentAmount.toFixed(2)}</>
+                      )}
+                    </p>
+                    {currentProject.paymentMethod && (
+                      <p className="text-[9px] font-bold opacity-80 uppercase tracking-widest mt-0.5">{currentProject.paymentMethod}</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1483,9 +1683,21 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 {/* TEMA E CLIENTE */}
                 <div className="flex-1 min-w-0">
                    <h3 className="font-black text-gray-800 text-lg group-hover:text-pink-600 transition-colors truncate">{proj.theme}</h3>
-                   <div className="flex items-center gap-2 text-gray-400 mt-1">
-                      <User size={12} className="text-pink-300" />
-                      <span className="text-xs font-medium">{customer?.name || 'Cliente não selecionado'}</span>
+                   <div className="flex items-center gap-3 text-gray-400 mt-1 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <User size={12} className="text-pink-300" />
+                        <span className="text-xs font-medium">{customer?.name || 'Cliente não selecionado'}</span>
+                      </div>
+                      {proj.installments && proj.installments > 1 && (
+                        <span className="bg-purple-50 text-purple-600 text-[10px] font-black px-2.5 py-0.5 rounded-lg flex items-center gap-1 border border-purple-100">
+                          <CreditCard size={10} /> {proj.installments}x de R$ {(proj.installmentAmount && proj.installmentAmount > 0 ? proj.installmentAmount : ((proj.downPayment && proj.downPayment > 0 ? Math.max(0, histBreakdown.finalPrice - proj.downPayment) : histBreakdown.finalPrice) / proj.installments)).toFixed(2)}
+                        </span>
+                      )}
+                      {(!proj.installments || proj.installments === 1) && proj.paymentMethod && (
+                        <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded-lg">
+                          {proj.paymentMethod}
+                        </span>
+                      )}
                    </div>
                 </div>
 

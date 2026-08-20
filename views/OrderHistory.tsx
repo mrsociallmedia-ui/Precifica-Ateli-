@@ -16,7 +16,8 @@ import {
   ArrowUpDown,
   Hash,
   ShoppingBag,
-  Download
+  Download,
+  CreditCard
 } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
@@ -354,11 +355,23 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                     ${calcBreakdown.shipping > 0 ? `<div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #6b7280; font-weight: 700;"><span>Frete:</span><span>+ R$ ${calcBreakdown.shipping.toFixed(2)}</span></div>` : ''}
                     ${calcBreakdown.totalDiscount > 0 ? `<div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #ef4444; font-weight: 700;"><span>Desconto:</span><span>- R$ ${calcBreakdown.totalDiscount.toFixed(2)}</span></div>` : ''}
                 </div>
-                <div style="background: #111827; border-radius: 25px; padding: 30px; color: white; margin-top: 10px;">
+                <div style="background: #111827; border-radius: 25px; padding: 25px 30px; color: white; margin-top: 10px;">
                   <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;">Total Geral</span>
                     <span style="font-weight: 900; font-size: 28px;">R$ ${calcBreakdown.finalPrice.toFixed(2)}</span>
                   </div>
+                  ${(proj.installments && proj.installments > 1) ? `
+                    <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.15); display: flex; justify-content: space-between; align-items: center;">
+                      <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #f472b6;">Condição</span>
+                      <span style="font-size: 12px; font-weight: 900; color: #fef08a;">
+                        ${proj.downPayment && proj.downPayment > 0 ? `Entrada R$ ${proj.downPayment.toFixed(2)} + ` : ''}${proj.installments}x de R$ ${(proj.installmentAmount && proj.installmentAmount > 0 ? proj.installmentAmount : ((proj.downPayment && proj.downPayment > 0 ? Math.max(0, calcBreakdown.finalPrice - proj.downPayment) : calcBreakdown.finalPrice) / proj.installments)).toFixed(2)}
+                      </span>
+                    </div>
+                  ` : (proj.paymentMethod ? `
+                    <div style="margin-top: 8px; font-size: 10px; opacity: 0.7; text-align: right; text-transform: uppercase; letter-spacing: 1px;">
+                      Pagamento: ${proj.paymentMethod} (À vista)
+                    </div>
+                  ` : '')}
                 </div>
             </div>
           </div>
@@ -461,9 +474,31 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`Referente a: ${project.theme}`, 14, 100);
+    
+    let currentY = 108;
     if (project.description) {
       const splitDescription = doc.splitTextToSize(`Descrição: ${project.description}`, 180);
-      doc.text(splitDescription, 14, 108);
+      doc.text(splitDescription, 14, currentY);
+      currentY += (splitDescription.length * 6) + 2;
+    }
+
+    // Condição de Pagamento
+    const numInst = project.installments || 1;
+    let paymentText = '';
+    if (numInst > 1) {
+      const instVal = project.installmentAmount || (finalPrice / numInst);
+      paymentText = `Condição de Pagamento: ${numInst}x de R$ ${instVal.toFixed(2)}${project.paymentMethod ? ` (${project.paymentMethod})` : ''}`;
+      if (project.downPayment && project.downPayment > 0) {
+        paymentText += ` - Entrada: R$ ${project.downPayment.toFixed(2)}`;
+      }
+    } else if (project.paymentMethod) {
+      paymentText = `Forma de Pagamento: ${project.paymentMethod} (À vista)`;
+    }
+
+    if (paymentText) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.text(paymentText, 14, currentY);
     }
 
     // Assinatura
@@ -647,13 +682,18 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                           <FileText size={20} />
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             {project.quoteNumber && (
                               <span className="text-[8px] font-black bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded uppercase tracking-widest">#{project.quoteNumber}</span>
                             )}
                             <p className="font-black text-gray-800 text-sm">{project.theme}</p>
                             {project.isExchange && (
                               <span className="px-2 py-0.5 bg-pink-100 text-pink-600 text-[8px] font-black uppercase rounded-md">Permuta</span>
+                            )}
+                            {project.installments && project.installments > 1 && (
+                              <span className="px-2 py-0.5 bg-purple-50 text-purple-600 border border-purple-100 text-[8px] font-black uppercase rounded-md flex items-center gap-1">
+                                <CreditCard size={8} /> {project.installments}x de R$ {(project.installmentAmount && project.installmentAmount > 0 ? project.installmentAmount : (finalPrice / project.installments)).toFixed(2)}
+                              </span>
                             )}
                           </div>
                           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">

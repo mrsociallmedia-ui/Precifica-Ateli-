@@ -115,6 +115,9 @@ export interface Project {
   discountPercentage?: number;
   discountAmount?: number;
   downPayment?: number;
+  installments?: number;
+  installmentAmount?: number;
+  paymentMethod?: string;
   paidAt?: string;
   isCakeTopper?: boolean;
   cakeShape?: 'round' | 'square';
