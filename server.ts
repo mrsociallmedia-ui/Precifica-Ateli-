@@ -63,7 +63,7 @@ async function startServer() {
     // API Route for Gemini content generation
     app.post("/api/generate", async (req: Request, res: Response) => {
       try {
-        const { prompt, model: modelName = "gemini-3.5-flash", config } = req.body;
+        const { prompt, model: modelName = "gemini-3.7-flash", config } = req.body;
         const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
@@ -86,7 +86,7 @@ async function startServer() {
           }
         });
         
-        const targetModel = modelName === "gemini-1.5-flash" ? "gemini-3.5-flash" : modelName;
+        const targetModel = (modelName === "gemini-1.5-flash" || modelName === "gemini-3.5-flash") ? "gemini-3.7-flash" : modelName;
 
         let text = "";
         try {
@@ -98,16 +98,28 @@ async function startServer() {
           text = response.text || "";
         } catch (sdkError: any) {
           console.error("SDK Call Error:", sdkError);
-          let errorMessage = sdkError.message || "Erro desconhecido na API do Gemini";
-          if (errorMessage.includes("API key not valid") || errorMessage.includes("API_KEY_INVALID")) {
-            errorMessage = "A chave de API do Gemini é inválida. Por favor, verifique se você inseriu a chave correta nas configurações (ícone de engrenagem).";
+          const rawMsg = sdkError?.message || String(sdkError) || "";
+          let errorMessage = "Ocorreu um erro ao comunicar com a API do Gemini.";
+          
+          if (rawMsg.includes("reported as leaked") || rawMsg.includes("PERMISSION_DENIED") || sdkError?.status === 403 || rawMsg.includes("403")) {
+            errorMessage = "Sua chave de API do Gemini foi reportada como vazada/inválida pelo Google. Por favor, gere uma nova chave de API no Google AI Studio e atualize nas configurações.";
+          } else if (rawMsg.includes("API key not valid") || rawMsg.includes("API_KEY_INVALID")) {
+            errorMessage = "A chave de API do Gemini é inválida. Por favor, verifique se inseriu a chave correta nas configurações.";
+          } else if (rawMsg.includes("RESOURCE_EXHAUSTED") || rawMsg.includes("quota") || rawMsg.includes("429")) {
+            errorMessage = "Limite de requisições do Gemini atingido temporariamente. Tente novamente em alguns instantes.";
+          } else if (rawMsg) {
+            errorMessage = `Erro na API do Gemini: ${rawMsg}`;
           }
-          return res.status(502).json({ error: errorMessage });
+
+          res.setHeader('Content-Type', 'application/json');
+          return res.status(502).json({ error: errorMessage, rawError: rawMsg });
         }
         
+        res.setHeader('Content-Type', 'application/json');
         res.json({ text });
       } catch (error: any) {
         console.error("Gemini Proxy Global Error:", error);
+        res.setHeader('Content-Type', 'application/json');
         res.status(500).json({ error: error.message || "Erro interno ao processar IA" });
       }
     });

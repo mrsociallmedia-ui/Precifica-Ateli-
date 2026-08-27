@@ -37,6 +37,7 @@ import {
 import { generateContent } from '../lib/gemini';
 import { Project, Customer, Material, CompanyData, Platform, Transaction, Product, MonthlyGoal, PlatformGoal } from '../types';
 import { calculateProjectBreakdown } from '../utils';
+import { AICaptionGenerator } from './AICaptionGenerator';
 
 interface DashboardProps {
   projects: Project[];
@@ -574,6 +575,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
           </div>
         </div>
       </div>
+
+      {/* Criador de Legendas por IA */}
+      <AICaptionGenerator companyData={companyData} products={products} projects={projects} />
 
       {/* Dica de Gestão Card */}
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-blue-50 relative overflow-hidden flex flex-col justify-between">
