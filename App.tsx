@@ -37,7 +37,7 @@ import { ProjectTracking } from './views/ProjectTracking';
 import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
-import { supabase, isMock } from './supabaseClient';
+import { supabase, isMock, clearStaleSupabaseAuth } from './supabaseClient';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
@@ -115,19 +115,32 @@ const App: React.FC = () => {
     // Verificar sessão atual ao carregar
     const checkSession = async () => {
       try {
-        const { data: { session }, error }: { data: { session: Session | null }, error: any } = await supabase.auth.getSession();
+        const { data, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error("Erro de sessão Supabase:", error);
-          if (error.message?.includes('Refresh Token Not Found') || error.message?.includes('refresh_token_not_found') || error.message?.includes('Invalid Refresh Token')) {
-            if (!isMock) {
-              await supabase.auth.signOut();
-              localStorage.clear();
-            }
+          console.warn("Aviso de sessão Supabase:", error.message);
+          if (
+            error.message?.includes('Refresh Token Not Found') || 
+            error.message?.includes('refresh_token_not_found') || 
+            error.message?.includes('Invalid Refresh Token') ||
+            error.message?.includes('invalid_grant')
+          ) {
+            clearStaleSupabaseAuth();
+            try {
+              if (!isMock && supabase?.auth?.signOut) {
+                await supabase.auth.signOut({ scope: 'local' });
+              }
+            } catch {}
           }
-          setIsAuthenticated(false);
-        } else if (session?.user) {
-          const email = session.user.email!.toLowerCase();
+          const lastUser = localStorage.getItem('last_user_email');
+          if (lastUser) {
+            setCurrentUser(lastUser);
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+          }
+        } else if (data?.session?.user) {
+          const email = data.session.user.email!.toLowerCase();
           setCurrentUser(email);
           setIsAuthenticated(true);
           localStorage.setItem('last_user_email', email);
@@ -140,8 +153,9 @@ const App: React.FC = () => {
             setIsAuthenticated(false);
           }
         }
-      } catch (err) {
-        console.error("Erro fatal ao validar sessão:", err);
+      } catch (err: any) {
+        console.warn("Aviso ao validar sessão:", err?.message || err);
+        clearStaleSupabaseAuth();
         const lastUser = localStorage.getItem('last_user_email');
         if (lastUser) {
           setCurrentUser(lastUser);
@@ -427,11 +441,12 @@ const App: React.FC = () => {
   const confirmLogout = async () => {
     if (supabase) {
       try {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
       } catch (err) {
-        console.error("Erro ao fazer logout do Supabase:", err);
+        console.warn("Aviso ao fazer logout do Supabase:", err);
       }
     }
+    clearStaleSupabaseAuth();
     localStorage.removeItem('last_user_email');
     setCurrentUser(null);
     setIsAuthenticated(false);
@@ -593,7 +608,7 @@ const App: React.FC = () => {
              {(() => {
                 const props = { projects, customers, materials, companyData, platforms, transactions, products };
                 switch (activeTab) {
-                  case 'dashboard': return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} onNavigate={(tab) => setActiveTab(tab)} />;
+                  case 'dashboard': return <Dashboard {...props} setProjects={setProjects} setTransactions={setTransactions} setCompanyData={setCompanyData} onNavigate={(tab) => setActiveTab(tab)} />;
                   case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} />;
                   case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} currentUser={currentUser || ''} />;
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;

@@ -32,7 +32,9 @@ import {
   RefreshCw,
   Layout,
   Plus,
-  Trash2
+  Trash2,
+  Calendar,
+  Filter
 } from 'lucide-react';
 import { generateContent } from '../lib/gemini';
 import { Project, Customer, Material, CompanyData, Platform, Transaction, Product, MonthlyGoal, PlatformGoal } from '../types';
@@ -49,16 +51,23 @@ interface DashboardProps {
   products: Product[];
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
   setCompanyData: React.Dispatch<React.SetStateAction<CompanyData>>;
+  setProjects?: React.Dispatch<React.SetStateAction<Project[]>>;
   onNavigate?: (tab: string) => void;
 }
 
-type DashboardFilter = 'all' | 'today' | 'active' | 'pending' | 'receivable' | 'quotes_pending';
+type DashboardFilter = 'all' | 'today' | 'active' | 'pending' | 'receivable' | 'quotes_pending' | 'pending_payments';
+type PendingPaymentDateFilter = 'this_week' | 'next_week' | 'this_month' | 'all' | 'custom';
 
-export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, materials, companyData, platforms, transactions, products, setTransactions, setCompanyData, onNavigate }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, materials, companyData, platforms, transactions, products, setTransactions, setCompanyData, setProjects, onNavigate }) => {
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>('all');
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [goalInput, setGoalInput] = useState('');
   
+  // Filtro por Data e Semana para Pagamentos Pendentes
+  const [pendingDateFilter, setPendingDateFilter] = useState<PendingPaymentDateFilter>('this_week');
+  const [pendingStartDate, setPendingStartDate] = useState('');
+  const [pendingEndDate, setPendingEndDate] = useState('');
+
   // Dynamic platform goals states
   const [platformGoalsList, setPlatformGoalsList] = useState<PlatformGoal[]>([]);
   const [newPlatformId, setNewPlatformId] = useState('');
@@ -262,6 +271,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
     const pendingToPay = pendingTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
     const pendingToReceive = pendingTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
 
+    // Pagamentos Pendentes de Encomendas (pedidos ativos/aprovados com saldo a receber ou status pending_payment)
+    const pendingPaymentProjects = projects.filter(p => {
+      if (p.status === 'completed' || p.isExchange) return false;
+      const { remainingBalance } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
+      return p.status === 'pending_payment' || remainingBalance > 0;
+    });
+
+    let pendingProjectsValue = 0;
+    pendingPaymentProjects.forEach(p => {
+      const { remainingBalance, finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
+      pendingProjectsValue += remainingBalance > 0 ? remainingBalance : (p.status === 'pending_payment' ? finalPrice : 0);
+    });
+
+    // Transações pendentes de entrada avulsas
+    const pendingIncomeTransactions = pendingTransactions.filter(t => t.type === 'income');
+    const pendingIncomeTransactionsValue = pendingIncomeTransactions.reduce((acc, t) => acc + t.amount, 0);
+
+    // Total Geral de Pagamentos Pendentes
+    const totalPendingPayments = pendingProjectsValue + pendingIncomeTransactionsValue;
+
     const pendingQuotes = projects.filter(p => p.status === 'pending');
     let pendingQuotesValue = 0;
     pendingQuotes.forEach(p => {
@@ -297,6 +326,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       pendingTransactions,
       pendingToPay,
       pendingToReceive,
+      pendingPaymentProjects,
+      pendingProjectsValue,
+      pendingIncomeTransactions,
+      totalPendingPayments,
       pendingQuotes,
       pendingQuotesValue,
       activeProjectsValue,
@@ -340,6 +373,129 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       .slice(0, 3);
   }, []);
 
+  // Intervalos de Datas para Filtros Semanais e Mensais
+  const dateRanges = useMemo(() => {
+    const now = new Date();
+
+    // Esta Semana (Segunda a Domingo)
+    const day = now.getDay();
+    const diffToMonday = now.getDate() - day + (day === 0 ? -6 : 1);
+    const thisMonday = new Date(now.getFullYear(), now.getMonth(), diffToMonday);
+    thisMonday.setHours(0, 0, 0, 0);
+
+    const thisSunday = new Date(thisMonday);
+    thisSunday.setDate(thisMonday.getDate() + 6);
+    thisSunday.setHours(23, 59, 59, 999);
+
+    // Próxima Semana
+    const nextMonday = new Date(thisMonday);
+    nextMonday.setDate(thisMonday.getDate() + 7);
+    const nextSunday = new Date(nextMonday);
+    nextSunday.setDate(nextMonday.getDate() + 6);
+    nextSunday.setHours(23, 59, 59, 999);
+
+    // Este Mês
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const fmt = (d: Date) => d.toISOString().split('T')[0];
+    const fmtPt = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+
+    return {
+      thisWeek: {
+        start: fmt(thisMonday),
+        end: fmt(thisSunday),
+        label: `${fmtPt(thisMonday)} a ${fmtPt(thisSunday)}`
+      },
+      nextWeek: {
+        start: fmt(nextMonday),
+        end: fmt(nextSunday),
+        label: `${fmtPt(nextMonday)} a ${fmtPt(nextSunday)}`
+      },
+      thisMonth: {
+        start: fmt(monthStart),
+        end: fmt(monthEnd),
+        label: now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+      }
+    };
+  }, []);
+
+  // Cálculos de Pagamentos Pendentes agrupados e filtrados por Semana / Data
+  const pendingPaymentsByPeriod = useMemo(() => {
+    const isWithinRange = (dateStr: string, start?: string, end?: string) => {
+      if (!dateStr) return false;
+      if (start && dateStr < start) return false;
+      if (end && dateStr > end) return false;
+      return true;
+    };
+
+    const getItemAmount = (p: Project) => {
+      const { remainingBalance, finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
+      return remainingBalance > 0 ? remainingBalance : (p.status === 'pending_payment' ? finalPrice : 0);
+    };
+
+    const allProjects = statsCalculations.pendingPaymentProjects;
+    const allTxs = statsCalculations.pendingIncomeTransactions;
+
+    // Calcular valores por período
+    const thisWeekProjects = allProjects.filter(p => isWithinRange(p.deliveryDate || '', dateRanges.thisWeek.start, dateRanges.thisWeek.end));
+    const thisWeekTxs = allTxs.filter(t => isWithinRange(t.date, dateRanges.thisWeek.start, dateRanges.thisWeek.end));
+    const thisWeekTotal = thisWeekProjects.reduce((sum, p) => sum + getItemAmount(p), 0) + thisWeekTxs.reduce((sum, t) => sum + t.amount, 0);
+
+    const nextWeekProjects = allProjects.filter(p => isWithinRange(p.deliveryDate || '', dateRanges.nextWeek.start, dateRanges.nextWeek.end));
+    const nextWeekTxs = allTxs.filter(t => isWithinRange(t.date, dateRanges.nextWeek.start, dateRanges.nextWeek.end));
+    const nextWeekTotal = nextWeekProjects.reduce((sum, p) => sum + getItemAmount(p), 0) + nextWeekTxs.reduce((sum, t) => sum + t.amount, 0);
+
+    const thisMonthProjects = allProjects.filter(p => isWithinRange(p.deliveryDate || '', dateRanges.thisMonth.start, dateRanges.thisMonth.end));
+    const thisMonthTxs = allTxs.filter(t => isWithinRange(t.date, dateRanges.thisMonth.start, dateRanges.thisMonth.end));
+    const thisMonthTotal = thisMonthProjects.reduce((sum, p) => sum + getItemAmount(p), 0) + thisMonthTxs.reduce((sum, t) => sum + t.amount, 0);
+
+    const allTotal = statsCalculations.totalPendingPayments;
+
+    // Itens de acordo com o filtro selecionado (pendingDateFilter)
+    let filteredProjects = allProjects;
+    let filteredTxs = allTxs;
+    let activeLabel = 'Todas as Datas';
+
+    if (pendingDateFilter === 'this_week') {
+      filteredProjects = thisWeekProjects;
+      filteredTxs = thisWeekTxs;
+      activeLabel = `Esta Semana (${dateRanges.thisWeek.label})`;
+    } else if (pendingDateFilter === 'next_week') {
+      filteredProjects = nextWeekProjects;
+      filteredTxs = nextWeekTxs;
+      activeLabel = `Próxima Semana (${dateRanges.nextWeek.label})`;
+    } else if (pendingDateFilter === 'this_month') {
+      filteredProjects = thisMonthProjects;
+      filteredTxs = thisMonthTxs;
+      activeLabel = `Este Mês (${dateRanges.thisMonth.label})`;
+    } else if (pendingDateFilter === 'custom') {
+      filteredProjects = allProjects.filter(p => isWithinRange(p.deliveryDate || '', pendingStartDate, pendingEndDate));
+      filteredTxs = allTxs.filter(t => isWithinRange(t.date, pendingStartDate, pendingEndDate));
+      const startFmt = pendingStartDate ? new Date(pendingStartDate + 'T00:00:00').toLocaleDateString('pt-BR') : '';
+      const endFmt = pendingEndDate ? new Date(pendingEndDate + 'T00:00:00').toLocaleDateString('pt-BR') : '';
+      activeLabel = startFmt || endFmt ? `Período: ${startFmt || 'Início'} até ${endFmt || 'Hoje/Futuro'}` : 'Período Personalizado';
+    }
+
+    const currentTotal = filteredProjects.reduce((sum, p) => sum + getItemAmount(p), 0) + filteredTxs.reduce((sum, t) => sum + t.amount, 0);
+
+    return {
+      thisWeekTotal,
+      thisWeekCount: thisWeekProjects.length + thisWeekTxs.length,
+      nextWeekTotal,
+      nextWeekCount: nextWeekProjects.length + nextWeekTxs.length,
+      thisMonthTotal,
+      thisMonthCount: thisMonthProjects.length + thisMonthTxs.length,
+      allTotal,
+      allCount: allProjects.length + allTxs.length,
+      filteredProjects,
+      filteredTxs,
+      currentTotal,
+      currentCount: filteredProjects.length + filteredTxs.length,
+      activeLabel
+    };
+  }, [statsCalculations, dateRanges, pendingDateFilter, pendingStartDate, pendingEndDate, materials, platforms, companyData, transactions]);
+
   const filteredData = useMemo(() => {
     switch (activeFilter) {
       case 'today': return { type: 'project', items: statsCalculations.dueToday };
@@ -347,9 +503,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
       case 'pending': return { type: 'transaction', items: statsCalculations.pendingTransactions.filter(t => t.type === 'expense') };
       case 'receivable': return { type: 'transaction', items: statsCalculations.pendingTransactions.filter(t => t.type === 'income') };
       case 'quotes_pending': return { type: 'project', items: statsCalculations.pendingQuotes };
+      case 'pending_payments': return { 
+        type: 'pending_payments', 
+        items: pendingPaymentsByPeriod.filteredProjects,
+        extraTransactions: pendingPaymentsByPeriod.filteredTxs
+      };
       default: return { type: 'project', items: [] };
     }
-  }, [activeFilter, statsCalculations]);
+  }, [activeFilter, statsCalculations, pendingPaymentsByPeriod]);
 
   const stats = [
     { id: 'all', label: 'Saldo em Caixa', value: `R$ ${statsCalculations.actualBalance.toFixed(2)}`, icon: Wallet2, color: 'bg-green-100 text-green-600', sub: 'Dinheiro real hoje', clickable: false },
@@ -399,9 +560,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
             <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:scale-110 transition-transform">
               <Wallet2 size={120} />
             </div>
-            <div className="relative z-10">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 mb-2">Saldo Real em Caixa</p>
-              <h3 className="text-4xl font-black">R$ {statsCalculations.actualBalance.toFixed(2)}</h3>
+            <div className="relative z-10 flex items-start justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 mb-2">Saldo Real em Caixa</p>
+                <h3 className="text-4xl font-black">R$ {statsCalculations.actualBalance.toFixed(2)}</h3>
+              </div>
+              {statsCalculations.totalPendingPayments > 0 && (
+                <button
+                  onClick={() => setActiveFilter('pending_payments')}
+                  className="bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 px-3.5 py-1.5 rounded-2xl transition-all text-right group/badge"
+                  title="Clique para ver pagamentos pendentes"
+                >
+                  <span className="text-[8px] font-black uppercase tracking-wider flex items-center justify-end gap-1 text-orange-300">
+                    <Clock size={10} /> Pendentes ({pendingDateFilter === 'this_week' ? 'Semana' : pendingDateFilter === 'next_week' ? 'Próx. Sem.' : 'Total'})
+                  </span>
+                  <span className="text-xs font-black text-white group-hover/badge:text-orange-200">
+                    R$ {pendingPaymentsByPeriod.currentTotal.toFixed(2)}
+                  </span>
+                </button>
+              )}
             </div>
             <div className="relative z-10 flex gap-4 mt-6">
               <div className="flex-1 bg-white/10 p-3 rounded-2xl border border-white/5">
@@ -428,6 +605,98 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
               <p className={`text-[10px] font-bold mt-2 ${activeFilter === 'today' ? 'text-white/40' : 'text-gray-300'}`}>Compromissos pendentes</p>
             </div>
           </button>
+
+          {/* Card: Pagamentos Pendentes com Seletor Semanal */}
+          <div 
+            className={`p-7 rounded-[3rem] border transition-all flex flex-col justify-between text-left group min-h-[220px] ${activeFilter === 'pending_payments' ? 'bg-orange-500 text-white border-orange-500 shadow-xl shadow-orange-500/20' : 'bg-white border-orange-100 hover:shadow-xl'}`}
+          >
+            <div className="flex items-start justify-between w-full mb-3 gap-2">
+              <button 
+                type="button"
+                onClick={() => setActiveFilter('pending_payments')}
+                className={`p-3.5 rounded-2xl shadow-sm w-fit transition-transform hover:scale-105 ${activeFilter === 'pending_payments' ? 'bg-white/10 text-white' : 'bg-orange-100 text-orange-600'}`}
+                title="Abrir detalhes de pagamentos pendentes"
+              >
+                <Clock size={24} />
+              </button>
+
+              {/* Seletor Rápido de Semana */}
+              <div className={`flex items-center p-1 rounded-2xl text-[9px] font-black uppercase transition-colors ${activeFilter === 'pending_payments' ? 'bg-black/20' : 'bg-gray-100'}`}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPendingDateFilter('this_week');
+                  }}
+                  className={`px-2.5 py-1 rounded-xl transition-all ${
+                    pendingDateFilter === 'this_week' 
+                      ? (activeFilter === 'pending_payments' ? 'bg-white text-orange-600 shadow-sm' : 'bg-orange-500 text-white shadow-sm')
+                      : (activeFilter === 'pending_payments' ? 'text-white/80 hover:text-white' : 'text-gray-500 hover:text-gray-800')
+                  }`}
+                  title={`Esta Semana: ${dateRanges.thisWeek.label}`}
+                >
+                  Semana
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPendingDateFilter('next_week');
+                  }}
+                  className={`px-2.5 py-1 rounded-xl transition-all ${
+                    pendingDateFilter === 'next_week' 
+                      ? (activeFilter === 'pending_payments' ? 'bg-white text-orange-600 shadow-sm' : 'bg-orange-500 text-white shadow-sm')
+                      : (activeFilter === 'pending_payments' ? 'text-white/80 hover:text-white' : 'text-gray-500 hover:text-gray-800')
+                  }`}
+                  title={`Próxima Semana: ${dateRanges.nextWeek.label}`}
+                >
+                  Próxima
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPendingDateFilter('all');
+                  }}
+                  className={`px-2.5 py-1 rounded-xl transition-all ${
+                    pendingDateFilter === 'all' 
+                      ? (activeFilter === 'pending_payments' ? 'bg-white text-orange-600 shadow-sm' : 'bg-orange-500 text-white shadow-sm')
+                      : (activeFilter === 'pending_payments' ? 'text-white/80 hover:text-white' : 'text-gray-500 hover:text-gray-800')
+                  }`}
+                  title="Todos os pagamentos pendentes"
+                >
+                  Geral
+                </button>
+              </div>
+            </div>
+
+            <button 
+              type="button"
+              onClick={() => setActiveFilter('pending_payments')}
+              className="text-left w-full focus:outline-none cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <p className={`text-[10px] font-black uppercase tracking-widest ${activeFilter === 'pending_payments' ? 'text-white/80' : 'text-orange-500 font-extrabold'}`}>
+                  Pagamentos Pendentes
+                </p>
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${activeFilter === 'pending_payments' ? 'bg-white/20 text-white' : 'bg-orange-50 text-orange-600 border border-orange-100'}`}>
+                  {pendingDateFilter === 'this_week' ? 'Esta Semana' : pendingDateFilter === 'next_week' ? 'Próx. Semana' : pendingDateFilter === 'this_month' ? 'Este Mês' : pendingDateFilter === 'custom' ? 'Por Data' : 'Todas'}
+                </span>
+              </div>
+              <p className="text-3xl font-black mt-1">
+                R$ {pendingPaymentsByPeriod.currentTotal.toFixed(2)}
+              </p>
+              <div className="flex items-center justify-between mt-2">
+                <p className={`text-[10px] font-bold ${activeFilter === 'pending_payments' ? 'text-white/70' : 'text-gray-400'}`}>
+                  {pendingPaymentsByPeriod.currentCount} {pendingPaymentsByPeriod.currentCount === 1 ? 'encomenda a quitar' : 'encomendas a quitar'}
+                  {pendingDateFilter !== 'all' && ` • Total: R$ ${pendingPaymentsByPeriod.allTotal.toFixed(2)}`}
+                </p>
+                <span className={`text-[9px] font-black uppercase flex items-center gap-0.5 ${activeFilter === 'pending_payments' ? 'text-white underline' : 'text-orange-600 group-hover:translate-x-0.5 transition-transform'}`}>
+                  Ver &rarr;
+                </span>
+              </div>
+            </button>
+          </div>
 
           <button 
             onClick={() => setActiveFilter('pending')}
@@ -605,17 +874,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
         <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-xl border border-pink-50 animate-slideUp">
            <div className="flex items-center justify-between mb-10">
               <div className="flex items-center gap-4">
-                 <div className={`p-4 text-white rounded-3xl shadow-xl ${activeFilter === 'pending' ? 'bg-purple-600' : activeFilter === 'receivable' ? 'bg-emerald-600' : activeFilter === 'quotes_pending' ? 'bg-blue-500' : 'bg-gray-900'}`}>
-                    {activeFilter === 'today' ? <CalendarCheck size={28} /> : activeFilter === 'pending' ? <Scale size={28} /> : activeFilter === 'receivable' ? <TrendingUp size={28} /> : activeFilter === 'quotes_pending' ? <Calculator size={28} /> : <ShoppingBag size={28} />}
+                 <div className={`p-4 text-white rounded-3xl shadow-xl ${activeFilter === 'pending' ? 'bg-purple-600' : activeFilter === 'receivable' ? 'bg-emerald-600' : activeFilter === 'pending_payments' ? 'bg-orange-500 shadow-orange-200' : activeFilter === 'quotes_pending' ? 'bg-blue-500' : 'bg-gray-900'}`}>
+                    {activeFilter === 'today' ? <CalendarCheck size={28} /> : activeFilter === 'pending' ? <Scale size={28} /> : activeFilter === 'receivable' ? <TrendingUp size={28} /> : activeFilter === 'pending_payments' ? <Clock size={28} /> : activeFilter === 'quotes_pending' ? <Calculator size={28} /> : <ShoppingBag size={28} />}
                  </div>
-                 <div>
+                  <div>
                     <h3 className="text-2xl font-black text-gray-800 tracking-tight">
-                      {activeFilter === 'today' ? 'Vencimentos de Hoje' : activeFilter === 'pending' ? 'Contas a Pagar (Boletos)' : activeFilter === 'receivable' ? 'Contas a Receber' : activeFilter === 'quotes_pending' ? 'Projetos Aguardando Aprovação' : 'Projetos em Produção'}
+                      {activeFilter === 'today' ? 'Vencimentos de Hoje' : activeFilter === 'pending' ? 'Contas a Pagar (Boletos)' : activeFilter === 'receivable' ? 'Contas a Receber' : activeFilter === 'pending_payments' ? 'Pagamentos Pendentes a Receber' : activeFilter === 'quotes_pending' ? 'Projetos Aguardando Aprovação' : 'Projetos em Produção'}
                     </h3>
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">
-                      {filteredData.items.length} {filteredData.items.length === 1 ? 'item identificado' : 'itens identificados'}
+                      {activeFilter === 'pending_payments' 
+                        ? `${pendingPaymentsByPeriod.activeLabel} • Total: R$ ${pendingPaymentsByPeriod.currentTotal.toFixed(2)} (${pendingPaymentsByPeriod.currentCount} ${pendingPaymentsByPeriod.currentCount === 1 ? 'encomenda' : 'encomendas'})`
+                        : `${filteredData.items.length} ${filteredData.items.length === 1 ? 'item identificado' : 'itens identificados'}`
+                      }
                     </p>
-                 </div>
+                  </div>
               </div>
               <button 
                 onClick={() => setActiveFilter('all')}
@@ -625,8 +897,342 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
               </button>
            </div>
 
+           {/* Barra de Filtros por Semana e Data para Pagamentos Pendentes */}
+           {activeFilter === 'pending_payments' && (
+             <div className="mb-8 p-6 bg-orange-50/60 rounded-[2.5rem] border border-orange-100 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+               <div className="flex flex-wrap items-center gap-2">
+                 <span className="text-[11px] font-black uppercase tracking-wider text-orange-800 mr-2 flex items-center gap-1.5">
+                   <Calendar size={15} /> Ver por Semana:
+                 </span>
+                 
+                 <button
+                   type="button"
+                   onClick={() => setPendingDateFilter('this_week')}
+                   className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2.5 ${
+                     pendingDateFilter === 'this_week'
+                       ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25'
+                       : 'bg-white text-gray-700 hover:bg-orange-100 border border-orange-200/70'
+                   }`}
+                 >
+                   <span>Esta Semana</span>
+                   <span className={`px-2 py-0.5 rounded-full text-[10px] ${pendingDateFilter === 'this_week' ? 'bg-white/25 text-white' : 'bg-orange-100 text-orange-700 font-bold'}`}>
+                     R$ {pendingPaymentsByPeriod.thisWeekTotal.toFixed(2)}
+                   </span>
+                 </button>
+
+                 <button
+                   type="button"
+                   onClick={() => setPendingDateFilter('next_week')}
+                   className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2.5 ${
+                     pendingDateFilter === 'next_week'
+                       ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25'
+                       : 'bg-white text-gray-700 hover:bg-orange-100 border border-orange-200/70'
+                   }`}
+                 >
+                   <span>Próxima Semana</span>
+                   <span className={`px-2 py-0.5 rounded-full text-[10px] ${pendingDateFilter === 'next_week' ? 'bg-white/25 text-white' : 'bg-orange-100 text-orange-700 font-bold'}`}>
+                     R$ {pendingPaymentsByPeriod.nextWeekTotal.toFixed(2)}
+                   </span>
+                 </button>
+
+                 <button
+                   type="button"
+                   onClick={() => setPendingDateFilter('this_month')}
+                   className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2.5 ${
+                     pendingDateFilter === 'this_month'
+                       ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25'
+                       : 'bg-white text-gray-700 hover:bg-orange-100 border border-orange-200/70'
+                   }`}
+                 >
+                   <span>Este Mês</span>
+                   <span className={`px-2 py-0.5 rounded-full text-[10px] ${pendingDateFilter === 'this_month' ? 'bg-white/25 text-white' : 'bg-orange-100 text-orange-700 font-bold'}`}>
+                     R$ {pendingPaymentsByPeriod.thisMonthTotal.toFixed(2)}
+                   </span>
+                 </button>
+
+                 <button
+                   type="button"
+                   onClick={() => setPendingDateFilter('all')}
+                   className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2.5 ${
+                     pendingDateFilter === 'all'
+                       ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25'
+                       : 'bg-white text-gray-700 hover:bg-orange-100 border border-orange-200/70'
+                   }`}
+                 >
+                   <span>Todas as Datas</span>
+                   <span className={`px-2 py-0.5 rounded-full text-[10px] ${pendingDateFilter === 'all' ? 'bg-white/25 text-white' : 'bg-orange-100 text-orange-700 font-bold'}`}>
+                     R$ {pendingPaymentsByPeriod.allTotal.toFixed(2)}
+                   </span>
+                 </button>
+               </div>
+
+               {/* Opção de Puxar por Data (De / Até) */}
+               <div className="flex flex-wrap items-center gap-3 pt-3 xl:pt-0 border-t xl:border-t-0 border-orange-200/60">
+                 <span className="text-[10px] font-black uppercase tracking-wider text-gray-500 flex items-center gap-1">
+                   <Filter size={12} /> Puxar por Data:
+                 </span>
+                 <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-2xl border border-orange-200/80 shadow-sm">
+                   <span className="text-[10px] font-black uppercase text-gray-400">De</span>
+                   <input 
+                     type="date" 
+                     value={pendingStartDate}
+                     onChange={(e) => {
+                       setPendingStartDate(e.target.value);
+                       setPendingDateFilter('custom');
+                     }}
+                     className="text-xs font-bold text-gray-800 bg-transparent outline-none cursor-pointer"
+                   />
+                 </div>
+
+                 <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-2xl border border-orange-200/80 shadow-sm">
+                   <span className="text-[10px] font-black uppercase text-gray-400">Até</span>
+                   <input 
+                     type="date" 
+                     value={pendingEndDate}
+                     onChange={(e) => {
+                       setPendingEndDate(e.target.value);
+                       setPendingDateFilter('custom');
+                     }}
+                     className="text-xs font-bold text-gray-800 bg-transparent outline-none cursor-pointer"
+                   />
+                 </div>
+
+                 {(pendingStartDate || pendingEndDate || pendingDateFilter === 'custom') && (
+                   <button
+                     type="button"
+                     onClick={() => {
+                       setPendingStartDate('');
+                       setPendingEndDate('');
+                       setPendingDateFilter('this_week');
+                     }}
+                     className="text-[10px] font-black uppercase tracking-wider text-orange-600 hover:text-orange-800 underline px-2 py-1"
+                   >
+                     Limpar
+                   </button>
+                 )}
+               </div>
+             </div>
+           )}
+
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
-              {filteredData.type === 'project' ? (
+              {filteredData.type === 'pending_payments' ? (
+                <>
+                  {(filteredData.items.length === 0 && (!filteredData.extraTransactions || filteredData.extraTransactions.length === 0)) ? (
+                    <div className="col-span-full py-16 text-center flex flex-col items-center gap-3 bg-orange-50/40 rounded-[2.5rem] border border-dashed border-orange-200 p-8">
+                      <div className="p-4 bg-orange-100 text-orange-600 rounded-2xl">
+                        <Calendar size={32} />
+                      </div>
+                      <h4 className="text-base font-black text-gray-800">Nenhum pagamento pendente para este período</h4>
+                      <p className="text-xs text-gray-500 max-w-md">
+                        Não encontramos encomendas ou lançamentos com vencimento ou entrega prevista para {pendingPaymentsByPeriod.activeLabel.toLowerCase()}.
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+                        {pendingDateFilter !== 'this_week' && pendingPaymentsByPeriod.thisWeekTotal > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setPendingDateFilter('this_week')}
+                            className="px-4 py-2 bg-orange-500 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-orange-600 transition-all shadow-sm"
+                          >
+                            Ver Esta Semana (R$ {pendingPaymentsByPeriod.thisWeekTotal.toFixed(2)})
+                          </button>
+                        )}
+                        {pendingDateFilter !== 'next_week' && pendingPaymentsByPeriod.nextWeekTotal > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setPendingDateFilter('next_week')}
+                            className="px-4 py-2 bg-white text-orange-600 border border-orange-200 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-orange-50 transition-all"
+                          >
+                            Ver Próxima Semana (R$ {pendingPaymentsByPeriod.nextWeekTotal.toFixed(2)})
+                          </button>
+                        )}
+                        {pendingDateFilter !== 'all' && (
+                          <button
+                            type="button"
+                            onClick={() => setPendingDateFilter('all')}
+                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-gray-200 transition-all"
+                          >
+                            Ver Todas as Datas (R$ {pendingPaymentsByPeriod.allTotal.toFixed(2)})
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {(filteredData.items as Project[]).map(project => {
+                        const breakdown = calculateProjectBreakdown(project, materials, platforms, companyData, transactions);
+                        const customer = customers.find(c => c.id === project.customerId);
+                        const pendingAmount = breakdown.remainingBalance > 0 ? breakdown.remainingBalance : (project.status === 'pending_payment' ? breakdown.finalPrice : 0);
+                        const cleanPhone = customer?.phone ? customer.phone.replace(/\D/g, '') : '';
+                        const isThisWeek = project.deliveryDate >= dateRanges.thisWeek.start && project.deliveryDate <= dateRanges.thisWeek.end;
+                        const isNextWeek = project.deliveryDate >= dateRanges.nextWeek.start && project.deliveryDate <= dateRanges.nextWeek.end;
+                        const isPast = project.deliveryDate < todayStr;
+
+                        return (
+                          <div key={project.id} className="p-8 rounded-[2.5rem] border border-orange-100 hover:shadow-2xl transition-all group flex flex-col justify-between bg-orange-50/20 hover:bg-white">
+                             <div>
+                               <div className="flex justify-between items-start mb-4">
+                                  <div className="flex flex-col gap-1.5">
+                                     {project.status === 'pending_payment' ? (
+                                       <span className="px-2.5 py-1 bg-orange-500 text-white text-[8px] font-black uppercase rounded-md flex items-center gap-1 w-fit shadow-sm">
+                                         <Clock size={10}/> Pagamento Pendente
+                                       </span>
+                                     ) : (
+                                       <span className="px-2.5 py-1 bg-amber-100 text-amber-800 text-[8px] font-black uppercase rounded-md flex items-center gap-1 w-fit">
+                                         <Clock size={10}/> Saldo Restante
+                                       </span>
+                                     )}
+                                     <h4 className="font-black text-gray-800 text-lg group-hover:text-orange-600 transition-colors leading-tight">{project.theme}</h4>
+                                     <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1 italic">
+                                       <Clock size={10} /> {customer?.name || 'Cliente Avulso'}
+                                     </p>
+                                  </div>
+                                  <div className="text-right">
+                                     <span className="text-[9px] font-black text-gray-400 uppercase block">Pendente</span>
+                                     <p className="text-xl font-black text-orange-600">R$ {pendingAmount.toFixed(2)}</p>
+                                  </div>
+                               </div>
+
+                               <div className="bg-white/90 p-3.5 rounded-2xl border border-orange-100/70 grid grid-cols-2 gap-2 text-center my-4">
+                                 <div>
+                                   <p className="text-[8px] font-black text-gray-400 uppercase">Valor Total</p>
+                                   <p className="text-xs font-black text-gray-700">R$ {breakdown.finalPrice.toFixed(2)}</p>
+                                 </div>
+                                 <div>
+                                   <p className="text-[8px] font-black text-emerald-600 uppercase">Sinal Pago</p>
+                                   <p className="text-xs font-black text-emerald-600">R$ {breakdown.downPayment.toFixed(2)}</p>
+                                 </div>
+                               </div>
+                             </div>
+                             
+                             <div className="space-y-3 pt-4 border-t border-orange-100 mt-2">
+                                <div className="flex justify-between items-center text-[10px]">
+                                   <span className="font-black text-gray-400 uppercase">Entrega:</span>
+                                   <div className="flex items-center gap-1.5">
+                                      {isThisWeek && (
+                                        <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-md font-extrabold text-[8px] uppercase">Esta Semana</span>
+                                      )}
+                                      {isNextWeek && (
+                                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md font-extrabold text-[8px] uppercase">Próx. Semana</span>
+                                      )}
+                                      {isPast && (
+                                        <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-md font-extrabold text-[8px] uppercase">Atrasado</span>
+                                      )}
+                                      <span className="font-black text-gray-700">{new Date(project.deliveryDate + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                                   </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                   {cleanPhone && (
+                                     <button 
+                                       onClick={() => {
+                                         const msg = encodeURIComponent(
+                                           `Olá ${customer?.name || ''}! Tudo bem?\nPassando para avisar sobre sua encomenda *${project.theme}* no nosso ateliê.\n\n` +
+                                           `• Valor total: R$ ${breakdown.finalPrice.toFixed(2)}\n` +
+                                           (breakdown.downPayment > 0 ? `• Sinal já pago: R$ ${breakdown.downPayment.toFixed(2)}\n` : '') +
+                                           `• *Saldo pendente a acertar: R$ ${pendingAmount.toFixed(2)}*\n\n` +
+                                           `Qualquer dúvida ou para envio do comprovante Pix, fico à disposição!`
+                                         );
+                                         window.open(`https://wa.me/55${cleanPhone}?text=${msg}`, '_blank');
+                                       }}
+                                       className="p-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-sm transition-all flex items-center justify-center gap-1 text-[9px] font-black uppercase tracking-wider"
+                                       title="Avisar cliente no WhatsApp"
+                                     >
+                                       <MessageSquare size={14} /> Cobrar
+                                     </button>
+                                   )}
+                                   <button 
+                                     onClick={() => {
+                                       if (confirm(`Registrar quitação do pagamento pendente de R$ ${pendingAmount.toFixed(2)} para o pedido "${project.theme}"?`)) {
+                                         const newTx: Transaction = {
+                                           id: `paid_pending_${Date.now()}_${project.id}`,
+                                           projectId: project.id,
+                                           description: `Quitação: ${project.theme}${project.quoteNumber ? ` (#${project.quoteNumber})` : ''}`,
+                                           amount: pendingAmount,
+                                           type: 'income',
+                                           category: 'Venda',
+                                           paymentMethod: 'Pix',
+                                           date: new Date().toISOString().split('T')[0],
+                                           customerId: project.customerId,
+                                           status: 'paid'
+                                         };
+                                         setTransactions(prev => [newTx, ...prev]);
+
+                                         if (setProjects) {
+                                           setProjects(prev => prev.map(p => 
+                                             p.id === project.id 
+                                               ? { ...p, status: p.status === 'pending_payment' ? 'completed' : p.status, paidAt: new Date().toISOString() } 
+                                               : p
+                                           ));
+                                         }
+                                         alert('Pagamento registrado com sucesso!');
+                                       }
+                                     }}
+                                     className="flex-1 py-2.5 bg-gray-900 hover:bg-orange-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-sm flex items-center justify-center gap-1.5"
+                                   >
+                                     <CheckCircle2 size={14} /> Dar Baixa
+                                   </button>
+                                </div>
+                             </div>
+                          </div>
+                        );
+                      })}
+
+                      {(filteredData.extraTransactions || []).map(transaction => {
+                        const isTxThisWeek = transaction.date >= dateRanges.thisWeek.start && transaction.date <= dateRanges.thisWeek.end;
+                        const isTxNextWeek = transaction.date >= dateRanges.nextWeek.start && transaction.date <= dateRanges.nextWeek.end;
+
+                        return (
+                          <div key={transaction.id} className="p-8 rounded-[2.5rem] border border-orange-100 hover:shadow-2xl transition-all group flex flex-col justify-between bg-orange-50/20 hover:bg-white">
+                            <div>
+                              <div className="flex justify-between items-start mb-6">
+                                <div className="flex flex-col gap-2">
+                                  <span className="px-2 py-0.5 text-[8px] font-black uppercase rounded-md w-fit bg-orange-100 text-orange-700">Lançamento Pendente</span>
+                                  <h4 className="font-black text-gray-800 text-lg group-hover:text-orange-600 transition-colors leading-tight">{transaction.description}</h4>
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1 italic">{transaction.category}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-lg font-black text-orange-600">
+                                    + R$ {transaction.amount.toFixed(2)}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-4 pt-6 border-t border-orange-100 mt-6">
+                              <div className="flex-1">
+                                <p className="text-[8px] font-black uppercase tracking-widest leading-none mb-1 text-orange-400">Data Esperada</p>
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  {isTxThisWeek && (
+                                    <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-md font-black text-[8px] uppercase">Esta Semana</span>
+                                  )}
+                                  {isTxNextWeek && (
+                                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md font-black text-[8px] uppercase">Próx. Semana</span>
+                                  )}
+                                  <p className="text-xs font-black leading-none text-gray-700">
+                                    {new Date(transaction.date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                  </p>
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  if (confirm(`Marcar este lançamento como RECEBIDO?`)) {
+                                    setTransactions(prev => prev.map(t => 
+                                      t.id === transaction.id ? { ...t, status: 'paid' } : t
+                                    ));
+                                  }
+                                }}
+                                className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-sm"
+                              >
+                                <CheckCircle2 size={14} /> Receber
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                </>
+              ) : filteredData.type === 'project' ? (
                 (filteredData.items as Project[]).map(project => {
                   const { finalPrice } = calculateProjectBreakdown(project, materials, platforms, companyData, transactions);
                   const customer = customers.find(c => c.id === project.customerId);

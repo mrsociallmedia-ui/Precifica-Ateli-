@@ -123,6 +123,23 @@ const createMockSupabase = () => {
   };
 };
 
+// Limpeza de tokens stale/inválidos do Supabase do localStorage
+export const clearStaleSupabaseAuth = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('sb-') || key.includes('supabase.auth.token'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch (e) {
+    console.warn("Erro ao limpar tokens stale do Supabase:", e);
+  }
+};
+
 // Inicialização prioritária com as chaves reais fornecidas
 export let isMock = false;
 let supabaseInstance: any;
@@ -140,7 +157,13 @@ try {
   const isKeyValid = SUPABASE_KEY && SUPABASE_KEY.length > 20;
 
   if (isUrlValid && isKeyValid) {
-    supabaseInstance = createClient(SUPABASE_URL, SUPABASE_KEY);
+    supabaseInstance = createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      }
+    });
     isMock = false;
     console.log("🚀 Supabase: Conexão REAL ativa.", connectionDiagnostics);
   } else {

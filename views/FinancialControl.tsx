@@ -1484,22 +1484,37 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                  </div>
 
                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center">
-                       <p className="text-[9px] font-black text-gray-400 uppercase">Total Vendas</p>
+                    <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center relative group">
+                       <div className="flex items-center justify-center gap-1">
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Total Vendas</p>
+                          <Info size={11} className="text-gray-300 group-hover:text-blue-500 transition-colors" />
+                       </div>
                        <p className="text-xl font-black text-blue-600">R$ {closureStats.totalSales.toFixed(2)}</p>
+                       <p className="text-[8px] text-gray-400 font-bold mt-0.5">Soma bruta de vendas</p>
                     </div>
-                    <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center">
-                       <p className="text-[9px] font-black text-gray-400 uppercase">Movimentações</p>
+                    <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center relative group">
+                       <div className="flex items-center justify-center gap-1">
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Movimentações</p>
+                          <Info size={11} className="text-gray-300 group-hover:text-gray-600 transition-colors" />
+                       </div>
                        <p className="text-xl font-black text-gray-800">{closureStats.count}</p>
+                       <p className="text-[8px] text-gray-400 font-bold mt-0.5">Entradas e saídas</p>
                     </div>
-                    <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center">
-                       <p className="text-[9px] font-black text-gray-400 uppercase">Saldo Sistema</p>
+                    <div className="bg-white p-4 rounded-2xl border border-gray-100 text-center relative group">
+                       <div className="flex items-center justify-center gap-1">
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Saldo Sistema</p>
+                          <Info size={11} className="text-gray-300 group-hover:text-green-500 transition-colors" />
+                       </div>
                        <p className={`text-xl font-black ${closureStats.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                          R$ {closureStats.balance.toFixed(2)}
                        </p>
+                       <p className="text-[8px] text-gray-400 font-bold mt-0.5">Entradas − Despesas</p>
                     </div>
-                    <div className="bg-white p-4 rounded-2xl border border-blue-100 text-center shadow-sm">
-                       <p className="text-[9px] font-black text-blue-400 uppercase">Saldo Real em Caixa</p>
+                    <div className="bg-white p-4 rounded-2xl border border-blue-100 text-center shadow-sm relative group">
+                       <div className="flex items-center justify-center gap-1">
+                          <p className="text-[9px] font-black text-blue-500 uppercase tracking-wider">Saldo Real em Caixa</p>
+                          <Info size={11} className="text-blue-300 group-hover:text-blue-600 transition-colors" />
+                       </div>
                        <input 
                          type="number" 
                          step="0.01"
@@ -1508,6 +1523,7 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                          value={realBalance}
                          onChange={e => setRealBalance(e.target.value === '' ? '' : Number(e.target.value))}
                        />
+                       <p className="text-[8px] text-blue-400 font-bold mt-0.5">Valor contado na conta/caixa</p>
                     </div>
                  </div>
               </div>
@@ -1605,10 +1621,27 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                  </div>
               </div>
 
-              <div className="p-6 bg-yellow-50 rounded-[2rem] border border-yellow-100 flex items-start gap-4">
-                 <Info className="text-yellow-500 shrink-0" size={20} />
-                 <p className="text-xs font-medium text-yellow-700 leading-relaxed italic">
-                    <strong>Como funciona este cálculo?</strong> O sistema analisa cada recebimento (Sinal ou Saldo) e aplica a porcentagem de Mão de Obra e Lucro que foi calculada lá no orçamento original. Assim, você gerencia seu caixa sabendo exatamente o que é dinheiro seu (Salário) e o que é dinheiro da empresa (Lucro Real).
+              <div className="p-6 bg-blue-50/80 rounded-[2rem] border border-blue-100 flex flex-col gap-3">
+                 <div className="flex items-center gap-2">
+                    <Info className="text-blue-600 shrink-0" size={20} />
+                    <h5 className="text-xs font-black text-blue-900 uppercase tracking-wider">Entenda os Indicadores deste Fechamento:</h5>
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-blue-950">
+                    <div className="bg-white/90 p-3 rounded-xl border border-blue-100/80">
+                       <p className="font-black text-blue-700">📦 Total Vendas:</p>
+                       <p className="text-[11px] text-gray-600 leading-snug mt-0.5">Soma total de todas as vendas e orçamentos faturados no período (faturamento bruto).</p>
+                    </div>
+                    <div className="bg-white/90 p-3 rounded-xl border border-blue-100/80">
+                       <p className="font-black text-green-700">💰 Saldo Sistema:</p>
+                       <p className="text-[11px] text-gray-600 leading-snug mt-0.5">Resultado líquido do caixa: <strong>Total de Entradas − Total de Saídas/Despesas</strong>.</p>
+                    </div>
+                    <div className="bg-white/90 p-3 rounded-xl border border-blue-100/80">
+                       <p className="font-black text-blue-600">🏦 Saldo Real em Caixa:</p>
+                       <p className="text-[11px] text-gray-600 leading-snug mt-0.5">Valor que você digita após contar o saldo no banco/dinheiro para bater com o sistema.</p>
+                    </div>
+                 </div>
+                 <p className="text-[11px] font-medium text-blue-800 leading-relaxed italic border-t border-blue-200/50 pt-2">
+                    💡 <strong>Mão de Obra vs. Lucro:</strong> O sistema calcula a Mão de Obra (seu salário pelo tempo trabalhado) e o Lucro Real da empresa com base nos orçamentos de cada peça entregue.
                  </p>
               </div>
 

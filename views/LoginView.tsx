@@ -23,7 +23,7 @@ import {
   Fingerprint,
   Check
 } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { supabase, clearStaleSupabaseAuth } from '../supabaseClient';
 
 interface LoginViewProps {
   onLogin: (userEmail: string) => void;
@@ -141,6 +141,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         }, 2000);
       }
     } catch (err: any) {
+      console.warn("Erro no processamento de auth:", err);
+      if (
+        err?.message?.includes('Refresh Token Not Found') || 
+        err?.message?.includes('refresh_token_not_found') || 
+        err?.message?.includes('Invalid Refresh Token') ||
+        err?.message?.includes('invalid_grant')
+      ) {
+        clearStaleSupabaseAuth();
+      }
       setError(err.message || "Erro no processamento.");
     } finally {
       setIsSubmitting(false);
