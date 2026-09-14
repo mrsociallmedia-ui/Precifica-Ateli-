@@ -19,7 +19,9 @@ import {
   CloudOff,
   CloudDownload,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Wand2,
+  ExternalLink
 } from 'lucide-react';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { Dashboard } from './views/Dashboard';
@@ -34,6 +36,7 @@ import { OrderHistory } from './views/OrderHistory';
 import { LoginView } from './views/LoginView';
 import { PublicCatalog } from './views/PublicCatalog';
 import { ProjectTracking } from './views/ProjectTracking';
+import { AICaptionGenerator } from './views/AICaptionGenerator';
 import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
@@ -487,6 +490,14 @@ const App: React.FC = () => {
     { id: 'products', label: 'Precificação', icon: Sparkles, color: 'text-yellow-600' },
     { id: 'inventory', label: 'Estoque', icon: Package, color: 'text-yellow-600' },
     { id: 'customers', label: 'Clientes', icon: Users, color: 'text-pink-500' },
+    { 
+      id: 'captions', 
+      label: 'Gerador de Legenda', 
+      icon: Wand2, 
+      color: 'text-purple-600', 
+      badge: 'IA',
+      externalUrl: 'https://ateli-legenda-fofa-113272526382.us-west1.run.app/' 
+    },
     { id: 'settings', label: 'Configurações', icon: Settings, color: 'text-gray-600' },
   ];
 
@@ -525,21 +536,63 @@ const App: React.FC = () => {
         </div>
 
         <nav className="flex-1 mt-4 px-3 space-y-1 overflow-y-auto custom-scrollbar">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => { setActiveTab(item.id); if(window.innerWidth < 1024) setSidebarOpen(false); }}
-              className={`w-full flex items-center ${isSidebarOpen ? 'gap-4 p-4' : 'justify-center p-4'} rounded-2xl transition-all group ${
-                activeTab === item.id 
-                  ? 'bg-pink-50 text-pink-600 shadow-sm border border-pink-100' 
-                  : 'text-gray-400 hover:bg-gray-50 hover:text-pink-500'
-              }`}
-              title={!isSidebarOpen ? item.label : ''}
-            >
-              <item.icon className={`w-6 h-6 shrink-0 transition-transform group-hover:scale-110 ${activeTab === item.id ? item.color : 'text-gray-300 group-hover:text-pink-400'}`} />
-              {isSidebarOpen && <span className="font-bold text-sm tracking-tight truncate animate-fadeIn">{item.label}</span>}
-            </button>
-          ))}
+          {navItems.map((item) => {
+            if ((item as any).externalUrl) {
+              return (
+                <a
+                  key={item.id}
+                  href={(item as any).externalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    if (window.innerWidth < 1024) setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3.5'} rounded-2xl transition-all group text-gray-500 hover:bg-purple-50 hover:text-purple-600`}
+                  title={!isSidebarOpen ? item.label : ''}
+                >
+                  <item.icon className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-110 ${(item as any).color}`} />
+                  {isSidebarOpen && (
+                    <div className="flex items-center justify-between flex-1 min-w-0 animate-fadeIn">
+                      <span className="font-bold text-sm tracking-tight truncate">{item.label}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {(item as any).badge && (
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-xs">
+                            {(item as any).badge}
+                          </span>
+                        )}
+                        <ExternalLink size={13} className="text-gray-400 group-hover:text-purple-600 transition-colors" />
+                      </div>
+                    </div>
+                  )}
+                </a>
+              );
+            }
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => { setActiveTab(item.id); if(window.innerWidth < 1024) setSidebarOpen(false); }}
+                className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3.5'} rounded-2xl transition-all group ${
+                  activeTab === item.id 
+                    ? 'bg-pink-50 text-pink-600 shadow-sm border border-pink-100' 
+                    : 'text-gray-400 hover:bg-gray-50 hover:text-pink-500'
+                }`}
+                title={!isSidebarOpen ? item.label : ''}
+              >
+                <item.icon className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-110 ${activeTab === item.id ? item.color : 'text-gray-300 group-hover:text-pink-400'}`} />
+                {isSidebarOpen && (
+                  <div className="flex items-center justify-between flex-1 min-w-0 animate-fadeIn">
+                    <span className="font-bold text-sm tracking-tight truncate">{item.label}</span>
+                    {(item as any).badge && (
+                      <span className="ml-1.5 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-xs shrink-0">
+                        {(item as any).badge}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="p-4 border-t border-pink-50 space-y-3">
@@ -616,8 +669,9 @@ const App: React.FC = () => {
                   case 'schedule': return <Schedule {...props} currentUser={currentUser || ''} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} setCustomers={setCustomers} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} setProjects={setProjects} />;
+                  case 'captions': return <AICaptionGenerator companyData={companyData} products={products} projects={projects} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
-                  default: return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} />;
+                  default: return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} onNavigate={(tab) => setActiveTab(tab)} />;
                 }
              })()}
           </div>

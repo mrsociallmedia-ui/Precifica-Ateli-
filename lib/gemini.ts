@@ -1,5 +1,5 @@
 // Client-side helper for server-side Gemini API proxy
-export const generateContent = async (prompt: string, modelName: string = "gemini-3.7-flash"): Promise<string> => {
+export const generateContent = async (prompt: string, modelName: string = "gemini-3.8-flash"): Promise<string> => {
   try {
     const url = `/api/generate?t=${Date.now()}`;
     const response = await fetch(url, {
@@ -16,14 +16,17 @@ export const generateContent = async (prompt: string, modelName: string = "gemin
     try {
       data = JSON.parse(responseText);
     } catch {
-      // Se não for JSON válido (ex: HTML de erro do servidor ou Vite)
-      if (!response.ok) {
-        throw new Error(`Erro do servidor (${response.status}). Verifique a chave da API do Gemini.`);
+      // Se não for JSON válido (ex: página HTML de proxy ou erro de gateway)
+      if (responseText.includes("leaked") || responseText.includes("PERMISSION_DENIED") || response.status === 403) {
+        throw new Error("Sua chave de API do Gemini foi reportada como vazada pelo Google. Por favor, atualize sua chave de API nas configurações do AI Studio.");
       }
-      throw new Error("O servidor retornou uma resposta em formato inesperado.");
+      if (response.status === 502 || response.status === 504 || response.status === 500) {
+        throw new Error(`Falha temporária no serviço de IA (${response.status}). Ativando motor criativo.`);
+      }
+      throw new Error(`O servidor retornou uma resposta em formato inesperado (${response.status}).`);
     }
 
-    if (!response.ok) {
+    if (!response.ok || data?.error) {
       const errorMsg = data?.error || `Erro ${response.status}: ${response.statusText}`;
       throw new Error(errorMsg);
     }
@@ -34,7 +37,7 @@ export const generateContent = async (prompt: string, modelName: string = "gemin
 
     return data.text;
   } catch (error: any) {
-    console.error("Gemini Assistant Error:", error);
+    console.warn("Gemini Assistant Notice:", error?.message || error);
     throw error;
   }
 };

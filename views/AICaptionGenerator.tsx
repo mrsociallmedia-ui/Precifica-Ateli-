@@ -20,7 +20,14 @@ import {
   Layers,
   Info,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ShoppingCart,
+  Package,
+  Box,
+  Truck,
+  Smartphone,
+  Eye,
+  Image as ImageIcon
 } from 'lucide-react';
 import { generateContent } from '../lib/gemini';
 import { Product, Project, CompanyData } from '../types';
@@ -31,7 +38,11 @@ interface AICaptionGeneratorProps {
   projects?: Project[];
 }
 
-export type PlatformType = 'instagram_feed' | 'reels_tiktok' | 'whatsapp' | 'catalog_marketplace';
+export type PlatformType = 'instagram_feed' | 'stories' | 'reels_tiktok' | 'whatsapp' | 'marketplace' | 'catalog' | 'catalog_marketplace';
+export type MarketplaceType = 'geral' | 'shopee' | 'elo7' | 'mercadolivre';
+export type StoryGoalType = 'bastidores' | 'encomenda_pronta' | 'enquete' | 'agenda' | 'depoimento' | 'detalhes';
+export type StoryStickerType = 'enquete' | 'caixinha' | 'reacao' | 'link' | 'direct';
+export type StoryFormatType = 'sequencia_3' | 'sequencia_4' | 'tela_unica' | 'roteiro_falado';
 export type ToneType = 'afetuoso' | 'vendedor' | 'sofisticado' | 'divertido' | 'bastidores';
 
 export interface SavedCaption {
@@ -58,6 +69,22 @@ export const AICaptionGenerator: React.FC<AICaptionGeneratorProps> = ({
   const [includeCta, setIncludeCta] = useState(true);
   const [useEmojis, setUseEmojis] = useState(true);
 
+  // Story specific fields
+  const [storyGoal, setStoryGoal] = useState<StoryGoalType>('bastidores');
+  const [storySticker, setStorySticker] = useState<StoryStickerType>('enquete');
+  const [storyFormat, setStoryFormat] = useState<StoryFormatType>('sequencia_3');
+  const [storyCustomSticker, setStoryCustomSticker] = useState('');
+  const [storyIncludeMusicTip, setStoryIncludeMusicTip] = useState(true);
+
+  // Marketplace specific fields
+  const [marketplaceTarget, setMarketplaceTarget] = useState<MarketplaceType>('shopee');
+  const [marketplaceItems, setMarketplaceItems] = useState('');
+  const [marketplaceDimensions, setMarketplaceDimensions] = useState('');
+  const [marketplaceProductionTime, setMarketplaceProductionTime] = useState('7 dias úteis');
+  const [marketplaceMaterial, setMarketplaceMaterial] = useState('');
+  const [marketplaceCustomizationNote, setMarketplaceCustomizationNote] = useState('Enviar nome, idade e tema pelo chat após a compra');
+  const [marketplaceShippingType, setMarketplaceShippingType] = useState<'semi_montadas' | 'montadas' | 'desmontadas'>('semi_montadas');
+
   // Generation state
   const [isLoading, setIsLoading] = useState(false);
   const [generatedText, setGeneratedText] = useState('');
@@ -69,6 +96,7 @@ export const AICaptionGenerator: React.FC<AICaptionGeneratorProps> = ({
   }>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [storyPreviewTab, setStoryPreviewTab] = useState<'text' | 'mockup'>('text');
 
   // Saved / History state
   const [savedCaptions, setSavedCaptions] = useState<SavedCaption[]>(() => {
@@ -80,16 +108,6 @@ export const AICaptionGenerator: React.FC<AICaptionGeneratorProps> = ({
     }
   });
   const [showHistory, setShowHistory] = useState(false);
-
-  // Quick suggestion chips
-  const quickIdeas = [
-    { label: '🎂 Topo de Bolo Personalizado', topic: 'Topo de bolo temático com camadas 3D e apliques especiais' },
-    { label: '👶 Lembrancinhas Maternidade', topic: 'Kits delicados de lembrancinhas de nascimento / maternidade' },
-    { label: '🎉 Kit Festa em Casa', topic: 'Kit festa afetiva com caixas milk, pirâmide e bandeirolas' },
-    { label: '📅 Agenda Aberta do Mês', topic: 'Abertura de agenda oficial para encomendas do mês' },
-    { label: '✂️ Bastidores de Produção', topic: 'Vídeo/foto dos bastidores e cuidado no recorte e montagem manual' },
-    { label: '🌸 Mimo / Presente Especial', topic: 'Caixa presente personalizada de luxo para momentos inesquecíveis' }
-  ];
 
   // Save to local storage on change
   useEffect(() => {
@@ -115,6 +133,170 @@ export const AICaptionGenerator: React.FC<AICaptionGeneratorProps> = ({
     const cleanTopic = topic.trim();
     const occasionText = occ ? ` para celebrar ${occ}` : '';
     const detailsText = details ? ` (${details})` : '';
+
+    // Specialized Marketplace generator
+    if (plat === 'marketplace' || plat === 'catalog_marketplace' || plat === 'catalog') {
+      const mpName = marketplaceTarget === 'shopee' 
+        ? 'Shopee' 
+        : marketplaceTarget === 'elo7' 
+        ? 'Elo7' 
+        : marketplaceTarget === 'mercadolivre' 
+        ? 'Mercado Livre' 
+        : 'Marketplace';
+
+      const itemsList = marketplaceItems 
+        ? marketplaceItems 
+        : `• 10 Caixas Milk Personalizadas\n• 10 Caixas Pirâmide/Cone\n• 1 Topo de Bolo Personalizado`;
+      const dims = marketplaceDimensions 
+        ? marketplaceDimensions 
+        : `• Caixa Milk: aprox. 13cm (altura) x 6cm (largura)\n• Caixa Pirâmide: aprox. 16cm (altura) x 6cm (base)`;
+      const mat = marketplaceMaterial 
+        ? marketplaceMaterial 
+        : `Papel Offset 180g fosco de alta resolução (não reflete a luz nas fotos), com apliques em 3D e laços de cetim inclusos.`;
+      const prazo = marketplaceProductionTime || '7 dias úteis';
+      const note = marketplaceCustomizationNote || 'Enviar NOME e IDADE pelo chat do vendedor imediatamente após a compra.';
+      const shipping = marketplaceShippingType === 'semi_montadas' 
+        ? 'Enviamos as caixas semi-montadas (já coladas e vincadas, com fundo de encaixe fácil) para garantir que não amassem durante o frete.' 
+        : marketplaceShippingType === 'montadas'
+        ? 'Enviadas 100% montadas e prontas para uso.'
+        : 'Enviadas desmontadas com instruções de colagem rápida.';
+
+      const fullMp = `TÍTULO DO ANÚNCIO (SEO):
+Kit Festa Personalizado ${cleanTopic} - Nome e Idade - Lembrancinhas e Decoração
+
+DESCRIÇÃO DO PRODUTO:
+${hasEmojis ? '✨💖 ' : ''}Deixe sua festa inesquecível com o ${cleanTopic}! 
+Produzido artesanalmente com materiais de primeira qualidade e acabamento impecável para valorizar sua comemoração.
+
+📦 O QUE VEM NO PACOTE:
+${itemsList}
+
+📏 MEDIDAS APROXIMADAS:
+${dims}
+
+🎨 MATERIAL E QUALIDADE:
+${mat}
+${detailsText ? `Diferenciais: ${details}` : ''}
+
+⏳ PRAZO DE PRODUÇÃO E POSTAGEM:
+Nosso prazo de confecção é de ${prazo} após a confirmação do pagamento e envio dos dados de personalização.
+
+⚠️ IMPORTANTE - PERSONALIZAÇÃO:
+${note}
+(Caso os dados não sejam informados em até 24h, o pedido será enviado sem nome para cumprir o prazo de postagem da plataforma).
+
+🚚 ENVIO E TRANSPORTE:
+${shipping}
+
+💬 DÚVIDAS?
+Ficou com alguma dúvida sobre o tema ou quantidade? Envie uma mensagem no chat antes de comprar! Teremos o maior prazer em atender você.${hasHashtags ? `\n\nTAGS DE BUSCA:\n${cleanTopic.toLowerCase()}, kit festa, lembrancinhas personalizadas, papelaria personalizada, ${mpName.toLowerCase()}, festa infantil, topo de bolo, kit ${cleanTopic.toLowerCase()}` : ''}`;
+
+      const shortMp = `Kit Festa Personalizado ${cleanTopic}
+
+${hasEmojis ? '✨ ' : ''}Lembrancinhas personalizadas de alta qualidade para sua festa!
+• Itens inclusos: ${itemsList.replace(/\n/g, ' / ')}
+• Material: ${mat}
+• Prazo de confecção: ${prazo}
+• Envio: ${shipping}
+
+⚠️ ATENÇÃO: Envie nome e idade no chat após fechar o pedido!
+${hasEmojis ? '💌 ' : ''}Dúvidas? Estamos à disposição no chat!`;
+
+      const promoMp = `TÍTULOS OTIMIZADOS PARA BUSCA (${mpName.toUpperCase()} / SEO):
+1. Kit Festa Personalizado ${cleanTopic} - Decoração e Lembrancinhas
+2. ${cleanTopic} Personalizado com Nome e Idade - Kit Festa Infantil
+3. Kit Lembrancinhas ${cleanTopic} Papelaria Criativa - Envio Rápido
+
+PALAVRAS-CHAVE E TAGS PARA O ANÚNCIO:
+kit festa ${cleanTopic.toLowerCase()}, lembrancinhas ${cleanTopic.toLowerCase()}, ${cleanTopic.toLowerCase()} personalizado, papelaria personalizada, elo7 personalizados, shopee papelaria, topo de bolo ${cleanTopic.toLowerCase()}, festa infantil tema ${cleanTopic.toLowerCase()}`;
+
+      return { full: fullMp.trim(), short: shortMp.trim(), promo: promoMp.trim() };
+    }
+
+    // Specialized Story generator
+    if (plat === 'stories') {
+      const goalText = storyGoal === 'bastidores'
+        ? 'Bastidores de Produção & Feito à Mão'
+        : storyGoal === 'encomenda_pronta'
+        ? 'Encomenda Pronta & Embalando com Carinho'
+        : storyGoal === 'enquete'
+        ? 'Interação & Opinião dos Seguidores'
+        : storyGoal === 'agenda'
+        ? 'Agenda Aberta & Vagas do Mês'
+        : storyGoal === 'depoimento'
+        ? 'Feedback Real & Prova Social'
+        : 'Camadas 3D & Detalhes de Luxo';
+
+      const stickerLabel = storySticker === 'enquete'
+        ? 'Figurinha de Enquete ("Amou? Sim! / Muito!" ou "Qual você prefere?")'
+        : storySticker === 'caixinha'
+        ? 'Caixinha de Perguntas ("Qual tema você sonha ver aqui?")'
+        : storySticker === 'reacao'
+        ? 'Barra de Reação (Deslizar do Emoji com coração/fogo)'
+        : storySticker === 'link'
+        ? 'Figurinha de Link ("Fale com a artesã / Orçamento")'
+        : 'Chamada com sticker "Envie uma mensagem" (Direct)';
+
+      const customStickerPrompt = storyCustomSticker ? `"${storyCustomSticker}"` : stickerLabel;
+
+      const fullStory = `🎬 ROTEIRO DE STORIES (SEQUÊNCIA EM 3 TELAS):
+Objetivo: ${goalText}
+${hasEmojis ? '✨💖 ' : ''}Tema: ${cleanTopic}${occasionText ? ` (${occ})` : ''}
+
+📱 TELA 1 — O GANCHO (Curiosidade & Movimento):
+• O que filmar: Vídeo em close de 5 a 7 segundos mostrando suas mãos montando a peça, vincando o papel ou organizando os apliques 3D na mesa de trabalho.
+• Texto para colar na tela:
+"${hasEmojis ? '✂️✨ ' : ''}Quem mais aí ama ver uma peça nascendo do zero?
+Mais uma lindeza saindo do forno por aqui..."
+• Figurinha / Interação: ${storySticker === 'reacao' ? 'Barra de reação com coração ou fogo' : 'Enquete rápida: "Também ama? Sim! / Muito!"'} (posicionar no meio inferior).
+${storyIncludeMusicTip ? '• Dica de Áudio: Trilha instrumental suave ou áudio em alta acústico/calmo.' : ''}
+
+📱 TELA 2 — OS DETALHES (Encanto & Prova de Qualidade):
+• O que filmar: Vídeo girando a peça com cuidado ou foto nítida com boa luz natural, destacando o relevo, texturas${details ? ` e diferenciais (${details})` : ''}.
+• Texto para colar na tela:
+"${hasEmojis ? '💖 ' : ''}${cleanTopic}${occasionText}!
+Cada camada pensada para transformar a comemoração em uma lembrança eterna.${hasEmojis ? ' 🌸' : ''}"
+• Dica visual: Deixe o texto centralizado em tamanho médio para não cobrir os detalhes da peça.
+
+📱 TELA 3 — A CONVERSÃO (Chamada para Ação):
+• O que filmar: A peça completa no cenário com lacinho, ou sendo colocada delicadamente na caixinha de entrega com papel de seda e cheirinho.
+• Texto para colar na tela:
+"Gostou do resultado?${hasEmojis ? ' 🥰' : ''}
+Estamos com a agenda aberta para encomendas com antecedência!"
+• Figurinha Interativa: ${customStickerPrompt}.
+• Ação recomendada: "Responda a esse story ou clique no link da bio para garantir sua vaga na agenda!"`;
+
+      const shortStory = `TEXTOS CURTOS PARA COLAR DIRETO NA FOTO OU VÍDEO DO STORY:
+
+Opção 1 (Amor e Feito à Mão):
+"${hasEmojis ? '💕✂️ ' : ''}Amor em cada camadinha! ${cleanTopic} saindo por aqui.${hasEmojis ? ' ✨' : ''}"
+
+Opção 2 (Bastidores & Produção):
+"${hasEmojis ? '🧵🌸 ' : ''}Bastidores que aquecem o coração! Quem aí também é apaixonada por papelaria personalizada?"
+
+Opção 3 (Agenda & Pedidos):
+"${hasEmojis ? '📦💌 ' : ''}Encomenda prontinha para viajar! Quer garantir o seu para a próxima festa? Chama no direct!"
+
+Opção 4 (Detalhe de Luxo):
+"${hasEmojis ? '✨👑 ' : ''}Olha o relevo e o acabamento dessa lindeza... Encantada é pouco!${hasEmojis ? ' 😍' : ''}"`;
+
+      const promoStory = `IDEIAS DE ENQUETES E CAIXINHAS PARA ENGAJAR NOS STORIES:
+
+📊 Sugestões de Enquetes:
+1. "Qual tema você prefere para festa infantil? [Tema ${cleanTopic}] ou [Tema Fazendinha]?"
+2. "Você prefere topos de bolo com detalhes em [Glitter/Dourado] ou [Cores Pastéis]?"
+3. "Já garantiu a papelaria da próxima festa? [Já sim!] ou [Ainda estou procurando!]"
+
+❓ Sugestões para Caixinha de Perguntas:
+• "Qual tema de festa você gostaria de ver saindo do nosso ateliê este mês?"
+• "Tem dúvidas sobre prazos e como encomendar? Manda sua dúvida aqui embaixo!"
+
+💌 Chamadas para o Direct (Conversão):
+• "Gostou desse ${cleanTopic}? Reaja a esse story que te envio todos os detalhes no direct!"
+• "Poucas vagas para este mês! Clique no sticker de link ou me envie uma mensagem para consultar sua data."`;
+
+      return { full: fullStory.trim(), short: shortStory.trim(), promo: promoStory.trim() };
+    }
 
     // Hashtags list
     const tags = hasHashtags 
@@ -216,9 +398,12 @@ Valorizar o trabalho manual é celebrar o amor colocado em cada peça!${ctaText}
       
       const platformDescriptions: Record<PlatformType, string> = {
         instagram_feed: 'Post de Feed / Carrossel no Instagram. Formato envolvente com gancho forte na 1ª linha, parágrafos fluidos, valorização do feito à mão e encanto.',
+        stories: 'Instagram Stories / Facebook / WhatsApp Status. Roteiro dinâmico tela por tela, direção de filmagem, textos curtos na tela, stickers interativos e chamadas diretas.',
         reels_tiktok: 'Vídeo Curto (Reels / TikTok / Shorts). Sugira um gancho visual/sonoro inicial para os primeiros 3 segundos, uma legenda rápida, dinâmica e envolvente.',
         whatsapp: 'Status do WhatsApp ou mensagem direta de lista VIP. Texto caloroso, próximo, direto e que convida a cliente a responder e pedir orçamento.',
-        catalog_marketplace: 'Descrição de Produto para Catálogo / Loja Online (Shopee, Elo7, Catálogo WhatsApp). Texto focado em benefícios, medidas, acabamento e confiança.'
+        marketplace: 'Anúncio de Marketplace (Shopee, Elo7, Mercado Livre). Título com SEO de alta conversão, ficha técnica estruturada com medidas, itens inclusos, prazo e instruções de personalização.',
+        catalog: 'Descrição de Produto para Catálogo Online / Loja Própria. Foco em benefícios, fotos, medidas e finalização de compra.',
+        catalog_marketplace: 'Anúncio de Marketplace / Catálogo (Shopee, Elo7, Mercado Livre).'
       };
 
       const toneDescriptions: Record<ToneType, string> = {
@@ -229,7 +414,116 @@ Valorizar o trabalho manual é celebrar o amor colocado em cada peça!${ctaText}
         bastidores: 'Humanizado, contando a história do processo artesanal, o carinho da montagem e o orgulho do trabalho manual.'
       };
 
-      const prompt = `Você é a especialista em marketing e mídias sociais do ateliê de artesanato e papelaria personalizada "${studioName}".
+      let prompt = '';
+
+      if (platform === 'stories') {
+        const goalDescriptions: Record<StoryGoalType, string> = {
+          bastidores: 'Bastidores de confecção e produção manual, corte, vinco, colagem e o encanto do feito à mão.',
+          encomenda_pronta: 'Encomenda finalizada, embalando com carinho, papel de seda, adesivos e cheirinho de amor.',
+          enquete: 'Engajamento e interação ativa com os seguidores através de perguntas, escolhas e enquetes dinâmicas.',
+          agenda: 'Aviso de agenda aberta para encomendas, lembrete de antecedência e vagas limitadas.',
+          depoimento: 'Compartilhamento de elogio de cliente, prova social e gratidão pela confiança.',
+          detalhes: 'Close nos detalhes de luxo, camadas 3D, texturas nobres de papel, lamicote e pedrarias.'
+        };
+
+        const stickerDescriptions: Record<StoryStickerType, string> = {
+          enquete: 'Figurinha de Enquete (duas opções atraentes de voto com alto índice de clique)',
+          caixinha: 'Caixinha de Perguntas (com chamada irresistível para mandarem respostas/dúvidas)',
+          reacao: 'Barra de Reação Emoji (slider com coração, fogo ou olhos brilhando)',
+          link: 'Figurinha de Link direto para catálogo ou WhatsApp',
+          direct: 'Chamada com sticker ou incentivo para responder no Direct'
+        };
+
+        prompt = `Você é a especialista número 1 em Instagram Stories e engajamento para ateliês de artesanato e papelaria personalizada ("${studioName}").
+Seu objetivo é criar um roteiro perfeito, magnético e prático para STORIES sobre: "${productTopic}".
+O objetivo deste Story é: ${goalDescriptions[storyGoal]}
+Figurinha / Sticker de interação desejada: ${stickerDescriptions[storySticker]}
+${storyCustomSticker ? `- Pergunta ou frase personalizada para o sticker: "${storyCustomSticker}"` : ''}
+${occasion ? `- Ocasião / Tema da festa: "${occasion}"` : ''}
+${extraDetails ? `- Detalhes e Diferenciais da peça: "${extraDetails}"` : ''}
+- Formato desejado: ${storyFormat === 'sequencia_3' ? 'Sequência estruturada em 3 telas (Gancho -> Detalhe -> Conversão)' : storyFormat === 'sequencia_4' ? 'Sequência de 4 telas completas' : storyFormat === 'tela_unica' ? 'Tela única impactante' : 'Roteiro falado em vídeo (o que falar + texto na tela)'}
+- Tom de voz: ${toneDescriptions[tone]}
+- Uso de Emojis: ${useEmojis ? 'SIM (use emojis delicados)' : 'NÃO'}
+${storyIncludeMusicTip ? '- Incluir sugestão de estilo de música ou áudio em alta: SIM' : ''}
+
+FORMATO DA SUA RESPOSTA:
+Estruture sua resposta rigorosamente com as 3 tags separadoras abaixo para que o aplicativo exiba as abas de navegação ao usuário:
+
+===OPCAO_COMPLETA===
+(Escreva o Roteiro Completo de Stories tela a tela:
+Para cada tela (Tela 1, Tela 2, Tela 3, etc.):
+- 📱 NÚMERO DA TELA & OBJETIVO (ex: Tela 1 — O Gancho de Curiosidade)
+- 🎬 O QUE MOSTRAR / FILMAR (direção clara para a artesã: ângulo da câmera, mãos em movimento, iluminação)
+- 📝 TEXTO PARA COLAR NA TELA (dividido em 2 a 3 linhas curtas, limpas e fáceis de ler no celular)
+- 🗣️ O QUE FALAR (sugestão descontraída caso a artesã queira falar)
+- 🏷️ FIGURINHA / STICKER RECOMENDADO (qual usar e onde posicionar na tela)
+${storyIncludeMusicTip ? '- 🎵 DICA DE ÁUDIO (estilo de música ou áudio em alta para colocar de fundo)' : ''})
+
+===OPCAO_CURTA===
+(Escreva Textos Curtos para Colar na Tela:
+Forneça 4 opções de frases magnéticas de 1 a 2 linhas para a artesã copiar e colar diretamente sobre as fotos ou vídeos nos Stories)
+
+===OPCAO_PROMO===
+(Escreva Ideias de Enquetes, Caixinhas e Chamadas para Direct:
+- 3 Ideias criativas de Enquetes com opções de voto prontas de alto clique
+- 2 Sugestões de perguntas para Caixinha de Stories
+- 2 Chamadas persuasivas para fechamento de pedido no Direct ou Link)
+`;
+      } else if (platform === 'marketplace' || platform === 'catalog_marketplace') {
+        const mpName = marketplaceTarget === 'shopee' 
+          ? 'Shopee' 
+          : marketplaceTarget === 'elo7' 
+          ? 'Elo7' 
+          : marketplaceTarget === 'mercadolivre' 
+          ? 'Mercado Livre' 
+          : 'Marketplace';
+
+        prompt = `Você é uma especialista de topo em copywriting e SEO para marketplaces de artesanato e papelaria personalizada (Shopee, Elo7, Mercado Livre) para o ateliê "${studioName}".
+Seu objetivo é criar o anúncio perfeito para a plataforma ${mpName}, garantindo alto ranqueamento nas buscas dos compradores e clareza total para evitar dúvidas e cancelamentos.
+
+DADOS DO PRODUTO:
+- Produto / Tema / Peça: "${productTopic}"
+- Marketplace Alvo: ${mpName}
+- Itens Inclusos / Quantidade no Pacote: "${marketplaceItems || 'Conforme especificado no anúncio'}"
+- Medidas / Dimensões: "${marketplaceDimensions || 'Dimensões padrão para festas'}"
+- Material / Papel: "${marketplaceMaterial || 'Papel Offset / Fotográfico 180g de alta resolução, apliques 3D e laços inclusos'}"
+- Prazo de Confecção / Produção: "${marketplaceProductionTime || '7 dias úteis'}"
+- Instruções de Personalização: "${marketplaceCustomizationNote}"
+- Forma de Envio das Peças: "${marketplaceShippingType === 'semi_montadas' ? 'Enviadas semi-montadas (já coladas, com fundo de encaixe fácil para não amassar no transporte)' : 'Enviadas montadas'}"
+${occasion ? `- Ocasião / Tema: "${occasion}"` : ''}
+${extraDetails ? `- Detalhes Adicionais: "${extraDetails}"` : ''}
+- Tom de voz: ${toneDescriptions[tone]}
+- Uso de Emojis: ${useEmojis ? 'SIM (use emojis delicados)' : 'NÃO'}
+
+FORMATO DA SUA RESPOSTA:
+Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo para que o aplicativo possa exibir as abas ao usuário:
+
+===OPCAO_COMPLETA===
+(Escreva a Descrição Completa do Anúncio:
+1. TÍTULO SUGERIDO COM SEO (Até 60-80 caracteres, otimizado com palavras-chave de busca para ${mpName})
+2. INTRODUÇÃO ENCANTADORA DO PRODUTO
+3. 📦 ITENS INCLUSOS NO PACOTE (em tópicos claros)
+4. 📏 MEDIDAS E DIMENSÕES
+5. 🎨 MATERIAL E QUALIDADE
+6. ⏳ PRAZO DE PRODUÇÃO E POSTAGEM
+7. ⚠️ COMO ENVIAR O NOME E IDADE (com aviso de prazo de resposta para não atrasar o frete)
+8. 🚚 ENVIO E TRANSPORTE SEGURO
+9. 💬 DÚVIDAS E ATENDIMENTO NO CHAT
+10. TAGS DE BUSCA / PALAVRAS-CHAVE SEPARADAS POR VÍRGULA)
+
+===OPCAO_CURTA===
+(Escreva a Versão Direta / Rápida, focada em leitura rápida no aplicativo móvel da ${mpName}:
+- Título do anúncio
+- Resumo em bullet points dos itens, dimensões, material e prazo
+- Instrução simples para enviar os dados de personalização)
+
+===OPCAO_PROMO===
+(Escreva Títulos Otimizados para Busca e Lista de Tags:
+- 3 Opções de Títulos com palavras-chave de alta conversão para o ${mpName}
+- Lista de 15 Palavras-chave / Tags de busca estratégicas separadas por vírgula prontas para colar na plataforma)
+`;
+      } else {
+        prompt = `Você é a especialista em marketing e mídias sociais do ateliê de artesanato e papelaria personalizada "${studioName}".
 Seu objetivo é escrever 3 versões de legendas irresistíveis, autênticas e em português do Brasil (sem clichês corporativos vazios, soando como uma artesã apaixonada e profissional falando com suas clientes).
 
 DADOS DO POST:
@@ -254,10 +548,11 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
 ===OPCAO_PROMO===
 (Escreva uma versão focada em abertura de agenda, lembrete de prazos de antecedência ou incentivo de encomenda)
 `;
+      }
 
       let responseText = '';
       try {
-        responseText = await generateContent(prompt, "gemini-3.7-flash");
+        responseText = await generateContent(prompt, "gemini-3.8-flash");
       } catch (apiErr: any) {
         console.warn('Gemini API call failed, activating craft heuristic generator:', apiErr);
         // Fallback generator seamlessly delivers high quality content
@@ -275,10 +570,12 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
         setVariations(fallbackResults);
         setGeneratedText(fallbackResults[activeVariationTab] || fallbackResults.full);
         
-        // Show informative message about API key if reported leaked
+        // Show informative message about generator
         const errStr = apiErr?.message || '';
-        if (errStr.includes('vazada') || errStr.includes('leaked') || errStr.includes('inválida') || errStr.includes('GEMINI_API_KEY')) {
-          setErrorMessage('Legenda criada com sucesso pelo Motor Criativo do Ateliê! 💡 Dica: Para usar a conexão direta do Gemini, renove sua chave de API nas configurações do AI Studio.');
+        if (errStr.includes('vazada') || errStr.includes('leaked') || errStr.includes('inválida') || errStr.includes('GEMINI_API_KEY') || errStr.includes('chave') || errStr.includes('renovada')) {
+          setErrorMessage('Legenda criada com sucesso pelo Motor Criativo do Ateliê! 💡 Para conectar o Gemini Cloud diretamente, renove sua chave de API nas configurações do AI Studio.');
+        } else {
+          setErrorMessage('Legenda criada com sucesso pelo Motor Criativo do Ateliê! ✨');
         }
         return;
       }
@@ -446,9 +743,14 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
               <div key={item.id} className="bg-white p-4 rounded-2xl border border-pink-100 shadow-sm flex flex-col justify-between group hover:shadow-md transition-all">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-black text-pink-600 truncate max-w-[140px] uppercase">
-                      {item.theme}
-                    </span>
+                    <div className="flex items-center gap-1.5 truncate max-w-[170px]">
+                      <span className="text-[10px] font-black text-pink-600 truncate uppercase">
+                        {item.theme}
+                      </span>
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-pink-50 text-pink-600 whitespace-nowrap">
+                        {item.platform === 'stories' ? '📸 Story' : item.platform === 'marketplace' || item.platform === 'catalog_marketplace' ? '🛒 Mktplace' : item.platform === 'whatsapp' ? '💬 Zap' : item.platform === 'reels_tiktok' ? '🎬 Reels' : 'Feed'}
+                      </span>
+                    </div>
                     <span className="text-[9px] font-bold text-gray-400">
                       {new Date(item.createdAt).toLocaleDateString('pt-BR')}
                     </span>
@@ -488,25 +790,6 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10">
         {/* Left Column: Form Controls (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
-          {/* Quick Idea Chips */}
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">
-              Ideias Rápidas de 1 Clique:
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {quickIdeas.map((idea, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setProductTopic(idea.topic)}
-                  className="px-3 py-1.5 bg-gray-50 hover:bg-pink-50 hover:text-pink-600 border border-gray-100 hover:border-pink-200 text-gray-600 text-[11px] font-bold rounded-xl transition-all active:scale-95"
-                >
-                  {idea.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Product / Piece Input with autocomplete from registered products */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -553,7 +836,7 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
               type="text"
               value={productTopic}
               onChange={(e) => setProductTopic(e.target.value)}
-              placeholder="Ex: Topo de bolo Jardim das Borboletas com camadas 3D e papel perolado..."
+              placeholder="Ex: Kit Festa Lembrancinhas Tema Safari com caixas milk, cone e topo..."
               className="w-full bg-gray-50/70 border border-gray-200 focus:border-pink-500 focus:bg-white rounded-2xl p-4 text-sm font-semibold text-gray-800 placeholder-gray-400 outline-none transition-all focus:ring-4 focus:ring-pink-100"
             />
           </div>
@@ -563,9 +846,9 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
             {/* Platform Selection */}
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
-                Canal de Postagem
+                Canal de Postagem / Venda
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setPlatform('instagram_feed')}
@@ -576,7 +859,20 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
                   }`}
                 >
                   <Instagram size={15} className={platform === 'instagram_feed' ? 'text-pink-500' : 'text-gray-400'} />
-                  <span>Feed / Carrossel</span>
+                  <span className="truncate">Feed / Post</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPlatform('stories')}
+                  className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all ${
+                    platform === 'stories'
+                      ? 'bg-gradient-to-r from-pink-500 via-purple-500 to-amber-500 text-white border-transparent shadow-md shadow-pink-500/20'
+                      : 'bg-pink-50/60 border-pink-200 text-pink-700 hover:bg-pink-100'
+                  }`}
+                >
+                  <Smartphone size={15} className={platform === 'stories' ? 'text-white' : 'text-pink-600'} />
+                  <span className="truncate">📸 Story / Status</span>
                 </button>
 
                 <button
@@ -589,7 +885,7 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
                   }`}
                 >
                   <Video size={15} className={platform === 'reels_tiktok' ? 'text-purple-500' : 'text-gray-400'} />
-                  <span>Reels / Vídeo</span>
+                  <span className="truncate">Reels / Vídeo</span>
                 </button>
 
                 <button
@@ -602,20 +898,33 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
                   }`}
                 >
                   <MessageSquare size={15} className={platform === 'whatsapp' ? 'text-green-500' : 'text-gray-400'} />
-                  <span>WhatsApp Status</span>
+                  <span className="truncate">WhatsApp</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setPlatform('catalog_marketplace')}
+                  onClick={() => setPlatform('marketplace')}
                   className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all ${
-                    platform === 'catalog_marketplace'
-                      ? 'bg-orange-50 border-orange-400 text-orange-600 shadow-sm'
-                      : 'bg-gray-50 border-gray-150 text-gray-600 hover:bg-gray-100'
+                    platform === 'marketplace' || platform === 'catalog_marketplace'
+                      ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-500/20'
+                      : 'bg-orange-50/60 border-orange-200 text-orange-700 hover:bg-orange-100'
                   }`}
                 >
-                  <Store size={15} className={platform === 'catalog_marketplace' ? 'text-orange-500' : 'text-gray-400'} />
-                  <span>Catálogo / Loja</span>
+                  <ShoppingCart size={15} className={platform === 'marketplace' || platform === 'catalog_marketplace' ? 'text-white' : 'text-orange-600'} />
+                  <span className="truncate">🛒 Marketplace</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPlatform('catalog')}
+                  className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all ${
+                    platform === 'catalog'
+                      ? 'bg-amber-50 border-amber-400 text-amber-700 shadow-sm'
+                      : 'bg-gray-50/70 border-gray-150 text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Store size={15} className={platform === 'catalog' ? 'text-amber-600' : 'text-gray-400'} />
+                  <span className="truncate">🛍️ Catálogo</span>
                 </button>
               </div>
             </div>
@@ -630,11 +939,11 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
                 onChange={(e) => setTone(e.target.value as ToneType)}
                 className="w-full bg-gray-50/70 border border-gray-200 focus:border-pink-500 focus:bg-white rounded-2xl p-3 text-xs font-bold text-gray-700 outline-none transition-all"
               >
-                <option value="afetuoso">💖 Afetuoso & Encantador (Foco no amor)</option>
-                <option value="vendedor">🚀 Vendedor & Agenda (Foco em fechamento)</option>
-                <option value="sofisticado">✨ Luxo & Elegante (Papelaria fina)</option>
-                <option value="divertido">🎉 Alegre & Festivo (Festas animadas)</option>
-                <option value="bastidores">🧵 Bastidores & Artesanal (Feito à mão)</option>
+                <option value="afetuoso">💖 Afetuoso & Encantador (Foco no amor e celebração)</option>
+                <option value="vendedor">🚀 Focado em Vendas & Conversão (Recomendado para Marketplace)</option>
+                <option value="sofisticado">✨ Luxo & Elegante (Papelaria fina e de alto padrão)</option>
+                <option value="divertido">🎉 Alegre & Festivo (Festas animadas e coloridas)</option>
+                <option value="bastidores">🧵 Bastidores & Artesanal (Feito à mão com afeto)</option>
               </select>
 
               <div className="mt-2.5">
@@ -651,6 +960,396 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
               </div>
             </div>
           </div>
+
+          {/* DEDICATED STORY PANEL */}
+          {platform === 'stories' && (
+            <div className="p-5 bg-gradient-to-br from-pink-50/90 via-purple-50/40 to-amber-50/60 rounded-2xl border border-pink-200 space-y-4 animate-fadeIn shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2 border-b border-pink-200/60">
+                <span className="text-xs font-black text-pink-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <Smartphone size={15} className="text-pink-600" />
+                  Campos Específicos para Story / Status
+                </span>
+                <span className="text-[10px] font-bold text-pink-700 bg-pink-100 px-2 py-0.5 rounded-full w-fit">
+                  Roteiro Tela a Tela • Figurinhas • Enquetes
+                </span>
+              </div>
+
+              {/* Card com Imagem Ilustrativa de Story / Status */}
+              <div className="bg-white/95 rounded-2xl border border-pink-200/90 p-4 shadow-xs flex flex-col sm:flex-row items-center gap-4">
+                {/* 9:16 Mockup Frame */}
+                <div className="relative w-28 sm:w-32 aspect-[9/16] rounded-2xl overflow-hidden shadow-md border-2 border-pink-300 shrink-0 bg-gray-900 group">
+                  <img
+                    src="/images/story_craft_mockup.jpg"
+                    alt="Imagem ilustrativa de Story para ateliê"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/40 pointer-events-none"></div>
+
+                  {/* Story Progress Lines */}
+                  <div className="absolute top-2 inset-x-2 flex gap-1 z-10">
+                    <div className="h-0.5 flex-1 bg-white rounded-full"></div>
+                    <div className="h-0.5 flex-1 bg-white/50 rounded-full"></div>
+                    <div className="h-0.5 flex-1 bg-white/50 rounded-full"></div>
+                  </div>
+
+                  {/* Mini Profile Header */}
+                  <div className="absolute top-3.5 inset-x-2 flex items-center justify-between z-10">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <div className="w-3.5 h-3.5 rounded-full bg-pink-500 border border-white flex items-center justify-center text-[7px] text-white font-black shrink-0">
+                        ✂️
+                      </div>
+                      <span className="text-[8px] font-black text-white truncate drop-shadow-xs">
+                        {companyData?.name || 'Seu Ateliê'}
+                      </span>
+                    </div>
+                    <span className="text-[7px] text-white/80 font-bold shrink-0">5m</span>
+                  </div>
+
+                  {/* Dynamic Sticker Preview on the Illustrative Image */}
+                  <div className="absolute bottom-2.5 inset-x-2 z-10">
+                    <div className="bg-white/95 backdrop-blur-xs rounded-lg p-1.5 shadow-md border border-white text-center">
+                      <p className="text-[8px] font-black text-pink-700 leading-tight">
+                        {storySticker === 'caixinha'
+                          ? (storyCustomSticker || 'Faça uma pergunta...')
+                          : storySticker === 'enquete'
+                          ? (storyCustomSticker || 'Você amou esse modelo?')
+                          : storySticker === 'reacao'
+                          ? 'Gostou da combinação? 😍'
+                          : storySticker === 'link'
+                          ? 'Toque para encomendar 🛒'
+                          : 'Envie um Direct 💌'}
+                      </p>
+                      {storySticker === 'enquete' && (
+                        <div className="mt-1 flex gap-1">
+                          <span className="flex-1 bg-pink-50 text-pink-700 text-[7px] font-black py-0.5 rounded">Sim! 😍</span>
+                          <span className="flex-1 bg-pink-50 text-pink-700 text-[7px] font-black py-0.5 rounded">Muito! ✨</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Explanatory Info & Details */}
+                <div className="flex-1 text-center sm:text-left space-y-1.5">
+                  <div className="flex items-center justify-center sm:justify-start gap-1.5">
+                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-pink-100 text-pink-700 flex items-center gap-1">
+                      <ImageIcon size={10} /> Imagem Ilustrativa
+                    </span>
+                    <span className="text-[9px] font-bold text-gray-400">
+                      Proporção Vertical 9:16
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-black text-gray-800">
+                    Visual do Story / Status na Prática
+                  </h4>
+                  <p className="text-[11px] text-gray-600 leading-relaxed">
+                    No Instagram Stories e WhatsApp Status, imagens verticais de alta qualidade destacando detalhes do papel, camadas 3D ou o carinho na embalagem aumentam o engajamento e as mensagens de orçamento no Direct.
+                  </p>
+                  <div className="pt-1 flex flex-wrap items-center justify-center sm:justify-start gap-1.5 text-[9px] font-bold text-gray-500">
+                    <span className="bg-gray-100 px-2 py-0.5 rounded-md">📐 1080 × 1920 px</span>
+                    <span className="bg-gray-100 px-2 py-0.5 rounded-md">✨ Foto real ou bastidor</span>
+                    <span className="bg-gray-100 px-2 py-0.5 rounded-md">📱 Tela cheia no celular</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Story Goal Selector */}
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-1.5">
+                  Qual é o objetivo principal desse Story?
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStoryGoal('bastidores')}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                      storyGoal === 'bastidores'
+                        ? 'bg-pink-600 text-white border-pink-600 shadow-xs'
+                        : 'bg-white text-gray-700 border-pink-200 hover:bg-pink-50'
+                    }`}
+                  >
+                    <span>✂️ Bastidores & Produção</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStoryGoal('encomenda_pronta')}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                      storyGoal === 'encomenda_pronta'
+                        ? 'bg-pink-600 text-white border-pink-600 shadow-xs'
+                        : 'bg-white text-gray-700 border-pink-200 hover:bg-pink-50'
+                    }`}
+                  >
+                    <span>📦 Encomenda Pronta</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStoryGoal('enquete')}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                      storyGoal === 'enquete'
+                        ? 'bg-pink-600 text-white border-pink-600 shadow-xs'
+                        : 'bg-white text-gray-700 border-pink-200 hover:bg-pink-50'
+                    }`}
+                  >
+                    <span>🗳️ Enquete & Opinião</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStoryGoal('agenda')}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                      storyGoal === 'agenda'
+                        ? 'bg-pink-600 text-white border-pink-600 shadow-xs'
+                        : 'bg-white text-gray-700 border-pink-200 hover:bg-pink-50'
+                    }`}
+                  >
+                    <span>📅 Agenda & Vagas</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStoryGoal('depoimento')}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                      storyGoal === 'depoimento'
+                        ? 'bg-pink-600 text-white border-pink-600 shadow-xs'
+                        : 'bg-white text-gray-700 border-pink-200 hover:bg-pink-50'
+                    }`}
+                  >
+                    <span>💬 Prova Social / Elogio</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStoryGoal('detalhes')}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                      storyGoal === 'detalhes'
+                        ? 'bg-pink-600 text-white border-pink-600 shadow-xs'
+                        : 'bg-white text-gray-700 border-pink-200 hover:bg-pink-50'
+                    }`}
+                  >
+                    <span>✨ Camadas 3D & Luxo</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Story Structure & Recommended Sticker */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-1">
+                    Estrutura do Roteiro:
+                  </label>
+                  <select
+                    value={storyFormat}
+                    onChange={(e) => setStoryFormat(e.target.value as StoryFormatType)}
+                    className="w-full bg-white border border-pink-200 focus:border-pink-500 rounded-xl p-2.5 text-xs font-semibold text-gray-800 outline-none"
+                  >
+                    <option value="sequencia_3">Sequência de 3 Telas (Gancho ➔ Bastidor ➔ Ação)</option>
+                    <option value="sequencia_4">Sequência de 4 Telas (Storytelling Completo)</option>
+                    <option value="tela_unica">Tela Única (Texto direto na foto/vídeo)</option>
+                    <option value="roteiro_falado">Roteiro Falado em Vídeo (30 a 60s)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-1">
+                    Figurinha / Sticker Recomendado:
+                  </label>
+                  <select
+                    value={storySticker}
+                    onChange={(e) => setStorySticker(e.target.value as StoryStickerType)}
+                    className="w-full bg-white border border-pink-200 focus:border-pink-500 rounded-xl p-2.5 text-xs font-semibold text-gray-800 outline-none"
+                  >
+                    <option value="enquete">📊 Enquete (Sim / Muito!)</option>
+                    <option value="caixinha">❓ Caixinha de Perguntas</option>
+                    <option value="reacao">🔥 Barra de Reação (Emoji Slider)</option>
+                    <option value="link">🔗 Figurinha de Link (Orçamento / Catálogo)</option>
+                    <option value="direct">💌 Chamada para o Direct (Mensagem)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Sticker Custom Question */}
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-1">
+                  Pergunta ou Frase para a Figurinha (Opcional):
+                </label>
+                <input
+                  type="text"
+                  value={storyCustomSticker}
+                  onChange={(e) => setStoryCustomSticker(e.target.value)}
+                  placeholder="Ex: 'Qual tema você sonha ver aqui?' ou deixe em branco para a IA sugerir"
+                  className="w-full bg-white border border-pink-200 focus:border-pink-500 rounded-xl p-2.5 text-xs font-semibold text-gray-800 placeholder-gray-400 outline-none"
+                />
+              </div>
+
+              {/* Audio/Music tip toggle */}
+              <div className="pt-1">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={storyIncludeMusicTip}
+                    onChange={(e) => setStoryIncludeMusicTip(e.target.checked)}
+                    className="w-4 h-4 text-pink-600 rounded focus:ring-pink-500 accent-pink-600"
+                  />
+                  <span>Sugerir estilo de música ou áudio em alta para acompanhar os Stories</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* DEDICATED MARKETPLACE PANEL */}
+          {(platform === 'marketplace' || platform === 'catalog_marketplace') && (
+            <div className="p-5 bg-gradient-to-br from-orange-50/80 via-amber-50/40 to-orange-50/80 rounded-2xl border border-orange-200 space-y-4 animate-fadeIn shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2 border-b border-orange-200/60">
+                <span className="text-xs font-black text-orange-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <ShoppingCart size={15} className="text-orange-600" />
+                  Campos Específicos para Anúncio de Marketplace
+                </span>
+                <span className="text-[10px] font-bold text-orange-700 bg-orange-200/60 px-2 py-0.5 rounded-full w-fit">
+                  SEO • Shopee • Elo7 • ML
+                </span>
+              </div>
+
+              {/* Marketplace Target Selector */}
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-1.5">
+                  Onde você vai postar o anúncio?
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMarketplaceTarget('shopee')}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                      marketplaceTarget === 'shopee'
+                        ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                        : 'bg-white text-gray-700 border-orange-200 hover:bg-orange-50'
+                    }`}
+                  >
+                    <span>🧡 Shopee</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMarketplaceTarget('elo7')}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                      marketplaceTarget === 'elo7'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                        : 'bg-white text-gray-700 border-orange-200 hover:bg-orange-50'
+                    }`}
+                  >
+                    <span>🤎 Elo7</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMarketplaceTarget('mercadolivre')}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                      marketplaceTarget === 'mercadolivre'
+                        ? 'bg-yellow-500 text-gray-900 border-yellow-500 shadow-xs font-black'
+                        : 'bg-white text-gray-700 border-orange-200 hover:bg-orange-50'
+                    }`}
+                  >
+                    <span>💛 Mercado Livre</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMarketplaceTarget('geral')}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                      marketplaceTarget === 'geral'
+                        ? 'bg-gray-800 text-white border-gray-800 shadow-xs'
+                        : 'bg-white text-gray-700 border-orange-200 hover:bg-orange-50'
+                    }`}
+                  >
+                    <span>📦 Outro Marketplace</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Itens Inclusos & Medidas */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-1 flex items-center gap-1">
+                    <Package size={11} className="text-orange-600" /> Itens Inclusos no Pacote:
+                  </label>
+                  <input
+                    type="text"
+                    value={marketplaceItems}
+                    onChange={(e) => setMarketplaceItems(e.target.value)}
+                    placeholder="Ex: 10 Caixas Milk, 10 Caixas Pirâmide, 1 Topo de Bolo..."
+                    className="w-full bg-white border border-orange-200 focus:border-orange-500 rounded-xl p-2.5 text-xs font-semibold text-gray-800 placeholder-gray-400 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-1 flex items-center gap-1">
+                    <Box size={11} className="text-orange-600" /> Medidas / Dimensões Aproximadas:
+                  </label>
+                  <input
+                    type="text"
+                    value={marketplaceDimensions}
+                    onChange={(e) => setMarketplaceDimensions(e.target.value)}
+                    placeholder="Ex: Caixa Milk: 13x6x6cm / Pirâmide: 16x6x6cm..."
+                    className="w-full bg-white border border-orange-200 focus:border-orange-500 rounded-xl p-2.5 text-xs font-semibold text-gray-800 placeholder-gray-400 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Material & Prazo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-1">
+                    Material / Tipo de Papel:
+                  </label>
+                  <input
+                    type="text"
+                    value={marketplaceMaterial}
+                    onChange={(e) => setMarketplaceMaterial(e.target.value)}
+                    placeholder="Ex: Papel Offset 180g fosco de alta resolução, apliques 3D..."
+                    className="w-full bg-white border border-orange-200 focus:border-orange-500 rounded-xl p-2.5 text-xs font-semibold text-gray-800 placeholder-gray-400 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-1">
+                    Prazo de Produção / Postagem:
+                  </label>
+                  <input
+                    type="text"
+                    value={marketplaceProductionTime}
+                    onChange={(e) => setMarketplaceProductionTime(e.target.value)}
+                    placeholder="Ex: 7 dias úteis após confirmação do pedido"
+                    className="w-full bg-white border border-orange-200 focus:border-orange-500 rounded-xl p-2.5 text-xs font-semibold text-gray-800 placeholder-gray-400 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Instruções de Personalização & Forma de Envio */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-1">
+                    Instrução de Personalização (Nome e Idade):
+                  </label>
+                  <input
+                    type="text"
+                    value={marketplaceCustomizationNote}
+                    onChange={(e) => setMarketplaceCustomizationNote(e.target.value)}
+                    placeholder="Ex: Enviar nome e idade no chat logo após fechar a compra"
+                    className="w-full bg-white border border-orange-200 focus:border-orange-500 rounded-xl p-2.5 text-xs font-semibold text-gray-800 placeholder-gray-400 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-1 flex items-center gap-1">
+                    <Truck size={11} className="text-orange-600" /> Forma de Envio das Peças:
+                  </label>
+                  <select
+                    value={marketplaceShippingType}
+                    onChange={(e) => setMarketplaceShippingType(e.target.value as any)}
+                    className="w-full bg-white border border-orange-200 focus:border-orange-500 rounded-xl p-2.5 text-xs font-semibold text-gray-800 outline-none"
+                  >
+                    <option value="semi_montadas">Semi-montadas (fundos de encaixe, não amassa no frete)</option>
+                    <option value="montadas">100% montadas e prontas para uso</option>
+                    <option value="desmontadas">Desmontadas com instrução de colagem</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Extra Details / Differentials */}
           <div>
@@ -774,7 +1473,11 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
                           : 'text-gray-500 hover:text-pink-600'
                       }`}
                     >
-                      Completa
+                      {platform === 'marketplace' || platform === 'catalog_marketplace'
+                        ? 'Anúncio Completo'
+                        : platform === 'stories'
+                        ? 'Roteiro Sequência'
+                        : 'Completa'}
                     </button>
                     <button
                       type="button"
@@ -785,7 +1488,11 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
                           : 'text-gray-500 hover:text-purple-600'
                       }`}
                     >
-                      Curta
+                      {platform === 'marketplace' || platform === 'catalog_marketplace'
+                        ? 'Resumo / App'
+                        : platform === 'stories'
+                        ? 'Textos na Tela'
+                        : 'Curta'}
                     </button>
                     <button
                       type="button"
@@ -796,7 +1503,11 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
                           : 'text-gray-500 hover:text-orange-600'
                       }`}
                     >
-                      Vendas
+                      {platform === 'marketplace' || platform === 'catalog_marketplace'
+                        ? 'SEO & Tags'
+                        : platform === 'stories'
+                        ? 'Enquetes & Stickers'
+                        : 'Vendas'}
                     </button>
                   </div>
                 </div>
@@ -808,6 +1519,39 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
                 )}
               </div>
 
+              {/* Story View Mode Selector (Text vs Simulated 9:16 Mockup) */}
+              {platform === 'stories' && (
+                <div className="flex items-center justify-between gap-2 px-1 py-1.5 mb-3 bg-pink-50/60 rounded-xl border border-pink-100/70">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-pink-700 flex items-center gap-1">
+                    <Smartphone size={11} /> Exibição:
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setStoryPreviewTab('text')}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 ${
+                        storyPreviewTab === 'text'
+                          ? 'bg-white text-pink-600 shadow-xs border border-pink-200'
+                          : 'text-gray-400 hover:text-gray-600'
+                      }`}
+                    >
+                      <Edit3 size={10} /> Roteiro / Texto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStoryPreviewTab('mockup')}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 ${
+                        storyPreviewTab === 'mockup'
+                          ? 'bg-pink-600 text-white shadow-xs'
+                          : 'text-gray-400 hover:text-pink-600'
+                      }`}
+                    >
+                      <Eye size={10} /> Prévia Visual (9:16)
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Text Area / Content */}
               {isLoading ? (
                 <div className="min-h-[260px] flex flex-col items-center justify-center p-6 text-center space-y-3">
@@ -818,6 +1562,95 @@ Por favor, estruture sua resposta exatamente com as 3 tags separadoras abaixo pa
                     <p className="text-xs font-black text-gray-700 uppercase tracking-wider">A IA está escrevendo...</p>
                     <p className="text-[11px] font-semibold text-gray-400 mt-0.5">Criando ganchos, emoção e chamada para ação</p>
                   </div>
+                </div>
+              ) : platform === 'stories' && storyPreviewTab === 'mockup' ? (
+                /* 9:16 Smartphone Mockup with Illustrative Story Image */
+                <div className="flex flex-col items-center py-2 animate-fadeIn">
+                  <div className="relative w-[230px] sm:w-[250px] aspect-[9/16] rounded-3xl overflow-hidden shadow-xl border-4 border-gray-800 bg-black flex flex-col justify-between p-3 select-none">
+                    {/* Background Illustrative Image */}
+                    <img
+                      src="/images/story_craft_mockup.jpg"
+                      alt="Story Ilustrativo"
+                      className="absolute inset-0 w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/25 to-black/85 pointer-events-none"></div>
+
+                    {/* Top Story UI Header */}
+                    <div className="relative z-10 space-y-1.5">
+                      {/* Story Progress Bars */}
+                      <div className="flex gap-1">
+                        <div className="h-0.5 flex-1 bg-white rounded-full"></div>
+                        <div className="h-0.5 flex-1 bg-white/40 rounded-full"></div>
+                        <div className="h-0.5 flex-1 bg-white/40 rounded-full"></div>
+                      </div>
+                      {/* Profile info */}
+                      <div className="flex items-center justify-between text-white">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="w-5 h-5 rounded-full bg-pink-500 border border-white flex items-center justify-center text-[10px] font-black shrink-0">
+                            ✂️
+                          </div>
+                          <span className="text-[10px] font-bold truncate drop-shadow-md">
+                            {companyData?.name || 'Seu Ateliê'}
+                          </span>
+                          <span className="text-[8px] text-white/70">5m</span>
+                        </div>
+                        <span className="text-[10px] text-white/80">✕</span>
+                      </div>
+                    </div>
+
+                    {/* Middle Overlay: Generated Script or Story Text */}
+                    <div className="relative z-10 my-auto bg-black/65 backdrop-blur-xs p-2.5 rounded-xl border border-white/20 text-white shadow-lg space-y-1 max-h-[140px] overflow-y-auto custom-scrollbar">
+                      <p className="text-[7px] uppercase tracking-wider text-pink-300 font-black">
+                        {storyFormat === 'sequencia_3' ? 'Sequência de 3 Telas' : 'Story / Status'}
+                      </p>
+                      <p className="text-[9.5px] font-medium leading-relaxed whitespace-pre-line">
+                        {generatedText
+                          ? generatedText.slice(0, 160) + (generatedText.length > 160 ? '...' : '')
+                          : 'Preencha os campos e clique em Gerar Legenda para ver a simulação visual aqui.'}
+                      </p>
+                    </div>
+
+                    {/* Dynamic Sticker Overlay */}
+                    <div className="relative z-10 my-1">
+                      <div className="bg-white/95 backdrop-blur-xs rounded-xl p-2 shadow-lg border border-white/80 text-center">
+                        <p className="text-[8.5px] font-black text-pink-700 leading-tight">
+                          {storySticker === 'caixinha'
+                            ? (storyCustomSticker || 'Faça uma pergunta sobre esse modelo!')
+                            : storySticker === 'enquete'
+                            ? (storyCustomSticker || 'Você amou essa encomenda?')
+                            : storySticker === 'reacao'
+                            ? 'O que achou dessa fofura? 😍'
+                            : storySticker === 'link'
+                            ? 'Toque para orçar pelo catálogo 🛒'
+                            : 'Mande um direct pra gente! 💌'}
+                        </p>
+                        {storySticker === 'enquete' && (
+                          <div className="mt-1 flex gap-1">
+                            <span className="flex-1 bg-pink-50 text-pink-600 text-[8px] font-black py-0.5 rounded-md">Sim! 😍</span>
+                            <span className="flex-1 bg-pink-50 text-pink-600 text-[8px] font-black py-0.5 rounded-md">Muito! ✨</span>
+                          </div>
+                        )}
+                        {storySticker === 'caixinha' && (
+                          <div className="mt-1 bg-gray-50 border border-gray-200 text-gray-400 text-[7px] py-1 rounded-md">
+                            Digite sua pergunta...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bottom reply bar */}
+                    <div className="relative z-10 flex items-center gap-2 pt-1">
+                      <div className="flex-1 bg-white/20 backdrop-blur-xs border border-white/30 rounded-full px-2 py-0.5 text-[8px] text-white/80 truncate">
+                        Enviar mensagem...
+                      </div>
+                      <span className="text-white text-[10px]">🤍</span>
+                      <span className="text-white text-[10px]">✈️</span>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-gray-400 font-bold mt-2 text-center">
+                    📸 Simulação com imagem ilustrativa vertical de ateliê (9:16)
+                  </p>
                 </div>
               ) : generatedText ? (
                 <div className="space-y-2">

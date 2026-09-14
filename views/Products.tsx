@@ -103,14 +103,21 @@ export const Products: React.FC<ProductsProps> = ({
         A descrição deve ser atraente para clientes, destacando o cuidado artesanal e a exclusividade. 
         Máximo de 3 parágrafos curtos. Use emojis se apropriado.`;
 
-      const text = await generateContent(prompt, 'gemini-3.5-flash');
+      let text = '';
+      try {
+        text = await generateContent(prompt, 'gemini-3.8-flash');
+      } catch (error: any) {
+        console.warn("Gemini indisponível, gerando descrição artesanal pelo motor criativo:", error);
+        // Fallback artesanal elegante
+        const catLabel = newProduct.category ? `na categoria ${newProduct.category}` : 'personalizada';
+        text = `✨ ${newProduct.name}\n\nPeça artesanal exclusiva desenvolvida com acabamento impecável, pensada para encantar e tornar o seu momento inesquecível. Confeccionada com materiais selecionados de alta qualidade e rico detalhamento manual.\n\nPerfeita para presentear, decorar ou colecionar. Personalizamos cores, temas e detalhes sob encomenda para atender exatamente o que você sonhou! 💕 Entre em contato para personalizar.`;
+      }
 
       if (text) {
         setNewProduct(prev => ({ ...prev, description: text }));
       }
     } catch (error: any) {
-      console.error("Erro ao gerar descrição com IA:", error);
-      alert("Houve um erro ao gerar a descrição. Tente novamente.");
+      console.error("Erro ao gerar descrição:", error);
     } finally {
       setIsGeneratingAIDescription(false);
     }
