@@ -385,14 +385,19 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
 
       <footer className="bg-white border-t border-gray-100 py-12 mt-20">
         <div className="max-w-7xl mx-auto px-6 text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center shadow-md">
-              <img src="https://cdn-icons-png.flaticon.com/512/4230/4230588.png" alt="Logo" className="w-5 h-5 filter brightness-0 invert" />
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-md p-1 border border-pink-100">
+              <img 
+                src="/images/papelietes_calcula_logo.png" 
+                alt="Papelietes Calcula" 
+                className="w-full h-full object-contain"
+                referrerPolicy="no-referrer" 
+              />
             </div>
-            <span className="text-pink-600 font-black text-lg tracking-tight">Calculiê</span>
+            <span className="text-pink-600 font-black text-lg tracking-tight">Papelietes Calcula</span>
           </div>
-          <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">
-            Tecnologia para Ateliês Criativos
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+            Seu trabalho tem valor • A gente ajuda você a calcular
           </p>
         </div>
       </footer>

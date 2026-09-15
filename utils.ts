@@ -242,3 +242,113 @@ export const getMLRange = (price: number): string => {
   if (price <= 199.99) return 'R$ 150 a R$ 199,99';
   return 'A partir de R$ 200';
 };
+
+/**
+ * Comprime imagens no navegador usando Canvas para evitar estouro da cota do localStorage.
+ * Reduz imagens de 5MB-15MB para ~20KB-40KB em formato otimizado.
+ */
+export const compressImage = (file: File, maxWidth = 400, quality = 0.8): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxWidth) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxWidth) / height);
+            height = maxWidth;
+          }
+        }
+
+        canvas.width = Math.max(1, width);
+        canvas.height = Math.max(1, height);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        try {
+          // Tenta webp primeiro (mais leve), fallback para jpeg
+          const webpData = canvas.toDataURL('image/webp', quality);
+          if (webpData && webpData.startsWith('data:image/webp')) {
+            resolve(webpData);
+          } else {
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          }
+        } catch {
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        }
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+/**
+ * Salva no localStorage com tratamento seguro contra QuotaExceededError.
+ */
+export const safeLocalStorageSet = (key: string, value: any): boolean => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (err) {
+    console.warn(`[LocalStorage] Aviso de cota ao salvar ${key}:`, err);
+    
+    // Se falhar e for objeto de empresa (que pode conter logo pesado)
+    if (key.includes('craft_company') && value && typeof value === 'object') {
+      try {
+        const stripped = { ...value, logo: '' };
+        localStorage.setItem(key, JSON.stringify(stripped));
+        return true;
+      } catch (err2) {
+        console.warn(`[LocalStorage] Falha mesmo ao salvar sem logo ${key}:`, err2);
+      }
+    }
+
+    // Se for produtos com imagens pesadas, tenta salvar com imagens simplificadas
+    if (key.includes('craft_products') && Array.isArray(value)) {
+      try {
+        const simplified = value.map(p => ({ ...p, image: '', images: [] }));
+        localStorage.setItem(key, JSON.stringify(simplified));
+        return true;
+      } catch (err3) {
+        console.warn(`[LocalStorage] Falha ao salvar produtos simplificados:`, err3);
+      }
+    }
+
+    // Tenta limpar itens temporários ou obsoletos do localStorage
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.endsWith('_temp') || k.includes('cache_old'))) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch {
+      // Ignora erro de limpeza
+    }
+
+    return false;
+  }
+};

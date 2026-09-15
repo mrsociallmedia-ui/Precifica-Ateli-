@@ -1,6 +1,6 @@
 {
-  "name": "Calculiê",
-  "description": "Criar é arte. Precificar é estratégia.\nO Calculiê é o aplicativo desenvolvido para transformar ateliês criativos em negócios organizados, lucrativos e estratégicos.\nChega de precificar no achismo.\nCom o Calculiê, você calcula corretamente seus custos, define margens inteligentes e descobre o preço ideal para cada produto personalizado.",
+  "name": "Papelietes Calcula",
+  "description": "Seu trabalho tem valor. A gente ajuda você a calcular. O Papelietes Calcula é o aplicativo desenvolvido para transformar ateliês criativos e de papelaria personalizada em negócios organizados, lucrativos e estratégicos.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

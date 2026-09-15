@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 import { supabase } from '../supabaseClient';
+import { compressImage } from '../utils';
 
 interface SettingsViewProps {
   companyData: CompanyData;
@@ -78,14 +79,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   }, [companyData.desiredSalary, companyData.fixedCostsMonthly, companyData.meiTax, companyData.workHoursDaily, companyData.workDaysMonthly, setCompanyData]);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCompanyData({ ...companyData, logo: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressedDataUrl = await compressImage(file, 400, 0.8);
+        setCompanyData(prev => ({ ...prev, logo: compressedDataUrl }));
+      } catch (err) {
+        console.error('Erro ao comprimir logo:', err);
+      }
     }
   };
 
@@ -177,21 +179,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="md:col-span-1 space-y-6">
             <div className="flex flex-col items-center gap-6">
               <div className="relative group">
-                <div className="w-48 h-48 bg-white rounded-[3rem] border-4 border-white shadow-2xl overflow-hidden flex items-center justify-center relative">
-                  {companyData.logo ? (
-                    <img src={companyData.logo} alt="Logo" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="text-gray-300 text-center p-4">
-                      <Camera size={48} className="mx-auto mb-2 opacity-30" />
-                      <p className="text-[10px] font-black uppercase tracking-widest">Logo Ateliê</p>
-                    </div>
-                  )}
+                <div className="w-48 h-48 bg-white rounded-[3rem] border-4 border-pink-100 shadow-2xl overflow-hidden flex items-center justify-center relative p-3">
+                  <img 
+                    src={companyData.logo || "/images/papelietes_calcula_logo.png"} 
+                    alt="Logo Ateliê" 
+                    className="w-full h-full object-contain drop-shadow-sm" 
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
-                <label className="absolute -bottom-2 -right-2 bg-pink-500 p-4 rounded-3xl text-white shadow-xl cursor-pointer hover:scale-110 transition-transform active:scale-95">
+                <label 
+                  className="absolute -bottom-2 -right-2 bg-pink-500 p-4 rounded-3xl text-white shadow-xl cursor-pointer hover:scale-110 transition-transform active:scale-95 flex items-center gap-2"
+                  title="Carregar imagem original do dispositivo"
+                >
                   <Camera size={20} />
                   <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
                 </label>
               </div>
+              <p className="text-[10px] text-gray-400 font-bold text-center max-w-[200px]">
+                Toque na câmera acima para enviar o arquivo original exato do seu computador ou celular.
+              </p>
               
               <div className="p-6 bg-blue-50/50 rounded-[2rem] border border-blue-100/50 text-center w-full">
                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Status da Conta</p>

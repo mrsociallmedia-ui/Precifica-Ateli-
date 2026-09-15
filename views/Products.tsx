@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { generateContent } from '../lib/gemini';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
-import { calculateProjectBreakdown, getMLRange } from '../utils';
+import { calculateProjectBreakdown, getMLRange, compressImage } from '../utils';
 
 declare const html2canvas: any;
 
@@ -213,30 +213,32 @@ export const Products: React.FC<ProductsProps> = ({
     }
   }, [editingProductId, products]);
   
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewProduct(prev => ({ ...prev, image: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file, 600, 0.75);
+        setNewProduct(prev => ({ ...prev, image: compressed }));
+      } catch (err) {
+        console.error('Erro ao comprimir imagem do produto:', err);
+      }
     }
   };
 
-  const handleMultipleImagesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMultipleImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files) {
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setNewProduct(prev => ({ 
-            ...prev, 
-            images: [...(prev.images || []), reader.result as string] 
-          }));
-        };
-        reader.readAsDataURL(file);
-      });
+    if (files && files.length > 0) {
+      try {
+        const compressedImages = await Promise.all(
+          Array.from(files).map(f => compressImage(f, 600, 0.75))
+        );
+        setNewProduct(prev => ({ 
+          ...prev, 
+          images: [...(prev.images || []), ...compressedImages] 
+        }));
+      } catch (err) {
+        console.error('Erro ao comprimir imagens múltiplas:', err);
+      }
     }
   };
 

@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.calculie.app',
-  appName: 'Calculiê',
+  appName: 'Papelietes Calcula',
   webDir: 'dist'
 };
 

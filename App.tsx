@@ -21,7 +21,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Wand2,
-  ExternalLink
+  ExternalLink,
+  Camera
 } from 'lucide-react';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { Dashboard } from './views/Dashboard';
@@ -41,6 +42,7 @@ import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 import { supabase, isMock, clearStaleSupabaseAuth } from './supabaseClient';
+import { safeLocalStorageSet, compressImage } from './utils';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
@@ -79,6 +81,45 @@ const App: React.FC = () => {
 
   // Estados principais da aplicação
   const [companyData, setCompanyData] = useState<CompanyData>(INITIAL_COMPANY_DATA);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Limpeza preventiva de chaves que possam ter estourado a cota por imagens brutas legadas
+  useEffect(() => {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.includes('craft_company')) {
+          const val = localStorage.getItem(k);
+          if (val && val.length > 200000) {
+            try {
+              const parsed = JSON.parse(val);
+              if (parsed && parsed.logo && parsed.logo.length > 50000) {
+                parsed.logo = '';
+                localStorage.setItem(k, JSON.stringify(parsed));
+                console.log(`[Storage Cleanup] Liberado espaço do cache ${k}`);
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Aviso de storage cleanup:', e);
+    }
+  }, []);
+
+  const handleQuickLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressedDataUrl = await compressImage(file, 400, 0.8);
+        setCompanyData(prev => ({ ...prev, logo: compressedDataUrl }));
+      } catch (err) {
+        console.error('Erro ao comprimir logo:', err);
+      }
+    }
+  };
   const [materials, setMaterials] = useState<Material[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>(PLATFORMS_DEFAULT);
@@ -251,7 +292,7 @@ const App: React.FC = () => {
     };
 
     Object.entries(data).forEach(([key, value]) => {
-      localStorage.setItem(`${userKey}_${key}`, JSON.stringify(value));
+      safeLocalStorageSet(`${userKey}_${key}`, value);
     });
   }, [currentUser, companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods]);
 
@@ -525,12 +566,40 @@ const App: React.FC = () => {
       <div className={`fixed inset-0 bg-black/5 z-30 transition-opacity lg:hidden ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)}></div>
       
       <aside className={`fixed lg:static inset-y-0 left-0 z-40 bg-white border-r border-pink-100 flex flex-col shadow-xl lg:shadow-none transition-all duration-300 ease-in-out transform ${isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0 lg:w-24'}`}>
-        <div className={`p-6 flex items-center ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
+        <div className={`p-4 md:p-5 flex items-center ${isSidebarOpen ? 'justify-between' : 'justify-center'} border-b border-pink-50/80`}>
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 bg-pink-500 rounded-xl flex items-center justify-center shadow-lg shrink-0 overflow-hidden group-hover:scale-110 transition-transform">
-              <img src="https://cdn-icons-png.flaticon.com/512/4230/4230588.png" alt="Logo" className="w-7 h-7 filter brightness-0 invert" />
+            <div 
+              onClick={() => logoInputRef.current?.click()}
+              className="relative w-12 h-12 rounded-2xl flex items-center justify-center shadow-md shrink-0 overflow-hidden bg-white border border-pink-100/80 hover:scale-105 transition-transform p-0.5 cursor-pointer group/logo"
+              title="Toque para selecionar ou trocar a imagem original"
+            >
+              <img 
+                src={companyData?.logo || "/images/papelietes_calcula_logo.png"} 
+                alt="Papelietes Calcula" 
+                className="w-full h-full object-contain"
+                referrerPolicy="no-referrer" 
+              />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/logo:opacity-100 transition-opacity flex items-center justify-center rounded-2xl text-white">
+                <Camera size={16} />
+              </div>
             </div>
-            {isSidebarOpen && <h1 className="text-pink-600 font-black text-lg tracking-tight truncate animate-fadeIn">Calculiê</h1>}
+            <input 
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleQuickLogoUpload}
+            />
+            {isSidebarOpen && (
+              <div className="flex flex-col min-w-0 animate-fadeIn">
+                <h1 className="text-pink-600 font-black text-base tracking-tight truncate leading-tight">
+                  Papelietes Calcula
+                </h1>
+                <span className="text-[9px] font-bold text-gray-400 truncate">
+                  Gestão & Precificação
+                </span>
+              </div>
+            )}
           </div>
           {isSidebarOpen && <button className="lg:hidden text-gray-400 p-1 hover:text-pink-500 transition-colors" onClick={() => setSidebarOpen(false)}><X size={20}/></button>}
         </div>
@@ -604,11 +673,22 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-16 bg-white border-b border-pink-50 flex items-center justify-between px-6 z-10 shrink-0">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-gray-50 hover:bg-pink-50 rounded-xl text-gray-400 transition-colors">
+        <header className="h-16 bg-white border-b border-pink-50 flex items-center justify-between px-4 sm:px-6 z-10 shrink-0">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-gray-50 hover:bg-pink-50 rounded-xl text-gray-400 transition-colors" aria-label="Menu">
               {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
+            <div className="flex items-center gap-2 lg:hidden">
+              <img 
+                src={companyData?.logo || "/images/papelietes_calcula_logo.png"} 
+                alt="Papelietes Calcula" 
+                className="w-7 h-7 object-contain" 
+                referrerPolicy="no-referrer" 
+              />
+              <span className="font-black text-pink-600 text-sm tracking-tight truncate max-w-[140px] sm:max-w-none">
+                Papelietes Calcula
+              </span>
+            </div>
             <button 
               onClick={() => {
                 if (syncStatus === 'error' && syncErrorMessage) {

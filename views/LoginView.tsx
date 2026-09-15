@@ -174,16 +174,21 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       <div className="w-full max-w-md animate-fadeIn">
         <div className="bg-white rounded-[3rem] shadow-2xl border border-pink-50 relative overflow-hidden">
           
-          <div className="p-10 pt-12">
-            <div className="flex flex-col items-center mb-8">
-              <div className="w-16 h-16 bg-pink-500 rounded-[1.5rem] flex items-center justify-center text-white shadow-xl mb-6 transform rotate-3">
-                {mode === 'access' ? <Sparkles size={32} /> : <KeyRound size={32} />}
+          <div className="p-8 sm:p-10 pt-10">
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-32 h-32 relative flex items-center justify-center mb-2 hover:scale-105 transition-transform">
+                <img
+                  src="/images/papelietes_calcula_logo.png"
+                  alt="Papelietes Calcula"
+                  className="w-full h-full object-contain drop-shadow-md"
+                  referrerPolicy="no-referrer"
+                />
               </div>
               <h1 className="text-2xl font-black text-gray-800 tracking-tight text-center">
-                Calculiê
+                Papelietes Calcula
               </h1>
-              <p className="text-gray-400 font-bold text-[9px] mt-2 uppercase tracking-[0.3em] text-center">
-                {mode === 'access' ? 'Gestão Profissional para Artesãos' : 'Redefinição de Senha Interna'}
+              <p className="text-pink-500 font-bold text-xs mt-1 text-center italic">
+                "Seu trabalho tem valor. A gente ajuda você a calcular."
               </p>
             </div>
 

@@ -1325,9 +1325,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                     <p className="text-[10px] font-bold text-pink-400 uppercase tracking-widest">Planejamento Estratégico de Vendas</p>
                  </div>
               </div>
-              <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-pink-50 rounded-full">
-                 <Sparkles size={14} className="text-pink-500" />
-                 <span className="text-[10px] font-black text-pink-600 uppercase tracking-widest">Dicas da Calculiê</span>
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-pink-50 rounded-full border border-pink-100">
+                 <img src="/images/papelietes_calcula_logo.png" alt="Papelietes" className="w-4 h-4 object-contain" referrerPolicy="no-referrer" />
+                 <span className="text-[10px] font-black text-pink-600 uppercase tracking-widest">Dicas Papelietes Calcula</span>
               </div>
            </div>
 
