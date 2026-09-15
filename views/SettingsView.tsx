@@ -26,11 +26,16 @@ import {
   AlertCircle,
   Users,
   Settings,
-  Info
+  Info,
+  Smartphone,
+  Download,
+  Share,
+  PlusSquare
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 import { supabase } from '../supabaseClient';
 import { compressImage } from '../utils';
+import { PWAInstallButton } from '../components/PWAInstallBanner';
 
 interface SettingsViewProps {
   companyData: CompanyData;
@@ -524,6 +529,56 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {isUpdatingPass ? 'Processando...' : 'Redefinir Senha de Acesso'}
                 </button>
               </form>
+            </div>
+
+            {/* Seção de Instalação do Aplicativo no Celular */}
+            <div className="bg-gradient-to-br from-pink-50/70 via-white to-rose-50/50 p-8 rounded-[2.5rem] shadow-sm border border-pink-100 space-y-6">
+              <div className="flex items-center justify-between border-b border-pink-100/60 pb-4">
+                <h4 className="font-black text-gray-800 flex items-center gap-3 uppercase text-xs tracking-widest">
+                  <Smartphone size={18} className="text-pink-500" /> Aplicativo no Celular (PWA)
+                </h4>
+                <span className="px-2.5 py-1 bg-pink-100 text-pink-700 text-[10px] font-black rounded-full uppercase tracking-wider">
+                  Mobile & Desktop
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-pink-100/70 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-pink-50 p-1 border border-pink-100 flex items-center justify-center shrink-0">
+                    <img 
+                      src={companyData.logo || "/images/papelietes_calcula_logo.png"} 
+                      alt="Logo" 
+                      className="w-10 h-10 object-contain"
+                    />
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-black text-gray-800">Papelietes Calcula</h5>
+                    <p className="text-xs text-gray-500 font-medium">Instale na tela inicial do seu celular com o ícone oficial!</p>
+                  </div>
+                </div>
+
+                <PWAInstallButton className="w-full sm:w-auto justify-center !py-2.5 !px-4 !bg-pink-500 !text-white hover:!bg-pink-600 !border-none !rounded-xl !text-xs !shadow-md" />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="p-4 bg-white rounded-2xl border border-gray-100 space-y-2">
+                  <p className="font-black text-gray-800 flex items-center gap-1.5">
+                    <Smartphone size={14} className="text-blue-500" /> Como instalar no Android (Chrome)
+                  </p>
+                  <p className="text-gray-500 text-[11px] leading-relaxed">
+                    Clique no botão acima ou abra o menu do Chrome (três pontinhos no canto superior direito) e selecione <strong>"Instalar aplicativo"</strong> ou <strong>"Adicionar à tela inicial"</strong>.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-white rounded-2xl border border-gray-100 space-y-2">
+                  <p className="font-black text-gray-800 flex items-center gap-1.5">
+                    <Share size={14} className="text-pink-500" /> Como instalar no iPhone (Safari)
+                  </p>
+                  <p className="text-gray-500 text-[11px] leading-relaxed">
+                    Toque no botão de <strong>Compartilhar</strong> (ícone de quadrado com seta para cima) na barra inferior do Safari e escolha <strong>"Adicionar à Tela de Início"</strong>.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

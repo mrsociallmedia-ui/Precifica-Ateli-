@@ -43,6 +43,7 @@ import { CompanyData, Material, Customer, Platform, Project, Product, Transactio
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 import { supabase, isMock, clearStaleSupabaseAuth } from './supabaseClient';
 import { safeLocalStorageSet, compressImage } from './utils';
+import { PWAInstallBanner, PWAInstallButton } from './components/PWAInstallBanner';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
@@ -665,6 +666,13 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-pink-50 space-y-3">
+          {isSidebarOpen ? (
+            <PWAInstallButton variant="menuItem" />
+          ) : (
+            <div className="flex justify-center">
+              <PWAInstallButton className="!p-2.5 !rounded-2xl" />
+            </div>
+          )}
           <button onClick={handleLogout} className={`w-full flex items-center ${isSidebarOpen ? 'gap-4 p-4' : 'justify-center p-4'} rounded-2xl text-red-400 hover:bg-red-50 transition-all group`} title={!isSidebarOpen ? 'Sair' : ''}>
             <LogOut size={20} className="group-hover:scale-110 transition-transform" />
             {isSidebarOpen && <span className="font-black text-sm animate-fadeIn">Sair</span>}
@@ -728,7 +736,8 @@ const App: React.FC = () => {
             </button>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <PWAInstallButton />
             <div className="hidden sm:flex flex-col items-end border-l border-gray-100 pl-4">
               <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Logado como</p>
               <p className="text-xs font-black text-pink-600 truncate max-w-[150px] leading-none">{currentUser}</p>
@@ -798,6 +807,9 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Banner de Instalação Mobile PWA */}
+      <PWAInstallBanner logoUrl={companyData?.logo} />
     </div>
   );
 };

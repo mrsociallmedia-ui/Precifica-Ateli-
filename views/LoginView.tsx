@@ -24,6 +24,7 @@ import {
   Check
 } from 'lucide-react';
 import { supabase, clearStaleSupabaseAuth } from '../supabaseClient';
+import { PWAInstallBanner, PWAInstallButton } from '../components/PWAInstallBanner';
 
 interface LoginViewProps {
   onLogin: (userEmail: string) => void;
@@ -402,13 +403,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           </div>
         </div>
         
-        <div className="mt-10 flex flex-col items-center gap-2 opacity-40">
-           <div className="flex items-center gap-2">
-              <ShieldCheck size={12} className="text-green-500" />
-              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Sistema de Recuperação Interna</p>
-           </div>
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <PWAInstallButton />
+          <div className="flex items-center gap-2 opacity-40">
+            <ShieldCheck size={12} className="text-green-500" />
+            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Sistema de Recuperação Interna</p>
+          </div>
         </div>
       </div>
+      <PWAInstallBanner />
     </div>
   );
 };

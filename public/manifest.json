@@ -1,11 +1,13 @@
 
 {
+  "id": "/",
   "name": "Papelietes Calcula",
   "short_name": "Papelietes",
   "description": "Seu trabalho tem valor. A gente ajuda você a calcular.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#fffaf0",
+  "background_color": "#FFD1DC",
   "theme_color": "#ec4899",
   "icons": [
     {
