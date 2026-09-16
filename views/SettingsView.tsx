@@ -30,12 +30,7 @@ import {
   Smartphone,
   Download,
   Share,
-  PlusSquare,
-  Landmark,
-  CreditCard,
-  QrCode,
-  Sparkles,
-  Link2
+  PlusSquare
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 import { supabase } from '../supabaseClient';
@@ -282,145 +277,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <input type="text" placeholder="@seuatelie" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800" value={companyData.instagram || ''} onChange={e => setCompanyData({...companyData, instagram: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Cidade / Estado (Para o Pix)</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Cidade / Estado</label>
                     <input type="text" placeholder="Ex: São Paulo" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800" value={companyData.city || ''} onChange={e => setCompanyData({...companyData, city: e.target.value})} />
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Sincronização Bancária & Pagamentos do Catálogo */}
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-emerald-100/80 space-y-6 relative overflow-hidden">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <Landmark size={20} />
-                  </div>
-                  <div>
-                    <h4 className="font-black text-gray-800 uppercase text-xs tracking-widest">
-                      Conta Bancária & Pagamento Automático
-                    </h4>
-                    <p className="text-[10px] text-gray-400 font-bold">
-                      Sincronize sua conta para gerar Pix Copia e Cola e QR Code automático no Catálogo
-                    </p>
-                  </div>
-                </div>
-                <span className="hidden sm:flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 uppercase tracking-wider">
-                  <Sparkles size={11} /> Catálogo Integrado
-                </span>
-              </div>
-
-              {/* Informações Pix */}
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1.5 md:col-span-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tipo de Chave Pix</label>
-                    <select 
-                      className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800 text-xs"
-                      value={companyData.pixKeyType || 'cpf'}
-                      onChange={e => setCompanyData({...companyData, pixKeyType: e.target.value as any})}
-                    >
-                      <option value="cpf">CPF</option>
-                      <option value="cnpj">CNPJ</option>
-                      <option value="phone">Celular (com DDD)</option>
-                      <option value="email">E-mail</option>
-                      <option value="random">Chave Aleatória (EVP)</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5 md:col-span-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Chave Pix Oficial *</label>
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        placeholder="Informe a chave Pix onde receberá os pagamentos" 
-                        className="w-full p-3.5 pl-10 bg-gray-50 border border-gray-100 focus:border-emerald-400 rounded-2xl outline-none font-bold text-gray-800 text-xs" 
-                        value={companyData.pixKey || ''} 
-                        onChange={e => setCompanyData({...companyData, pixKey: e.target.value})} 
-                      />
-                      <QrCode className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome do Titular / Beneficiário da Conta</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: Maria da Silva" 
-                      className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800 text-xs" 
-                      value={companyData.pixBeneficiaryName || ''} 
-                      onChange={e => setCompanyData({...companyData, pixBeneficiaryName: e.target.value})} 
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome do Banco / Instituição</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: Nubank, Inter, Caixa, Itaú, Santander..." 
-                      className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800 text-xs" 
-                      value={companyData.bankName || ''} 
-                      onChange={e => setCompanyData({...companyData, bankName: e.target.value})} 
-                    />
-                  </div>
-                </div>
-
-                {/* Dados da Conta Bancária (Agência e Conta) */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-gray-50/70 rounded-2xl border border-gray-100">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Agência (sem dígito)</label>
-                    <input 
-                      type="text" 
-                      placeholder="0001" 
-                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs"
-                      value={companyData.bankAgency || ''}
-                      onChange={e => setCompanyData({...companyData, bankAgency: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Conta com Dígito</label>
-                    <input 
-                      type="text" 
-                      placeholder="1234567-8" 
-                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs"
-                      value={companyData.bankAccount || ''}
-                      onChange={e => setCompanyData({...companyData, bankAccount: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Tipo de Conta</label>
-                    <select 
-                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs"
-                      value={companyData.bankAccountType || 'corrente'}
-                      onChange={e => setCompanyData({...companyData, bankAccountType: e.target.value as any})}
-                    >
-                      <option value="corrente">Conta Corrente</option>
-                      <option value="poupanca">Conta Poupança</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Link de Pagamento Opcional (Mercado Pago / InfinitePay / PagSeguro) */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center justify-between">
-                    <span>Link de Pagamento / Checkout Externo (Cartão de Crédito)</span>
-                    <span className="text-[9px] text-gray-400 font-normal lowercase">(opcional)</span>
-                  </label>
-                  <div className="relative">
-                    <input 
-                      type="url" 
-                      placeholder="https://mpago.la/... ou https://loja.infinitepay.io/..." 
-                      className="w-full p-3.5 pl-10 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800 text-xs" 
-                      value={companyData.paymentLink || ''} 
-                      onChange={e => setCompanyData({...companyData, paymentLink: e.target.value})} 
-                    />
-                    <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  </div>
-                  <p className="text-[10px] text-gray-400 italic">
-                    Se preenchido, os clientes que optarem por Cartão de Crédito no catálogo poderão pagar direto por esse link seguro.
-                  </p>
                 </div>
               </div>
             </div>

@@ -34,14 +34,11 @@ import {
   Instagram,
   AlertCircle,
   Share2,
-  Landmark,
-  QrCode,
-  Link2,
-  FileCheck
+  QrCode
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Product, CompanyData, Material, Platform } from '../types';
-import { calculateProjectBreakdown, generatePixCopiaECola } from '../utils';
+import { calculateProjectBreakdown } from '../utils';
 
 declare const html2canvas: any;
 
@@ -75,11 +72,17 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
   const [cartStep, setCartStep] = useState<'items' | 'checkout' | 'success'>('items');
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
-  const [pixCopiaColaCopied, setPixCopiaColaCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-  const [bankDataCopied, setBankDataCopied] = useState(false);
   const [completedOrderNumber, setCompletedOrderNumber] = useState('');
   const [lastOrderMessage, setLastOrderMessage] = useState('');
+
+  // Estados do Mercado Pago & Integração de Pagamento Online
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [isMercadoPagoActive, setIsMercadoPagoActive] = useState(false);
+  const [mpPixData, setMpPixData] = useState<{ id: number; qrCode: string; qrCodeBase64: string; ticketUrl?: string; status: string } | null>(null);
+  const [mpPreferenceData, setMpPreferenceData] = useState<{ id: string; initPoint: string } | null>(null);
+  const [mpPaymentStatus, setMpPaymentStatus] = useState<string | null>(null);
+  const [pixCopiaColaCopied, setPixCopiaColaCopied] = useState(false);
   
   // Dados do Formulário do Cliente
   const [customerName, setCustomerName] = useState('');
@@ -93,6 +96,38 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
   const [formErrors, setFormErrors] = useState<{ name?: string; phone?: string; address?: string }>({});
 
   const orderSummaryRef = useRef<HTMLDivElement>(null);
+
+  // Monitorar se a secret do Mercado Pago está ativa no backend
+  useEffect(() => {
+    fetch('/api/mercadopago/status')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.configured) {
+          setIsMercadoPagoActive(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Polling automático para atualizar status do Pix no Mercado Pago em tempo real
+  useEffect(() => {
+    if (cartStep !== 'success' || !mpPixData?.id || mpPaymentStatus === 'approved') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/mercadopago/check-payment/${mpPixData.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.status === 'approved') {
+            setMpPaymentStatus('approved');
+            clearInterval(interval);
+          }
+        }
+      } catch (err) {}
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [cartStep, mpPixData?.id, mpPaymentStatus]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -322,35 +357,72 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
       itemsText += `${idx + 1}. *${item.product.name}*\n   ↳ ${item.quantity}x de R$ ${item.price.toFixed(2)} = *R$ ${sub}*\n`;
     });
 
-    let paymentSection = `• *Forma:* ${paymentLabels[paymentMethod] || paymentMethod}`;
+    // Se selecionou Pix ou Cartão, integrar com Mercado Pago se configurado
+    let mpPixInfo: { id: number; qrCode: string; qrCodeBase64: string; ticketUrl?: string; status: string } | null = null;
+    let mpPrefInfo: { id: string; initPoint: string } | null = null;
 
-    // Sincronização inteligente com dados bancários/Pix no WhatsApp
-    if (paymentMethod === 'pix' && companyData?.pixKey) {
-      const pixPayload = generatePixCopiaECola({
-        pixKey: companyData.pixKey,
-        merchantName: companyData.pixBeneficiaryName || companyData.name || 'ATELIE',
-        merchantCity: companyData.city || 'SAO PAULO',
-        amount: cartTotal,
-        transactionId: orderNum.replace(/[^a-zA-Z0-9]/g, '')
-      });
+    if (paymentMethod === 'pix') {
+      try {
+        const mpRes = await fetch('/api/mercadopago/create-pix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: cartTotal,
+            orderId: orderNum,
+            description: `Pedido ${orderNum} - ${companyData?.name || 'Ateliê'}`,
+            payer: {
+              name: customerName,
+              email: customerEmail || `${customerPhone.replace(/\D/g, '') || 'cliente'}@mercadopago.com`,
+              phone: customerPhone
+            }
+          })
+        });
+        if (mpRes.ok) {
+          const data = await mpRes.json();
+          if (data?.qrCode) {
+            mpPixInfo = data;
+            setMpPixData(data);
+            setMpPaymentStatus(data.status || 'pending');
+          }
+        }
+      } catch (err) {
+        console.warn("Mercado Pago Pix não disponível:", err);
+      }
+    } else if (paymentMethod === 'credit' || paymentMethod === 'debit') {
+      try {
+        const mpRes = await fetch('/api/mercadopago/create-preference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: cart.map(i => ({ name: i.product.name, quantity: i.quantity, price: i.price })),
+            orderId: orderNum,
+            payer: {
+              name: customerName,
+              email: customerEmail || `${customerPhone.replace(/\D/g, '') || 'cliente'}@mercadopago.com`
+            }
+          })
+        });
+        if (mpRes.ok) {
+          const data = await mpRes.json();
+          if (data?.initPoint) {
+            mpPrefInfo = data;
+            setMpPreferenceData(data);
+          }
+        }
+      } catch (err) {
+        console.warn("Mercado Pago Checkout não disponível:", err);
+      }
+    }
 
-      paymentSection += `\n• *Chave Pix:* \`${companyData.pixKey}\``;
-      if (companyData.pixBeneficiaryName) {
-        paymentSection += `\n• *Titular:* ${companyData.pixBeneficiaryName}`;
-      }
-      if (companyData.bankName) {
-        paymentSection += `\n• *Banco:* ${companyData.bankName}`;
-      }
-      if (pixPayload) {
-        paymentSection += `\n\n📋 *PIX COPIA E COLA (Código para pagamento direto no app do banco):*\n\`${pixPayload}\``;
-      }
-    } else if ((paymentMethod === 'credit' || paymentMethod === 'debit') && companyData?.paymentLink) {
-      paymentSection += `\n• *Link para Pagamento com Cartão:* ${companyData.paymentLink}`;
-    } else if (companyData?.bankName && companyData?.bankAccount) {
-      paymentSection += `\n• *Banco:* ${companyData.bankName} | Ag: ${companyData.bankAgency || '0001'} | Conta: ${companyData.bankAccount} (${companyData.bankAccountType === 'poupanca' ? 'Poupança' : 'Corrente'})`;
-      if (companyData.pixBeneficiaryName) {
-        paymentSection += `\n• *Titular:* ${companyData.pixBeneficiaryName}`;
-      }
+    let paymentSection = `• ${paymentLabels[paymentMethod] || paymentMethod}`;
+    if (mpPixInfo?.qrCode) {
+      paymentSection += `\n• *Processamento:* Mercado Pago (Pix Automático)\n• *Pix Copia e Cola:*\n\`${mpPixInfo.qrCode}\``;
+    } else if (paymentMethod === 'pix' && companyData?.pixKey) {
+      paymentSection += `\n• *Chave Pix:* ${companyData.pixKey}`;
+    }
+
+    if (mpPrefInfo?.initPoint) {
+      paymentSection += `\n• *Link de Pagamento Seguro com Cartão (Mercado Pago):* ${mpPrefInfo.initPoint}`;
     }
 
     const message = 
@@ -361,7 +433,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
 
 👤 *DADOS DO CLIENTE*
 • *Nome:* ${customerName.trim()}
-• *WhatsApp:* ${customerPhone.trim()}
+• *WhatsApp:* ${customerPhone.trim()}${customerEmail ? `\n• *E-mail:* ${customerEmail.trim()}` : ''}
 
 📦 *ITENS DO PEDIDO*
 ${itemsText}
@@ -372,14 +444,14 @@ ${itemsText}
 🚚 *ENTREGA / RETIRADA*
 ${deliveryDetails}
 
-💳 *FORMA DE PAGAMENTO SINCRONIZADA*
+💳 *FORMA DE PAGAMENTO PREFERIDA*
 ${paymentSection}
 
 📝 *DETALHES / PERSONALIZAÇÃO*
 • ${orderObservations.trim() || 'Sem observações adicionais informado no pedido.'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-✨ _Olá! Acabei de gerar este pedido pelo seu Catálogo Online sincronizado com a conta bancária. Aguardo a confirmação dos detalhes e início da produção!_`;
+✨ _Olá! Acabei de gerar este pedido pelo seu Catálogo Online. Aguardo a confirmação dos detalhes e início da produção!_`;
 
     setLastOrderMessage(message);
 
@@ -442,14 +514,6 @@ ${paymentSection}
     }
   };
 
-  const copyBankData = () => {
-    if (!companyData) return;
-    const text = `Banco: ${companyData.bankName || 'Não especificado'}\nAgência: ${companyData.bankAgency || '0001'}\nConta: ${companyData.bankAccount || ''} (${companyData.bankAccountType === 'poupanca' ? 'Poupança' : 'Corrente'})\nTitular: ${companyData.pixBeneficiaryName || companyData.name || ''}\nChave Pix: ${companyData.pixKey || ''}`;
-    navigator.clipboard.writeText(text);
-    setBankDataCopied(true);
-    setTimeout(() => setBankDataCopied(false), 2000);
-  };
-
   const copyCatalogLink = () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url);
@@ -463,8 +527,12 @@ ${paymentSection}
     setIsCartOpen(false);
     setCustomerName('');
     setCustomerPhone('');
+    setCustomerEmail('');
     setDeliveryAddress('');
     setOrderObservations('');
+    setMpPixData(null);
+    setMpPreferenceData(null);
+    setMpPaymentStatus(null);
   };
 
   if (loading) {
@@ -1328,6 +1396,20 @@ ${paymentSection}
                     />
                     {formErrors.phone && <p className="text-[10px] text-red-500 font-bold">{formErrors.phone}</p>}
                   </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-gray-600 flex items-center justify-between">
+                      <span>E-mail</span>
+                      <span className="text-[9px] text-gray-400 font-normal">opcional (para comprovante Mercado Pago)</span>
+                    </label>
+                    <input 
+                      type="email" 
+                      placeholder="seuemail@exemplo.com"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      className="w-full p-3.5 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all"
+                    />
+                  </div>
                 </div>
 
                 {/* Opção de Entrega */}
@@ -1422,8 +1504,8 @@ ${paymentSection}
 
                   <div className="grid grid-cols-2 gap-2.5">
                     {[
-                      { id: 'pix', label: 'Pix', icon: Sparkles, badge: 'Mais rápido' },
-                      { id: 'credit', label: 'Cartão de Crédito', icon: CreditCard },
+                      { id: 'pix', label: 'Pix', icon: Sparkles, badge: isMercadoPagoActive ? 'Baixa Automática' : 'Mais rápido' },
+                      { id: 'credit', label: 'Cartão de Crédito', icon: CreditCard, badge: isMercadoPagoActive ? 'Mercado Pago' : undefined },
                       { id: 'debit', label: 'Cartão de Débito', icon: CreditCard },
                       { id: 'cash', label: 'Dinheiro', icon: DollarSign }
                     ].map(pm => {
@@ -1445,7 +1527,7 @@ ${paymentSection}
                             <span className="text-xs font-bold text-gray-800">{pm.label}</span>
                           </div>
                           {pm.badge && (
-                            <span className="text-[8px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">
+                            <span className="text-[8px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full whitespace-nowrap">
                               {pm.badge}
                             </span>
                           )}
@@ -1454,40 +1536,12 @@ ${paymentSection}
                     })}
                   </div>
 
-                  {/* Detalhes Sincronizados da Conta Bancária / Pix */}
-                  {paymentMethod === 'pix' && companyData?.pixKey && (
-                    <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-100 space-y-2 animate-fadeIn">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1">
-                          <Landmark size={13} className="text-emerald-600" /> Sincronizado com a Conta do Ateliê
-                        </span>
-                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">
-                          Automático
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        {companyData.pixBeneficiaryName && (
-                          <p className="font-bold text-gray-700">Titular: <span className="font-normal">{companyData.pixBeneficiaryName}</span></p>
-                        )}
-                        {companyData.bankName && (
-                          <p className="text-[11px] text-gray-500">Banco: {companyData.bankName} {companyData.bankAgency ? `• Ag: ${companyData.bankAgency}` : ''}</p>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-emerald-700 font-medium">
-                        💡 O código Pix Copia e Cola no valor exato de <strong>R$ {cartTotal.toFixed(2)}</strong> e a Chave Pix serão enviados automaticamente para o seu WhatsApp!
+                  {isMercadoPagoActive && (
+                    <div className="p-3 bg-blue-50/60 rounded-2xl border border-blue-100 flex items-center gap-2.5 text-blue-800">
+                      <ShieldCheck size={16} className="text-blue-600 shrink-0" />
+                      <p className="text-[10px] font-medium leading-tight">
+                        <strong>Checkout Mercado Pago Integrado:</strong> Recebimento instantâneo por Pix com QR Code oficial ou Cartão em até 12x.
                       </p>
-                    </div>
-                  )}
-
-                  {(paymentMethod === 'credit' || paymentMethod === 'debit') && companyData?.paymentLink && (
-                    <div className="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-100 flex items-center justify-between animate-fadeIn">
-                      <div className="flex items-center gap-2">
-                        <Link2 size={15} className="text-blue-600" />
-                        <span className="text-xs font-bold text-gray-700">Link de Pagamento Online Seguro</span>
-                      </div>
-                      <span className="text-[9px] font-black text-blue-600 bg-white px-2 py-0.5 rounded-md border border-blue-100">
-                        Ativado
-                      </span>
                     </div>
                   )}
                 </div>
@@ -1563,8 +1617,83 @@ ${paymentSection}
                   Seu pedido foi registrado e enviado para o WhatsApp de <strong>{companyData?.name}</strong>.
                 </p>
 
-                {/* Botão de Reabrir WhatsApp caso pop-up tenha sido bloqueado */}
-                <div className="w-full space-y-3 mb-8">
+                {/* Botões de Ação e Pagamento */}
+                <div className="w-full space-y-4 mb-8">
+                  {/* CASO PIX MERCADO PAGO AUTOMÁTICO GERADO */}
+                  {mpPixData && (
+                    <div className="p-5 bg-gradient-to-b from-blue-50/70 to-blue-50/30 rounded-3xl border border-blue-200 text-center">
+                      <div className="flex items-center justify-center gap-2 mb-3">
+                        <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full ${
+                          mpPaymentStatus === 'approved' 
+                            ? 'bg-emerald-500 text-white shadow-sm' 
+                            : 'bg-blue-600 text-white'
+                        }`}>
+                          {mpPaymentStatus === 'approved' ? '✓ Pagamento Aprovado' : '⚡ Pix Oficial Mercado Pago'}
+                        </span>
+                      </div>
+
+                      {mpPaymentStatus === 'approved' ? (
+                        <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-emerald-800 text-xs font-bold space-y-1 mb-2">
+                          <p className="text-sm">🎉 Pagamento Confirmado com Sucesso!</p>
+                          <p className="text-[11px] font-medium text-emerald-700">Seu pagamento foi identificado e o pedido já está sendo preparado pelo ateliê.</p>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-xs font-bold text-gray-700 mb-3">
+                            Escaneie o QR Code abaixo no app do seu banco para pagar:
+                          </p>
+
+                          {mpPixData.qrCodeBase64 && (
+                            <div className="p-3 bg-white rounded-2xl border-2 border-dashed border-blue-200 inline-block shadow-xs mb-3">
+                              <img 
+                                src={`data:image/png;base64,${mpPixData.qrCodeBase64}`} 
+                                alt="QR Code Pix Mercado Pago" 
+                                className="w-48 h-48 object-contain mx-auto"
+                              />
+                            </div>
+                          )}
+
+                          {mpPixData.qrCode && (
+                            <div className="space-y-2">
+                              <button 
+                                onClick={() => copyPixCopiaECola(mpPixData.qrCode)}
+                                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-blue-200 transition-all"
+                              >
+                                {pixCopiaColaCopied ? <Check size={16} /> : <Copy size={16} />}
+                                <span>{pixCopiaColaCopied ? 'Código Pix Copiado!' : 'Copiar Código Pix Copia e Cola'}</span>
+                              </button>
+                              <div className="flex items-center justify-center gap-1.5 text-[10px] text-blue-700 font-bold">
+                                <Clock size={12} className="animate-spin text-blue-500" />
+                                <span>Aguardando transferência bancária (baixa automática)</span>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* CASO LINK DE CHECKOUT COM CARTÃO MERCADO PAGO GERADO */}
+                  {mpPreferenceData?.initPoint && (
+                    <div className="p-5 bg-gradient-to-b from-blue-50/70 to-blue-50/30 rounded-3xl border border-blue-200 text-center space-y-3">
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white px-3 py-1 rounded-full inline-block">
+                        💳 Cartão de Crédito ou Débito
+                      </span>
+                      <p className="text-xs font-bold text-gray-700">
+                        Finalize o pagamento com segurança no ambiente do Mercado Pago (parcele em até 12x):
+                      </p>
+                      <button 
+                        onClick={() => window.open(mpPreferenceData.initPoint, '_blank')}
+                        className="w-full py-4 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-all"
+                      >
+                        <CreditCard size={18} />
+                        <span>Pagar Agora no Mercado Pago</span>
+                        <ExternalLink size={14} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Botão de Reabrir WhatsApp */}
                   <button 
                     onClick={() => {
                       const phone = companyData?.phone?.replace(/\D/g, '') || '';
@@ -1576,137 +1705,27 @@ ${paymentSection}
                     <span>Abrir WhatsApp com o Pedido</span>
                   </button>
 
-                  {/* Sincronização Bancária & Pix no Sucesso do Pedido */}
-                  {paymentMethod === 'pix' && companyData?.pixKey && (() => {
-                    const pixPayload = generatePixCopiaECola({
-                      pixKey: companyData.pixKey,
-                      merchantName: companyData.pixBeneficiaryName || companyData.name || 'ATELIE',
-                      merchantCity: companyData.city || 'SAO PAULO',
-                      amount: cartTotal,
-                      transactionId: completedOrderNumber.replace(/[^a-zA-Z0-9]/g, '')
-                    });
-
-                    return (
-                      <div className="space-y-4 text-left">
-                        {/* QR Code Oficial Pix */}
-                        <div className="p-5 bg-emerald-50/50 rounded-3xl border border-emerald-100/90 text-center flex flex-col items-center">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-100/80 px-3 py-1 rounded-full mb-3 flex items-center gap-1.5">
-                            <QrCode size={13} /> Pague com QR Code Pix
-                          </span>
-                          <div className="w-44 h-44 bg-white p-2.5 rounded-2xl shadow-sm border border-emerald-100 flex items-center justify-center">
-                            <img 
-                              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixPayload || companyData.pixKey)}`}
-                              alt="QR Code Pix do Pedido"
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                          <p className="text-[11px] font-bold text-gray-700 mt-3">
-                            Valor: <span className="text-emerald-600 font-black text-sm">R$ {cartTotal.toFixed(2)}</span>
-                          </p>
-                          <p className="text-[9px] text-gray-400 mt-0.5">
-                            Abra o aplicativo do seu banco e aponte a câmera para pagar
-                          </p>
-                        </div>
-
-                        {/* Pix Copia e Cola */}
-                        {pixPayload && (
-                          <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-1">
-                                <Sparkles size={12} className="text-emerald-500" /> Pix Copia e Cola (Automático):
-                              </span>
-                              <button 
-                                onClick={() => copyPixCopiaECola(pixPayload)}
-                                className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg shadow-xs border border-emerald-200"
-                              >
-                                {pixCopiaColaCopied ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
-                                <span>{pixCopiaColaCopied ? 'Código Copiado!' : 'Copiar Código Pix'}</span>
-                              </button>
-                            </div>
-                            <p className="text-[11px] font-mono font-medium text-gray-600 bg-white p-2.5 rounded-xl border border-gray-100 break-all select-all max-h-16 overflow-y-auto">
-                              {pixPayload}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Chave Pix Manual & Dados Bancários Sincronizados */}
-                        <div className="p-4 bg-pink-50/60 rounded-2xl border border-pink-100">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-pink-600 flex items-center gap-1">
-                              <Landmark size={12} /> Chave Pix do Ateliê:
-                            </span>
-                            <button 
-                              onClick={copyPixKey}
-                              className="text-[10px] font-bold text-gray-600 hover:text-pink-600 flex items-center gap-1 bg-white px-2 py-0.5 rounded-md shadow-xs border border-pink-100"
-                            >
-                              {pixCopied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
-                              <span>{pixCopied ? 'Copiado!' : 'Copiar Chave'}</span>
-                            </button>
-                          </div>
-                          <p className="text-xs font-mono font-bold text-gray-800 bg-white p-2.5 rounded-xl border border-pink-100 break-all select-all">
-                            {companyData.pixKey}
-                          </p>
-
-                          {(companyData.pixBeneficiaryName || companyData.bankName) && (
-                            <div className="mt-2 pt-2 border-t border-pink-100/80 text-[10px] text-gray-500 space-y-0.5">
-                              {companyData.pixBeneficiaryName && <p><strong>Titular:</strong> {companyData.pixBeneficiaryName}</p>}
-                              {companyData.bankName && <p><strong>Banco:</strong> {companyData.bankName} {companyData.bankAgency ? `• Ag: ${companyData.bankAgency}` : ''} {companyData.bankAccount ? `• Cc: ${companyData.bankAccount}` : ''}</p>}
-                            </div>
-                          )}
-                          <p className="text-[9px] text-gray-400 mt-2 italic">
-                            Envie o comprovante no WhatsApp para início imediato da confecção!
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Caso tenha Link de Pagamento (Cartão) */}
-                  {(paymentMethod === 'credit' || paymentMethod === 'debit') && companyData?.paymentLink && (
-                    <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100 text-left space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 flex items-center gap-1">
-                          <CreditCard size={13} /> Pagar com Cartão de Crédito
-                        </span>
-                        <span className="text-[9px] font-bold text-blue-600 bg-white px-2 py-0.5 rounded-full border border-blue-200">
-                          Checkout Online
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-600">
-                        Você pode efetuar o pagamento do pedido com total segurança pelo link direto do ateliê:
-                      </p>
-                      <a 
-                        href={companyData.paymentLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 shadow-md shadow-blue-200 transition-all text-center"
-                      >
-                        <Link2 size={16} />
-                        <span>Abrir Link para Pagamento com Cartão</span>
-                      </a>
-                    </div>
-                  )}
-
-                  {/* Transferência Bancária / TED / DOC caso configurado */}
-                  {paymentMethod !== 'pix' && companyData?.bankName && companyData?.bankAccount && (
-                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 text-left">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-1">
-                          <Landmark size={12} /> Dados Bancários do Ateliê:
+                  {/* Chave Pix manual (fallback se não gerado Pix automático mas selecionado Pix) */}
+                  {!mpPixData && paymentMethod === 'pix' && companyData?.pixKey && (
+                    <div className="p-4 bg-pink-50/60 rounded-2xl border border-pink-100 text-left">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-pink-600 flex items-center gap-1">
+                          <Sparkles size={12} /> Chave Pix do Ateliê:
                         </span>
                         <button 
-                          onClick={copyBankData}
-                          className="text-[10px] font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1 bg-white px-2 py-0.5 rounded-md shadow-xs border border-gray-200"
+                          onClick={copyPixKey}
+                          className="text-[10px] font-bold text-gray-600 hover:text-pink-600 flex items-center gap-1 bg-white px-2 py-0.5 rounded-md shadow-xs border border-pink-100"
                         >
-                          {bankDataCopied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
-                          <span>{bankDataCopied ? 'Dados Copiados!' : 'Copiar Dados'}</span>
+                          {pixCopied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                          <span>{pixCopied ? 'Copiado!' : 'Copiar'}</span>
                         </button>
                       </div>
-                      <div className="bg-white p-3 rounded-xl border border-gray-100 text-xs space-y-1 text-gray-700">
-                        <p><strong>Banco:</strong> {companyData.bankName}</p>
-                        <p><strong>Agência:</strong> {companyData.bankAgency || '0001'} | <strong>Conta:</strong> {companyData.bankAccount} ({companyData.bankAccountType === 'poupanca' ? 'Poupança' : 'Corrente'})</p>
-                        {companyData.pixBeneficiaryName && <p><strong>Favorecido:</strong> {companyData.pixBeneficiaryName}</p>}
-                      </div>
+                      <p className="text-xs font-mono font-bold text-gray-800 bg-white p-2.5 rounded-xl border border-pink-100 break-all select-all">
+                        {companyData.pixKey}
+                      </p>
+                      <p className="text-[9px] text-gray-400 mt-1 italic">
+                        Envie o comprovante no WhatsApp para início imediato da produção.
+                      </p>
                     </div>
                   )}
                 </div>
