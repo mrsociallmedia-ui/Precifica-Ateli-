@@ -30,7 +30,9 @@ import {
   Smartphone,
   Download,
   Share,
-  PlusSquare
+  PlusSquare,
+  QrCode,
+  CreditCard
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 import { supabase } from '../supabaseClient';
@@ -281,6 +283,56 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <input type="text" placeholder="Ex: São Paulo" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800" value={companyData.city || ''} onChange={e => setCompanyData({...companyData, city: e.target.value})} />
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Pagamentos & Chave Pix do Catálogo */}
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-emerald-50 space-y-6">
+              <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+                <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest">
+                  <QrCode size={16} className="text-emerald-500" /> Pagamentos & Chave Pix do Catálogo
+                </h4>
+                <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
+                  Recebimento Direto
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tipo de Chave Pix</label>
+                  <select 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800 text-sm"
+                    value={companyData.pixKeyType || 'cpf'}
+                    onChange={e => setCompanyData({...companyData, pixKeyType: e.target.value as any})}
+                  >
+                    <option value="cpf">CPF</option>
+                    <option value="cnpj">CNPJ</option>
+                    <option value="phone">Telefone / Celular</option>
+                    <option value="email">E-mail</option>
+                    <option value="random">Chave Aleatória</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Chave Pix do Ateliê</label>
+                  <input 
+                    type="text" 
+                    placeholder="Digite sua chave Pix (ex: 11999999999 ou email@exemplo.com)" 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800 text-sm"
+                    value={companyData.pixKey || ''} 
+                    onChange={e => setCompanyData({...companyData, pixKey: e.target.value})} 
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100/70 text-xs text-emerald-900 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-emerald-800">
+                  <CreditCard size={14} className="text-emerald-600 shrink-0" />
+                  <span className="text-[11px] uppercase tracking-wider">Integração Mercado Pago Ativa</span>
+                </div>
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  Seus clientes podem pagar com segurança via <strong>Pix ou Cartão de Crédito</strong> através do Mercado Pago.
+                  Para habilitar a leitura instantânea do QR Code Pix na tela do catálogo, basta ter sua chave Pix registrada no app do Mercado Pago (Menu &gt; Seu Perfil &gt; Chaves Pix).
+                </p>
               </div>
             </div>
 

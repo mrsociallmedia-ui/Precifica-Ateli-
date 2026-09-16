@@ -22,7 +22,8 @@ import {
   AlertCircle,
   Wand2,
   ExternalLink,
-  Camera
+  Camera,
+  ShoppingBag
 } from 'lucide-react';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { Dashboard } from './views/Dashboard';
@@ -36,6 +37,7 @@ import { FinancialControl } from './views/FinancialControl';
 import { OrderHistory } from './views/OrderHistory';
 import { LoginView } from './views/LoginView';
 import { PublicCatalog } from './views/PublicCatalog';
+import { CatalogManager } from './views/CatalogManager';
 import { ProjectTracking } from './views/ProjectTracking';
 import { AICaptionGenerator } from './views/AICaptionGenerator';
 import { App as CapApp } from '@capacitor/app';
@@ -528,6 +530,7 @@ const App: React.FC = () => {
     { id: 'pricing', label: 'Orçamentos', icon: Calculator, color: 'text-blue-500' },
     { id: 'schedule', label: 'Cronograma', icon: Calendar, color: 'text-blue-500' },
     { id: 'order_history', label: 'Histórico Pedidos', icon: History, color: 'text-pink-500' },
+    { id: 'catalog', label: 'Catálogo Online', icon: ShoppingBag, color: 'text-pink-500', badge: 'Novo' },
     { id: 'finance', label: 'Financeiro', icon: Wallet2, color: 'text-green-500' },
     { id: 'products', label: 'Precificação', icon: Sparkles, color: 'text-yellow-600' },
     { id: 'inventory', label: 'Estoque', icon: Package, color: 'text-yellow-600' },
@@ -557,7 +560,25 @@ const App: React.FC = () => {
   }
 
   if (publicCatalogEmail) {
-    return <PublicCatalog userEmail={publicCatalogEmail} />;
+    return (
+      <PublicCatalog 
+        userEmail={publicCatalogEmail} 
+        onOrderCreated={(newProj, newTx, newCust) => {
+          if (newCust) setCustomers(prev => {
+            const exists = prev.some(c => c.id === newCust.id || (c.phone && newCust.phone && c.phone.replace(/\D/g, '') === newCust.phone.replace(/\D/g, '')));
+            return exists ? prev : [newCust, ...prev];
+          });
+          if (newProj) setProjects(prev => {
+            const exists = prev.some(p => p.id === newProj.id || (p.quoteNumber && p.quoteNumber === newProj.quoteNumber));
+            return exists ? prev : [newProj, ...prev];
+          });
+          if (newTx) setTransactions(prev => {
+            const exists = prev.some(t => t.id === newTx.id);
+            return exists ? prev : [newTx, ...prev];
+          });
+        }}
+      />
+    );
   }
 
   if (!isAuthenticated) return <LoginView onLogin={handleLogin} />;
@@ -757,6 +778,7 @@ const App: React.FC = () => {
                   case 'pricing': return <PricingCalculator {...props} setCustomers={setCustomers} products={products} setProjects={setProjects} setTransactions={setTransactions} paymentMethods={paymentMethods} projectToEdit={projectToEdit} onClearEditProject={() => setProjectToEdit(null)} />;
                   case 'schedule': return <Schedule {...props} currentUser={currentUser || ''} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
+                  case 'catalog': return <CatalogManager currentUser={currentUser || ''} companyData={companyData} products={products} projects={projects} transactions={transactions} customers={customers} onNavigate={(tab) => setActiveTab(tab)} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} setCustomers={setCustomers} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} setProjects={setProjects} />;
                   case 'captions': return <AICaptionGenerator companyData={companyData} products={products} projects={projects} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;

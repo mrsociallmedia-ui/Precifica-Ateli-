@@ -25,7 +25,6 @@ import {
   Check,
   Clock,
   CreditCard,
-  DollarSign,
   Home,
   Truck,
   ChevronLeft,
@@ -44,6 +43,7 @@ declare const html2canvas: any;
 
 interface PublicCatalogProps {
   userEmail: string;
+  onOrderCreated?: (newProject: any, newTransaction: any, newCustomer?: any) => void;
 }
 
 interface CartItem {
@@ -52,7 +52,7 @@ interface CartItem {
   price: number;
 }
 
-export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
+export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrderCreated }) => {
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [companyData, setCompanyData] = useState<CompanyData | null>(null);
@@ -82,6 +82,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
   const [mpPixData, setMpPixData] = useState<{ id: number; qrCode: string; qrCodeBase64: string; ticketUrl?: string; status: string } | null>(null);
   const [mpPreferenceData, setMpPreferenceData] = useState<{ id: string; initPoint: string } | null>(null);
   const [mpPaymentStatus, setMpPaymentStatus] = useState<string | null>(null);
+  const [mpNotice, setMpNotice] = useState<string | null>(null);
   const [pixCopiaColaCopied, setPixCopiaColaCopied] = useState(false);
   
   // Dados do Formulário do Cliente
@@ -91,7 +92,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryNeighborhood, setDeliveryNeighborhood] = useState('');
   const [deliveryCity, setDeliveryCity] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit' | 'debit' | 'cash'>('pix');
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit'>('pix');
   const [orderObservations, setOrderObservations] = useState('');
   const [formErrors, setFormErrors] = useState<{ name?: string; phone?: string; address?: string }>({});
 
@@ -339,9 +340,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
 
     const paymentLabels: Record<string, string> = {
       pix: '⚡ Pix (Transferência Rápida)',
-      credit: '💳 Cartão de Crédito',
-      debit: '💳 Cartão de Débito',
-      cash: '💵 Dinheiro'
+      credit: '💳 Cartão de Crédito'
     };
 
     let deliveryDetails = '';
@@ -360,6 +359,11 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
     // Se selecionou Pix ou Cartão, integrar com Mercado Pago se configurado
     let mpPixInfo: { id: number; qrCode: string; qrCodeBase64: string; ticketUrl?: string; status: string } | null = null;
     let mpPrefInfo: { id: string; initPoint: string } | null = null;
+    setMpNotice(null);
+
+    const safePayerEmail = (customerEmail?.trim() || "").includes("@")
+      ? customerEmail.trim()
+      : `${customerPhone.replace(/\D/g, '') || 'cliente.pedidos'}@gmail.com`;
 
     if (paymentMethod === 'pix') {
       try {
@@ -372,7 +376,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
             description: `Pedido ${orderNum} - ${companyData?.name || 'Ateliê'}`,
             payer: {
               name: customerName,
-              email: customerEmail || `${customerPhone.replace(/\D/g, '') || 'cliente'}@mercadopago.com`,
+              email: safePayerEmail,
               phone: customerPhone
             }
           })
@@ -383,12 +387,19 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
             mpPixInfo = data;
             setMpPixData(data);
             setMpPaymentStatus(data.status || 'pending');
+          } else if (data?.fallbackToPreference && data?.initPoint) {
+            // Ausência temporária de chave Pix cadastrada na conta do Mercado Pago
+            mpPrefInfo = { id: data.id, initPoint: data.initPoint };
+            setMpPreferenceData({ id: data.id, initPoint: data.initPoint });
+            if (data?.message) {
+              setMpNotice(data.message);
+            }
           }
         }
       } catch (err) {
         console.warn("Mercado Pago Pix não disponível:", err);
       }
-    } else if (paymentMethod === 'credit' || paymentMethod === 'debit') {
+    } else if (paymentMethod === 'credit') {
       try {
         const mpRes = await fetch('/api/mercadopago/create-preference', {
           method: 'POST',
@@ -398,7 +409,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
             orderId: orderNum,
             payer: {
               name: customerName,
-              email: customerEmail || `${customerPhone.replace(/\D/g, '') || 'cliente'}@mercadopago.com`
+              email: safePayerEmail
             }
           })
         });
@@ -422,7 +433,8 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
     }
 
     if (mpPrefInfo?.initPoint) {
-      paymentSection += `\n• *Link de Pagamento Seguro com Cartão (Mercado Pago):* ${mpPrefInfo.initPoint}`;
+      const linkLabel = paymentMethod === 'pix' ? 'Link de Pagamento Seguro Mercado Pago (Pix / Cartão)' : 'Link de Pagamento Seguro Mercado Pago (Cartão)';
+      paymentSection += `\n• *${linkLabel}:* ${mpPrefInfo.initPoint}`;
     }
 
     const message = 
@@ -490,6 +502,163 @@ ${paymentSection}
       localStorage.setItem('my_online_orders', JSON.stringify(existingOrders.slice(0, 20)));
     } catch (e) {}
 
+    // AUTOMATIZAÇÃO: Inserir pedido no Cronograma e lançar receita no Financeiro (Compra pelo Catálogo)
+    try {
+      const orderPayload = {
+        userEmail,
+        orderNum,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        customerEmail: customerEmail.trim() || undefined,
+        deliveryType,
+        deliveryAddress: deliveryAddress.trim() || undefined,
+        deliveryNeighborhood: deliveryNeighborhood.trim() || undefined,
+        deliveryCity: deliveryCity.trim() || undefined,
+        paymentMethod,
+        cartTotal,
+        items: cart.map(i => ({
+          product: i.product,
+          quantity: i.quantity,
+          price: i.price
+        })),
+        orderObservations: orderObservations.trim() || undefined
+      };
+
+      // 1. Enviar para a API de automação integrada
+      const apiPromise = fetch('/api/catalog/submit-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPayload)
+      }).then(r => r.ok ? r.json() : null).catch(err => {
+        console.warn("Aviso ao submeter pedido via API:", err);
+        return null;
+      });
+
+      // 2. Criar objetos localmente para resposta instantânea e redundância offline
+      const now = new Date();
+      const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const dateStr = now.toISOString().split('T')[0];
+      const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const projId = `proj_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+      const txId = `tx_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+      const custId = `cust_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
+
+      const itemsSummary = cart.map(i => `${i.quantity}x ${i.product.name}`).join(', ');
+
+      const localProject = {
+        id: projId,
+        name: `Pedido Catálogo: ${customerName.trim()}`,
+        customerId: custId,
+        description: itemsSummary,
+        observations: orderObservations.trim() || '',
+        notes: `Origem: Catálogo Online • Pedido ${orderNum}\nModalidade: ${deliveryType === 'pickup' ? 'Retirada no Ateliê' : (deliveryAddress || 'Entrega')}\nPagamento: ${paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito'}`,
+        items: cart.map(i => ({
+          productId: i.product.id,
+          name: i.product.name,
+          quantity: i.quantity,
+          hoursToMake: ((i.product.minutesToMake || 60) / 60),
+          materials: i.product.materials || [],
+          profitMargin: i.product.profitMargin || 30,
+          unitPrice: i.price,
+          manualBaseCost: i.product.manualBaseCost || 0,
+          packagingCost: i.product.packagingCost || 0,
+          minOrderQuantity: i.product.minOrderQuantity || 1
+        })),
+        platformId: '',
+        excedente: 0,
+        status: 'pending' as const, // Aparece na coluna "Aguardando" no Cronograma
+        createdAt: now.toISOString(),
+        dueDate: dueDate,
+        orderDate: dateStr,
+        deliveryDate: dueDate,
+        theme: orderObservations.trim() ? orderObservations.trim().slice(0, 40) : 'Catálogo Online',
+        celebrantName: customerName.trim(),
+        celebrantAge: '',
+        quoteNumber: orderNum,
+        paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
+        paidAt: now.toISOString(),
+        hoursToMake: cart.reduce((acc, i) => acc + (((i.product.minutesToMake || 60) / 60) * i.quantity), 0),
+        materials: [],
+        profitMargin: 30,
+        quantity: cart.reduce((acc, i) => acc + i.quantity, 0),
+        downPayment: cartTotal
+      };
+
+      const localTransaction = {
+        id: txId,
+        description: `Compra pelo Catálogo - ${customerName.trim()} (${orderNum})`,
+        amount: cartTotal,
+        type: 'income' as const,
+        category: 'Compra pelo Catálogo',
+        paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
+        date: dateStr,
+        status: 'paid' as const,
+        projectId: projId,
+        customerId: custId
+      };
+
+      const localCustomer = {
+        id: custId,
+        name: customerName.trim(),
+        birthDate: '',
+        phone: customerPhone.trim(),
+        address: deliveryAddress.trim(),
+        neighborhood: deliveryNeighborhood.trim(),
+        zipCode: ''
+      };
+
+      // Atualizar cache local no mesmo navegador (caso o artesão esteja testando ou usando na mesma máquina)
+      try {
+        const projectsKey = `${userKey}_craft_projects`;
+        const existingProjects = JSON.parse(localStorage.getItem(projectsKey) || localStorage.getItem('craft_projects') || '[]');
+        if (!existingProjects.some((p: any) => p.quoteNumber === orderNum || p.id === projId)) {
+          existingProjects.unshift(localProject);
+          localStorage.setItem(projectsKey, JSON.stringify(existingProjects));
+          localStorage.setItem('craft_projects', JSON.stringify(existingProjects));
+        }
+
+        const transKey = `${userKey}_craft_transactions`;
+        const existingTrans = JSON.parse(localStorage.getItem(transKey) || localStorage.getItem('craft_transactions') || '[]');
+        if (!existingTrans.some((t: any) => t.id === txId)) {
+          existingTrans.unshift(localTransaction);
+          localStorage.setItem(transKey, JSON.stringify(existingTrans));
+          localStorage.setItem('craft_transactions', JSON.stringify(existingTrans));
+        }
+
+        const custKey = `${userKey}_craft_customers`;
+        const existingCusts = JSON.parse(localStorage.getItem(custKey) || localStorage.getItem('craft_customers') || '[]');
+        if (!existingCusts.some((c: any) => c.phone && c.phone.replace(/\D/g, '') === customerPhone.replace(/\D/g, ''))) {
+          existingCusts.push(localCustomer);
+          localStorage.setItem(custKey, JSON.stringify(existingCusts));
+          localStorage.setItem('craft_customers', JSON.stringify(existingCusts));
+        }
+
+        const catKey = `${userKey}_craft_trans_categories`;
+        const existingCats = JSON.parse(localStorage.getItem(catKey) || localStorage.getItem('craft_trans_categories') || '[]');
+        if (Array.isArray(existingCats) && !existingCats.includes('Compra pelo Catálogo')) {
+          existingCats.push('Compra pelo Catálogo');
+          localStorage.setItem(catKey, JSON.stringify(existingCats));
+          localStorage.setItem('craft_trans_categories', JSON.stringify(existingCats));
+        }
+      } catch (cacheErr) {
+        console.warn("Aviso ao sincronizar cache local de pedido:", cacheErr);
+      }
+
+      // Propagar para o callback de App.tsx se presente
+      if (onOrderCreated) {
+        onOrderCreated(localProject, localTransaction, localCustomer);
+      }
+
+      // Aguardar a confirmação do backend sem travar a interface
+      apiPromise.then(res => {
+        if (res?.project && onOrderCreated) {
+          onOrderCreated(res.project, res.transaction, res.customerId ? { ...localCustomer, id: res.customerId } : undefined);
+        }
+      });
+    } catch (autoErr) {
+      console.warn("Aviso na automação do pedido:", autoErr);
+    }
+
     // Disparar abertura do WhatsApp
     const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
@@ -533,6 +702,7 @@ ${paymentSection}
     setMpPixData(null);
     setMpPreferenceData(null);
     setMpPaymentStatus(null);
+    setMpNotice(null);
   };
 
   if (loading) {
@@ -1495,19 +1665,32 @@ ${paymentSection}
                   )}
                 </div>
 
+                {/* Personalização / Observações */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">3</span>
+                    Detalhes da Personalização (Opcional)
+                  </h4>
+                  <textarea 
+                    placeholder="Ex: Nome: Maria Eduarda, Idade: 5 anos, Tema: Jardim Encantado, Cores: Rosa e Dourado, Data da Festa: 25/10..."
+                    value={orderObservations}
+                    onChange={(e) => setOrderObservations(e.target.value)}
+                    rows={3}
+                    className="w-full p-3.5 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-medium text-xs text-gray-700 placeholder-gray-400"
+                  />
+                </div>
+
                 {/* Forma de Pagamento */}
                 <div className="space-y-4">
                   <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 border-b border-gray-100 pb-2">
-                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">3</span>
+                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">4</span>
                     Forma de Pagamento Preferida
                   </h4>
 
                   <div className="grid grid-cols-2 gap-2.5">
                     {[
                       { id: 'pix', label: 'Pix', icon: Sparkles, badge: isMercadoPagoActive ? 'Baixa Automática' : 'Mais rápido' },
-                      { id: 'credit', label: 'Cartão de Crédito', icon: CreditCard, badge: isMercadoPagoActive ? 'Mercado Pago' : undefined },
-                      { id: 'debit', label: 'Cartão de Débito', icon: CreditCard },
-                      { id: 'cash', label: 'Dinheiro', icon: DollarSign }
+                      { id: 'credit', label: 'Cartão de Crédito', icon: CreditCard, badge: isMercadoPagoActive ? 'Mercado Pago' : undefined }
                     ].map(pm => {
                       const Icon = pm.icon;
                       const isSelected = paymentMethod === pm.id;
@@ -1544,21 +1727,6 @@ ${paymentSection}
                       </p>
                     </div>
                   )}
-                </div>
-
-                {/* Personalização / Observações */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 border-b border-gray-100 pb-2">
-                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">4</span>
-                    Detalhes da Personalização (Opcional)
-                  </h4>
-                  <textarea 
-                    placeholder="Ex: Nome: Maria Eduarda, Idade: 5 anos, Tema: Jardim Encantado, Cores: Rosa e Dourado, Data da Festa: 25/10..."
-                    value={orderObservations}
-                    onChange={(e) => setOrderObservations(e.target.value)}
-                    rows={3}
-                    className="w-full p-3.5 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-medium text-xs text-gray-700 placeholder-gray-400"
-                  />
                 </div>
 
                 {/* Resumo e Botão de Envio Automático para o WhatsApp */}
@@ -1673,23 +1841,38 @@ ${paymentSection}
                     </div>
                   )}
 
-                  {/* CASO LINK DE CHECKOUT COM CARTÃO MERCADO PAGO GERADO */}
+                  {/* CASO LINK DE CHECKOUT MERCADO PAGO GERADO (CARTÃO OU FALLBACK PIX) */}
                   {mpPreferenceData?.initPoint && (
                     <div className="p-5 bg-gradient-to-b from-blue-50/70 to-blue-50/30 rounded-3xl border border-blue-200 text-center space-y-3">
                       <span className="text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white px-3 py-1 rounded-full inline-block">
-                        💳 Cartão de Crédito ou Débito
+                        {paymentMethod === 'pix' ? '⚡ Pagamento Mercado Pago (Pix & Cartão)' : '💳 Cartão de Crédito ou Débito'}
                       </span>
                       <p className="text-xs font-bold text-gray-700">
-                        Finalize o pagamento com segurança no ambiente do Mercado Pago (parcele em até 12x):
+                        {paymentMethod === 'pix' 
+                          ? 'Clique abaixo para concluir seu pagamento oficial com Pix ou Cartão no Mercado Pago:'
+                          : 'Finalize o pagamento com segurança no ambiente do Mercado Pago (parcele em até 12x):'
+                        }
                       </p>
                       <button 
                         onClick={() => window.open(mpPreferenceData.initPoint, '_blank')}
                         className="w-full py-4 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-all"
                       >
                         <CreditCard size={18} />
-                        <span>Pagar Agora no Mercado Pago</span>
+                        <span>{paymentMethod === 'pix' ? 'Pagar com Pix / Cartão no Mercado Pago' : 'Pagar Agora no Mercado Pago'}</span>
                         <ExternalLink size={14} />
                       </button>
+
+                      {mpNotice && (
+                        <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-left text-xs text-amber-900 space-y-1">
+                          <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                            <Info size={13} className="text-amber-600 shrink-0" />
+                            <span className="text-[11px]">Dica para o Ateliê:</span>
+                          </div>
+                          <p className="text-[10px] leading-relaxed text-amber-800">
+                            {mpNotice}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 

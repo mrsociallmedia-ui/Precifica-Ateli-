@@ -96,7 +96,7 @@ async function startServer() {
 
         const payerEmail = (payer?.email?.trim() || "").includes("@")
           ? payer.email.trim()
-          : `${(payer?.phone || "cliente").replace(/\D/g, "") || "cliente"}@mercadopago.com`;
+          : `${(payer?.phone || "cliente").replace(/\D/g, "") || "cliente"}@gmail.com`;
 
         const payerName = payer?.name?.trim() || "Cliente";
         const nameParts = payerName.split(" ");
@@ -140,7 +140,56 @@ async function startServer() {
         const mpData: any = await mpResponse.json();
 
         if (!mpResponse.ok) {
-          console.error("Mercado Pago Pix Error:", mpData);
+          // Verificar se o erro é por ausência de chave Pix habilitada na conta do recebedor (13253 / Financial Identity Use Case / Collector user without key)
+          const isMissingPixKey = 
+            mpData?.message?.includes("Collector user without key") ||
+            mpData?.cause?.some((c: any) => c.code === 13253 || c.description?.includes("Financial Identity")) ||
+            JSON.stringify(mpData).includes("Financial Identity") ||
+            JSON.stringify(mpData).includes("Collector user without key");
+
+          if (isMissingPixKey) {
+            console.log("Mercado Pago: Conta sem chave Pix cadastrada para QR direto no v1/payments. Gerando link oficial do Checkout Pro...");
+            try {
+              const prefResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${token}`,
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  items: [{
+                    title: description || `Pedido #${orderId || 'Online'} - Ateliê`,
+                    quantity: 1,
+                    unit_price: Number(numAmount.toFixed(2)),
+                    currency_id: "BRL"
+                  }],
+                  payer: {
+                    name: payerName,
+                    email: payerEmail
+                  },
+                  external_reference: String(orderId || "")
+                })
+              });
+
+              if (prefResponse.ok) {
+                const prefData: any = await prefResponse.json();
+                return res.json({
+                  fallbackToPreference: true,
+                  initPoint: prefData.init_point,
+                  sandboxInitPoint: prefData.sandbox_init_point,
+                  id: prefData.id,
+                  amount: numAmount,
+                  missingPixKeyNotice: true,
+                  message: "Para ativar o QR Code dinâmico do Pix direto no catálogo, cadastre uma Chave Pix no app do Mercado Pago (Menu > Seu Perfil > Chaves Pix). Enquanto isso, o cliente pode pagar com segurança pelo link oficial gerado abaixo!"
+                });
+              }
+            } catch (prefErr) {
+              console.warn("Aviso ao gerar preference fallback:", prefErr);
+            }
+          }
+
+          console.warn("Mercado Pago Pix resposta de validação:", mpData?.message || mpData?.error || "Aviso no processamento Pix");
+
           return res.status(mpResponse.status).json({
             error: mpData.message || mpData.error || "Erro ao gerar cobrança Pix no Mercado Pago.",
             details: mpData
@@ -159,7 +208,7 @@ async function startServer() {
           dateOfExpiration: mpData.date_of_expiration
         });
       } catch (error: any) {
-        console.error("Erro interno ao criar Pix no Mercado Pago:", error);
+        console.warn("Aviso interno ao criar Pix no Mercado Pago:", error?.message || error);
         res.status(500).json({ error: error.message || "Erro interno ao processar Pix." });
       }
     });
@@ -180,10 +229,8 @@ async function startServer() {
           return res.status(400).json({ error: "Itens do pedido não fornecidos." });
         }
 
-        const origin = req.headers.origin || req.headers.referer || "http://localhost:3000";
-        const backUrlSuccess = returnUrl || `${origin}/?order=${orderId}&payment=success`;
-        const backUrlFailure = returnUrl || `${origin}/?order=${orderId}&payment=failure`;
-        const backUrlPending = returnUrl || `${origin}/?order=${orderId}&payment=pending`;
+        const origin = req.headers.origin || req.headers.referer || "";
+        const cleanOrigin = origin.startsWith("http") ? origin.replace(/\/$/, "") : "";
 
         const prefPayload: any = {
           items: items.map((it: any) => ({
@@ -194,17 +241,20 @@ async function startServer() {
           })),
           payer: {
             name: payer?.name || "Cliente",
-            email: (payer?.email?.trim() || "").includes("@") ? payer.email.trim() : "cliente@mercadopago.com"
+            email: (payer?.email?.trim() || "").includes("@") ? payer.email.trim() : "cliente.pedidos@gmail.com"
           },
           external_reference: String(orderId || ""),
-          back_urls: {
-            success: backUrlSuccess,
-            failure: backUrlFailure,
-            pending: backUrlPending
-          },
-          auto_return: "approved",
           statement_descriptor: "ATELIE PAPELARIA"
         };
+
+        if (cleanOrigin && cleanOrigin.startsWith("https")) {
+          prefPayload.back_urls = {
+            success: `${cleanOrigin}/?order=${orderId}&payment=success`,
+            failure: `${cleanOrigin}/?order=${orderId}&payment=failure`,
+            pending: `${cleanOrigin}/?order=${orderId}&payment=pending`
+          };
+          prefPayload.auto_return = "approved";
+        }
 
         const mpResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
           method: "POST",
@@ -218,7 +268,7 @@ async function startServer() {
         const mpData: any = await mpResponse.json();
 
         if (!mpResponse.ok) {
-          console.error("Mercado Pago Preference Error:", mpData);
+          console.warn("Mercado Pago Preference Aviso:", mpData?.message || mpData?.error);
           return res.status(mpResponse.status).json({
             error: mpData.message || mpData.error || "Erro ao criar link de pagamento no Mercado Pago.",
             details: mpData
@@ -231,7 +281,7 @@ async function startServer() {
           sandboxInitPoint: mpData.sandbox_init_point
         });
       } catch (error: any) {
-        console.error("Erro interno ao criar preferência do Mercado Pago:", error);
+        console.warn("Aviso interno ao criar preferência do Mercado Pago:", error?.message || error);
         res.status(500).json({ error: error.message || "Erro interno ao processar link de pagamento." });
       }
     });
@@ -267,7 +317,7 @@ async function startServer() {
           dateApproved: mpData.date_approved
         });
       } catch (error: any) {
-        console.error("Erro ao verificar pagamento no Mercado Pago:", error);
+        console.warn("Aviso ao verificar pagamento no Mercado Pago:", error?.message || error);
         res.status(500).json({ error: error.message || "Erro interno ao consultar pagamento." });
       }
     });
@@ -276,6 +326,188 @@ async function startServer() {
     app.post("/api/mercadopago/webhook", (req: Request, res: Response) => {
       console.log("Mercado Pago Webhook Event received:", req.query, req.body);
       res.status(200).send("OK");
+    });
+
+    // API Route: Submeter Pedido do Catálogo Online (Automação de Cronograma + Financeiro)
+    app.post("/api/catalog/submit-order", async (req: Request, res: Response) => {
+      try {
+        const {
+          userEmail,
+          orderNum,
+          customerName,
+          customerPhone,
+          customerEmail,
+          deliveryType,
+          deliveryAddress,
+          deliveryNeighborhood,
+          deliveryCity,
+          paymentMethod,
+          cartTotal,
+          items,
+          orderObservations
+        } = req.body;
+
+        if (!userEmail || !customerName) {
+          return res.status(400).json({ error: "E-mail do ateliê e nome do cliente são obrigatórios." });
+        }
+
+        const normalizedEmail = String(userEmail).toLowerCase().trim();
+        const primarySupabaseUrl = process.env.VITE_SUPABASE_URL || 'https://scnjxuzapasdfgevegds.supabase.co';
+        const primarySupabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow';
+
+        // 1. Buscar app_state atual do usuário
+        let appState: any = {};
+        try {
+          const fetchRes = await fetch(`${primarySupabaseUrl}/rest/v1/user_data?user_email=eq.${encodeURIComponent(normalizedEmail)}&select=app_state`, {
+            headers: {
+              'apikey': primarySupabaseKey,
+              'Authorization': `Bearer ${primarySupabaseKey}`
+            }
+          });
+          if (fetchRes.ok) {
+            const data = await fetchRes.json();
+            if (Array.isArray(data) && data.length > 0 && data[0]?.app_state) {
+              appState = data[0].app_state;
+            }
+          }
+        } catch (e) {
+          console.warn("Aviso ao buscar estado no Supabase:", e);
+        }
+
+        const craftCustomers = Array.isArray(appState.craft_customers) ? [...appState.craft_customers] : [];
+        const craftProjects = Array.isArray(appState.craft_projects) ? [...appState.craft_projects] : [];
+        const craftTransactions = Array.isArray(appState.craft_transactions) ? [...appState.craft_transactions] : [];
+        const craftTransCategories = Array.isArray(appState.craft_trans_categories) ? [...appState.craft_trans_categories] : ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Permuta', 'Outros'];
+
+        // Encontrar ou cadastrar cliente
+        const cleanPhone = (customerPhone || '').replace(/\D/g, '');
+        let existingCustomer = craftCustomers.find((c: any) => 
+          (cleanPhone && c.phone && c.phone.replace(/\D/g, '') === cleanPhone) ||
+          (c.name && c.name.toLowerCase().trim() === String(customerName).toLowerCase().trim())
+        );
+
+        let customerId = existingCustomer ? existingCustomer.id : `cust_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
+        if (!existingCustomer) {
+          const newCustomer = {
+            id: customerId,
+            name: customerName.trim(),
+            birthDate: '',
+            phone: customerPhone ? customerPhone.trim() : '',
+            address: deliveryAddress ? deliveryAddress.trim() : '',
+            neighborhood: deliveryNeighborhood ? deliveryNeighborhood.trim() : '',
+            zipCode: ''
+          };
+          craftCustomers.push(newCustomer);
+          appState.craft_customers = craftCustomers;
+        }
+
+        // Criar Projeto (Cronograma)
+        const projectId = `proj_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+        const now = new Date();
+        const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const dateStr = now.toISOString().split('T')[0];
+        const orderItems = Array.isArray(items) ? items : [];
+
+        const itemsSummary = orderItems.map((i: any) => `${i.quantity || 1}x ${i.product?.name || i.name || 'Produto'}`).join(', ');
+
+        const newProject = {
+          id: projectId,
+          name: `Pedido Catálogo: ${customerName.trim()}`,
+          customerId: customerId,
+          description: itemsSummary || 'Pedido realizado pelo Catálogo Online',
+          observations: orderObservations ? String(orderObservations).trim() : '',
+          notes: `Origem: Catálogo Online • Pedido ${orderNum || ''}\nModalidade: ${deliveryType === 'pickup' ? 'Retirada no Ateliê' : `Entrega: ${deliveryAddress || ''} ${deliveryNeighborhood ? `- ${deliveryNeighborhood}` : ''} ${deliveryCity ? `- ${deliveryCity}` : ''}`}\nPagamento: ${paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito'}`,
+          items: orderItems.map((i: any) => ({
+            productId: i.product?.id || i.productId,
+            name: i.product?.name || i.name || 'Produto',
+            quantity: Number(i.quantity) || 1,
+            hoursToMake: ((Number(i.product?.minutesToMake) || 60) / 60),
+            materials: i.product?.materials || [],
+            profitMargin: Number(i.product?.profitMargin) || 30,
+            unitPrice: Number(i.price) || Number(i.product?.marketPrice) || 0,
+            manualBaseCost: Number(i.product?.manualBaseCost) || 0,
+            packagingCost: Number(i.product?.packagingCost) || 0,
+            minOrderQuantity: Number(i.product?.minOrderQuantity) || 1
+          })),
+          platformId: '',
+          excedente: 0,
+          status: 'pending', // Aparece na coluna "Aguardando" no Cronograma
+          createdAt: now.toISOString(),
+          dueDate: dueDate,
+          orderDate: dateStr,
+          deliveryDate: dueDate,
+          theme: orderObservations ? String(orderObservations).trim().slice(0, 40) : 'Catálogo Online',
+          celebrantName: customerName.trim(),
+          celebrantAge: '',
+          quoteNumber: orderNum || `#PED-${Math.floor(1000 + Math.random() * 9000)}`,
+          paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
+          paidAt: now.toISOString(),
+          hoursToMake: orderItems.reduce((acc: number, i: any) => acc + (((Number(i.product?.minutesToMake) || 60) / 60) * (Number(i.quantity) || 1)), 0),
+          materials: [],
+          profitMargin: 30,
+          quantity: orderItems.reduce((acc: number, i: any) => acc + (Number(i.quantity) || 1), 0),
+          downPayment: Number(cartTotal) || 0
+        };
+
+        // Criar Transação (Financeiro)
+        const transactionId = `tx_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+        const newTransaction = {
+          id: transactionId,
+          description: `Compra pelo Catálogo - ${customerName.trim()} (${orderNum || newProject.quoteNumber})`,
+          amount: Number(cartTotal) || 0,
+          type: 'income',
+          category: 'Compra pelo Catálogo',
+          paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
+          date: dateStr,
+          status: 'paid',
+          projectId: projectId,
+          customerId: customerId
+        };
+
+        // Adicionar categoria 'Compra pelo Catálogo' se não existir
+        if (!craftTransCategories.includes('Compra pelo Catálogo')) {
+          craftTransCategories.push('Compra pelo Catálogo');
+          appState.craft_trans_categories = craftTransCategories;
+        }
+
+        // Adicionar projeto e transação
+        craftProjects.unshift(newProject);
+        craftTransactions.unshift(newTransaction);
+
+        appState.craft_projects = craftProjects;
+        appState.craft_transactions = craftTransactions;
+
+        // Salvar via Supabase REST Upsert
+        const saveRes = await fetch(`${primarySupabaseUrl}/rest/v1/user_data`, {
+          method: 'POST',
+          headers: {
+            'apikey': primarySupabaseKey,
+            'Authorization': `Bearer ${primarySupabaseKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify({
+            user_email: normalizedEmail,
+            app_state: appState,
+            updated_at: new Date().toISOString()
+          })
+        });
+
+        if (!saveRes.ok) {
+          const errText = await saveRes.text();
+          console.warn("Aviso ao salvar pedido no Supabase via REST:", errText);
+        }
+
+        res.json({
+          success: true,
+          project: newProject,
+          transaction: newTransaction,
+          customerId: customerId
+        });
+      } catch (error: any) {
+        console.warn("Aviso ao registrar pedido automatizado do catálogo:", error?.message || error);
+        res.status(500).json({ error: error.message || "Erro interno ao processar pedido." });
+      }
     });
 
     // API Route for Gemini content generation
