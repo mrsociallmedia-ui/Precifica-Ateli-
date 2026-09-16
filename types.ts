@@ -18,6 +18,24 @@ export interface Customer {
   neighborhood: string;
   zipCode: string;
   creditBalance?: number;
+  email?: string;
+  cpf?: string;
+  city?: string;
+  complement?: string;
+}
+
+export interface CatalogCustomerProfile {
+  id?: string;
+  name: string;
+  phone: string;
+  email?: string;
+  cpf?: string;
+  address?: string;
+  neighborhood?: string;
+  city?: string;
+  zipCode?: string;
+  complement?: string;
+  deliveryType?: 'pickup' | 'delivery';
 }
 
 export interface Platform {
@@ -74,6 +92,9 @@ export interface CompanyData {
   bankAccount?: string;
   bankAccountType?: 'corrente' | 'poupanca';
   paymentLink?: string; // Link Mercado Pago / InfinitePay / PagSeguro / Nubank
+  mercadoPagoAccessToken?: string; // Access Token de Produção ou Teste (APP_USR-... ou TEST-...)
+  mercadoPagoPublicKey?: string; // Chave Pública do Mercado Pago
+  mercadoPagoEnabled?: boolean; // Se pagamentos automáticos do MP estão ativados
   instagram?: string;
   city?: string;
   catalogSubtitle?: string;

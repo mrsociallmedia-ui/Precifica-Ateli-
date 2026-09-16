@@ -18,7 +18,8 @@ import {
   MessageCircle,
   Clock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  CreditCard
 } from 'lucide-react';
 import { Project, Product, Transaction, CompanyData, Customer } from '../types';
 
@@ -410,10 +411,48 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 <span className="text-gray-400 font-bold">Chave Pix:</span>
                 <span className="font-black text-emerald-600 truncate max-w-[200px]">{companyData?.pixKey || 'Não cadastrada'}</span>
               </div>
+              <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                <span className="text-gray-400 font-bold">Mercado Pago:</span>
+                {companyData?.mercadoPagoAccessToken?.trim() ? (
+                  <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
+                    ✓ Conectado
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => onNavigate('settings')}
+                    className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-0.5 rounded-full border border-blue-200 cursor-pointer transition-colors"
+                  >
+                    + Conectar
+                  </button>
+                )}
+              </div>
               <div className="flex justify-between py-1.5">
                 <span className="text-gray-400 font-bold">Itens Visíveis:</span>
                 <span className="font-black text-pink-600">{catalogProducts.length} produtos</span>
               </div>
+            </div>
+
+            {/* Banner Mercado Pago */}
+            <div className="p-4 bg-gradient-to-r from-blue-50/70 to-indigo-50/40 rounded-2xl border border-blue-100 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <CreditCard size={16} />
+                </div>
+                <div>
+                  <p className="text-xs font-black text-blue-900">Mercado Pago no Catálogo</p>
+                  <p className="text-[10px] text-blue-700 leading-tight">
+                    {companyData?.mercadoPagoAccessToken?.trim()
+                      ? 'Recebimento com baixa automática ativo na sua conta.'
+                      : 'Receba Pix e Cartão com baixa automática no seu catálogo.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => onNavigate('settings')}
+                className="px-3 py-2 bg-white hover:bg-blue-50 text-blue-700 font-black text-[10px] uppercase tracking-wider rounded-xl border border-blue-200 shrink-0 cursor-pointer transition-colors shadow-xs"
+              >
+                {companyData?.mercadoPagoAccessToken?.trim() ? 'Configurar' : 'Integrar'}
+              </button>
             </div>
 
             <button 

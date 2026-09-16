@@ -62,28 +62,74 @@ async function startServer() {
       });
     });
 
-    // Helper to get sanitized Mercado Pago token
-    const getMercadoPagoToken = () => {
+    // Helper to get sanitized Mercado Pago token (supports user-level custom token or system env fallback)
+    const getMercadoPagoToken = (customToken?: string | null) => {
+      if (customToken && typeof customToken === 'string') {
+        const trimmed = customToken.trim();
+        if (trimmed.length > 10) return trimmed;
+      }
       const token = process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim();
       return token && token.length > 10 ? token : null;
     };
 
-    // Mercado Pago Status Endpoint
+    // Mercado Pago Status Endpoint (allows checking specific user's token or global env)
     app.get("/api/mercadopago/status", (req: Request, res: Response) => {
-      const token = getMercadoPagoToken();
+      const customToken = (req.query.token as string) || (req.headers['x-mp-token'] as string);
+      const token = getMercadoPagoToken(customToken);
       res.json({
         configured: !!token,
         isSandbox: token ? token.startsWith("TEST-") : false
       });
     });
 
+    // Mercado Pago Test Connection Endpoint (tests a given token against Mercado Pago API)
+    app.post("/api/mercadopago/test-connection", async (req: Request, res: Response) => {
+      try {
+        const { token } = req.body;
+        const finalToken = getMercadoPagoToken(token);
+        if (!finalToken) {
+          return res.status(400).json({ 
+            success: false, 
+            error: "Nenhum Access Token fornecido. Insira seu token de produção ou teste do Mercado Pago." 
+          });
+        }
+
+        const mpRes = await fetch("https://api.mercadopago.com/users/me", {
+          headers: { "Authorization": `Bearer ${finalToken}` }
+        });
+
+        const data: any = await mpRes.json();
+        if (!mpRes.ok) {
+          return res.status(400).json({ 
+            success: false, 
+            error: data.message || "Access Token inválido ou sem permissão. Verifique suas credenciais no Mercado Pago." 
+          });
+        }
+
+        res.json({
+          success: true,
+          id: data.id,
+          nickname: data.nickname,
+          email: data.email,
+          siteId: data.site_id,
+          isSandbox: finalToken.startsWith("TEST-")
+        });
+      } catch (err: any) {
+        res.status(500).json({ 
+          success: false, 
+          error: err.message || "Erro ao conectar com a API do Mercado Pago." 
+        });
+      }
+    });
+
     // Mercado Pago Create Pix Payment
     app.post("/api/mercadopago/create-pix", async (req: Request, res: Response) => {
       try {
-        const token = getMercadoPagoToken();
+        const customToken = req.body.accessToken || (req.headers['x-mp-token'] as string);
+        const token = getMercadoPagoToken(customToken);
         if (!token) {
           return res.status(400).json({ 
-            error: "Mercado Pago não configurado. Adicione a secret MERCADO_PAGO_ACCESS_TOKEN no AI Studio.",
+            error: "Mercado Pago não configurado. Adicione seu Access Token nas Configurações do Catálogo.",
             configured: false 
           });
         }
@@ -216,10 +262,11 @@ async function startServer() {
     // Mercado Pago Create Checkout Preference (Cartão de Crédito / Débito / Checkout Pro)
     app.post("/api/mercadopago/create-preference", async (req: Request, res: Response) => {
       try {
-        const token = getMercadoPagoToken();
+        const customToken = req.body.accessToken || (req.headers['x-mp-token'] as string);
+        const token = getMercadoPagoToken(customToken);
         if (!token) {
           return res.status(400).json({ 
-            error: "Mercado Pago não configurado. Adicione a secret MERCADO_PAGO_ACCESS_TOKEN no AI Studio.",
+            error: "Mercado Pago não configurado. Adicione seu Access Token nas Configurações do Catálogo.",
             configured: false 
           });
         }
@@ -289,7 +336,8 @@ async function startServer() {
     // Mercado Pago Check Payment Status
     app.get("/api/mercadopago/check-payment/:paymentId", async (req: Request, res: Response) => {
       try {
-        const token = getMercadoPagoToken();
+        const customToken = (req.query.token as string) || (req.headers['x-mp-token'] as string);
+        const token = getMercadoPagoToken(customToken);
         if (!token) {
           return res.status(400).json({ error: "Mercado Pago não configurado." });
         }
@@ -507,6 +555,224 @@ async function startServer() {
       } catch (error: any) {
         console.warn("Aviso ao registrar pedido automatizado do catálogo:", error?.message || error);
         res.status(500).json({ error: error.message || "Erro interno ao processar pedido." });
+      }
+    });
+
+    // Cadastro / Atualização de Cliente pelo Catálogo Online
+    app.post("/api/catalog/customer/register", async (req: Request, res: Response) => {
+      try {
+        const { userEmail, customer } = req.body;
+        if (!userEmail || !customer || !customer.name || !customer.phone) {
+          return res.status(400).json({ error: "Dados incompletos do cliente ou do catálogo." });
+        }
+
+        const normalizedEmail = userEmail.trim().toLowerCase();
+        const primarySupabaseUrl = process.env.VITE_SUPABASE_URL || '';
+        const primarySupabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+
+        let appState: any = {};
+        if (primarySupabaseUrl && primarySupabaseKey) {
+          try {
+            const getRes = await fetch(`${primarySupabaseUrl}/rest/v1/user_data?user_email=eq.${encodeURIComponent(normalizedEmail)}&select=app_state`, {
+              headers: {
+                'apikey': primarySupabaseKey,
+                'Authorization': `Bearer ${primarySupabaseKey}`
+              }
+            });
+            if (getRes.ok) {
+              const rows: any = await getRes.json();
+              if (rows && rows.length > 0 && rows[0].app_state) {
+                appState = rows[0].app_state;
+              }
+            }
+          } catch (fetchErr) {
+            console.warn("Aviso ao carregar app_state para cadastro de cliente:", fetchErr);
+          }
+        }
+
+        const craftCustomers = Array.isArray(appState.craft_customers) ? [...appState.craft_customers] : [];
+        const cleanPhone = String(customer.phone).replace(/\D/g, '');
+        const cleanEmail = String(customer.email || '').trim().toLowerCase();
+
+        let existingCustomer = craftCustomers.find((c: any) => 
+          (cleanPhone && c.phone && c.phone.replace(/\D/g, '') === cleanPhone) ||
+          (cleanEmail && c.email && c.email.toLowerCase().trim() === cleanEmail)
+        );
+
+        let customerId = existingCustomer ? existingCustomer.id : `cust_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
+
+        const updatedCustomer = {
+          id: customerId,
+          name: customer.name.trim(),
+          phone: customer.phone.trim(),
+          email: customer.email ? customer.email.trim() : (existingCustomer?.email || ''),
+          cpf: customer.cpf ? customer.cpf.trim() : (existingCustomer?.cpf || ''),
+          address: customer.address ? customer.address.trim() : (existingCustomer?.address || ''),
+          neighborhood: customer.neighborhood ? customer.neighborhood.trim() : (existingCustomer?.neighborhood || ''),
+          city: customer.city ? customer.city.trim() : (existingCustomer?.city || ''),
+          zipCode: customer.zipCode ? customer.zipCode.trim() : (existingCustomer?.zipCode || ''),
+          complement: customer.complement ? customer.complement.trim() : (existingCustomer?.complement || ''),
+          birthDate: existingCustomer?.birthDate || ''
+        };
+
+        if (existingCustomer) {
+          const idx = craftCustomers.findIndex((c: any) => c.id === customerId);
+          if (idx >= 0) craftCustomers[idx] = updatedCustomer;
+        } else {
+          craftCustomers.push(updatedCustomer);
+        }
+
+        appState.craft_customers = craftCustomers;
+
+        if (primarySupabaseUrl && primarySupabaseKey) {
+          await fetch(`${primarySupabaseUrl}/rest/v1/user_data`, {
+            method: 'POST',
+            headers: {
+              'apikey': primarySupabaseKey,
+              'Authorization': `Bearer ${primarySupabaseKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify({
+              user_email: normalizedEmail,
+              app_state: appState,
+              updated_at: new Date().toISOString()
+            })
+          });
+        }
+
+        res.json({
+          success: true,
+          customer: updatedCustomer
+        });
+      } catch (err: any) {
+        console.warn("Aviso ao cadastrar cliente do catálogo:", err);
+        res.status(500).json({ error: err?.message || "Erro ao cadastrar cliente." });
+      }
+    });
+
+    // Consulta e Acompanhamento de Pedidos pelo Cliente no Catálogo Online
+    app.get("/api/catalog/track-orders", async (req: Request, res: Response) => {
+      try {
+        const userEmail = (req.query.userEmail as string || '').trim().toLowerCase();
+        const search = (req.query.search as string || '').trim();
+
+        if (!userEmail) {
+          return res.status(400).json({ error: "E-mail do catálogo não informado." });
+        }
+
+        const primarySupabaseUrl = process.env.VITE_SUPABASE_URL || '';
+        const primarySupabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+
+        let appState: any = {};
+        if (primarySupabaseUrl && primarySupabaseKey) {
+          try {
+            const getRes = await fetch(`${primarySupabaseUrl}/rest/v1/user_data?user_email=eq.${encodeURIComponent(userEmail)}&select=app_state`, {
+              headers: {
+                'apikey': primarySupabaseKey,
+                'Authorization': `Bearer ${primarySupabaseKey}`
+              }
+            });
+            if (getRes.ok) {
+              const rows: any = await getRes.json();
+              if (rows && rows.length > 0 && rows[0].app_state) {
+                appState = rows[0].app_state;
+              }
+            }
+          } catch (fetchErr) {
+            console.warn("Aviso ao buscar projetos para acompanhamento:", fetchErr);
+          }
+        }
+
+        const craftProjects = Array.isArray(appState.craft_projects) ? appState.craft_projects : [];
+        const craftCustomers = Array.isArray(appState.craft_customers) ? appState.craft_customers : [];
+
+        const cleanSearch = search.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanPhoneSearch = search.replace(/\D/g, '');
+
+        // Encontrar clientes que batem com a busca (se for por telefone, nome ou email)
+        const matchedCustomerIds = new Set<string>();
+        if (search) {
+          craftCustomers.forEach((c: any) => {
+            const cPhone = String(c.phone || '').replace(/\D/g, '');
+            const cEmail = String(c.email || '').toLowerCase().trim();
+            const cName = String(c.name || '').toLowerCase().trim();
+
+            if (
+              (cleanPhoneSearch && cleanPhoneSearch.length >= 6 && cPhone.includes(cleanPhoneSearch)) ||
+              (cEmail && search.includes('@') && cEmail === search.toLowerCase().trim()) ||
+              (cName && search.length >= 3 && cName.includes(search.toLowerCase().trim()))
+            ) {
+              matchedCustomerIds.add(c.id);
+            }
+          });
+        }
+
+        // Filtrar projetos
+        const matchedProjects = craftProjects.filter((p: any) => {
+          if (!search) return false;
+
+          const pQuote = String(p.quoteNumber || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const pName = String(p.name || '').toLowerCase();
+          const pCelebrant = String(p.celebrantName || '').toLowerCase();
+          const pNotes = String(p.notes || '').toLowerCase();
+
+          // 1. Bateu por número do pedido (ex: #PED-1234 ou 1234)
+          if (cleanSearch && pQuote.includes(cleanSearch)) return true;
+
+          // 2. Bateu com o cliente associado
+          if (p.customerId && matchedCustomerIds.has(p.customerId)) return true;
+
+          // 3. Bateu pelo telefone anotado nas observações ou notas
+          if (cleanPhoneSearch && cleanPhoneSearch.length >= 6 && pNotes.replace(/\D/g, '').includes(cleanPhoneSearch)) return true;
+
+          // 4. Bateu pelo nome do cliente no pedido
+          if (search.length >= 3 && (pCelebrant.includes(search.toLowerCase()) || pName.includes(search.toLowerCase()))) return true;
+
+          return false;
+        });
+
+        // Mapear para objeto de acompanhamento claro para o cliente
+        const orders = matchedProjects.map((p: any) => {
+          const cust = craftCustomers.find((c: any) => c.id === p.customerId);
+          return {
+            id: p.id,
+            orderNum: p.quoteNumber || p.id,
+            date: p.orderDate || p.createdAt || new Date().toISOString(),
+            createdAt: p.createdAt || p.orderDate,
+            dueDate: p.dueDate || p.deliveryDate,
+            deliveryDate: p.deliveryDate || p.dueDate,
+            status: p.status || 'pending',
+            celebrantName: p.celebrantName || cust?.name || 'Cliente',
+            theme: p.theme || 'Catálogo Online',
+            description: p.description || '',
+            notes: p.notes || '',
+            observations: p.observations || '',
+            items: Array.isArray(p.items) ? p.items.map((it: any) => ({
+              name: it.name || 'Produto',
+              quantity: it.quantity || 1,
+              price: it.unitPrice || 0
+            })) : [],
+            total: Number(p.downPayment) || 0,
+            paymentMethod: p.paymentMethod || 'Pix',
+            paidAt: p.paidAt,
+            customer: cust ? {
+              name: cust.name,
+              phone: cust.phone,
+              address: cust.address,
+              neighborhood: cust.neighborhood,
+              city: cust.city
+            } : undefined
+          };
+        });
+
+        res.json({
+          success: true,
+          orders
+        });
+      } catch (err: any) {
+        console.warn("Aviso ao buscar pedidos para acompanhamento:", err);
+        res.status(500).json({ error: err?.message || "Erro ao consultar pedidos." });
       }
     });
 

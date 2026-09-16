@@ -50,6 +50,9 @@ export const INITIAL_COMPANY_DATA = {
   bankAccount: '',
   bankAccountType: 'corrente' as 'corrente' | 'poupanca',
   paymentLink: '',
+  mercadoPagoAccessToken: '',
+  mercadoPagoPublicKey: '',
+  mercadoPagoEnabled: true,
   instagram: '',
   city: '',
   catalogSubtitle: ''
