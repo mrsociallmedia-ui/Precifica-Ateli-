@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Package, 
@@ -17,11 +16,32 @@ import {
   ShoppingBag,
   ArrowRight,
   RefreshCw,
-  Eye
+  Eye,
+  ShieldCheck,
+  MapPin,
+  Sparkles,
+  Send,
+  Copy,
+  Check,
+  Clock,
+  CreditCard,
+  DollarSign,
+  Home,
+  Truck,
+  ChevronLeft,
+  ChevronRight,
+  Phone,
+  Instagram,
+  AlertCircle,
+  Share2,
+  Landmark,
+  QrCode,
+  Link2,
+  FileCheck
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Product, CompanyData, Material, Platform } from '../types';
-import { calculateProjectBreakdown } from '../utils';
+import { calculateProjectBreakdown, generatePixCopiaECola } from '../utils';
 
 declare const html2canvas: any;
 
@@ -46,26 +66,44 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
+  const [modalQty, setModalQty] = useState(1);
+  const [addedItemFeedback, setAddedItemFeedback] = useState<string | null>(null);
   
-  // Estados do Carrinho
+  // Estados do Carrinho & Checkout Automatizado
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [cartStep, setCartStep] = useState<'items' | 'checkout' | 'success'>('items');
+  const [isProcessingOrder, setIsProcessingOrder] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
+  const [pixCopiaColaCopied, setPixCopiaColaCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [bankDataCopied, setBankDataCopied] = useState(false);
+  const [completedOrderNumber, setCompletedOrderNumber] = useState('');
+  const [lastOrderMessage, setLastOrderMessage] = useState('');
+  
+  // Dados do Formulário do Cliente
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>('pickup');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryNeighborhood, setDeliveryNeighborhood] = useState('');
+  const [deliveryCity, setDeliveryCity] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit' | 'debit' | 'cash'>('pix');
+  const [orderObservations, setOrderObservations] = useState('');
+  const [formErrors, setFormErrors] = useState<{ name?: string; phone?: string; address?: string }>({});
+
   const orderSummaryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // No Supabase real, precisaríamos que a tabela user_data permitisse leitura pública por email
-        // ou usar uma Edge Function. Para este ambiente, tentamos buscar diretamente.
+        // 1. Tentar buscar dados públicos no Supabase
         const { data, error } = await supabase
           .from('user_data')
           .select('app_state')
           .eq('user_email', userEmail.toLowerCase())
           .maybeSingle();
-
-        if (error) throw error;
 
         if (data?.app_state) {
           const s = data.app_state;
@@ -73,9 +111,39 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
           setCompanyData(s.craft_company || null);
           setMaterials(s.craft_materials || []);
           setPlatforms(s.craft_platforms || []);
+        } else {
+          // 2. Fallback de localStorage caso esteja rodando localmente ou no mesmo navegador
+          const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+          const localCompany = localStorage.getItem(`craft_company_${userKey}`) || localStorage.getItem('craft_company');
+          const localProducts = localStorage.getItem(`craft_products_${userKey}`) || localStorage.getItem('craft_products');
+          const localMaterials = localStorage.getItem(`craft_materials_${userKey}`) || localStorage.getItem('craft_materials');
+          const localPlatforms = localStorage.getItem(`craft_platforms_${userKey}`) || localStorage.getItem('craft_platforms');
+
+          if (localCompany) {
+            try { setCompanyData(JSON.parse(localCompany)); } catch (e) {}
+          }
+          if (localProducts) {
+            try { setProducts(JSON.parse(localProducts)); } catch (e) {}
+          }
+          if (localMaterials) {
+            try { setMaterials(JSON.parse(localMaterials)); } catch (e) {}
+          }
+          if (localPlatforms) {
+            try { setPlatforms(JSON.parse(localPlatforms)); } catch (e) {}
+          }
         }
       } catch (err) {
         console.error("Erro ao carregar catálogo público:", err);
+        // Fallback secundário de localStorage
+        const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const localCompany = localStorage.getItem(`craft_company_${userKey}`) || localStorage.getItem('craft_company');
+        const localProducts = localStorage.getItem(`craft_products_${userKey}`) || localStorage.getItem('craft_products');
+        if (localCompany) {
+          try { setCompanyData(JSON.parse(localCompany)); } catch (e) {}
+        }
+        if (localProducts) {
+          try { setProducts(JSON.parse(localProducts)); } catch (e) {}
+        }
       } finally {
         setLoading(false);
       }
@@ -84,35 +152,99 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
     if (userEmail) fetchData();
   }, [userEmail]);
 
+  // Atualiza quantidade mínima ao selecionar produto no modal
+  useEffect(() => {
+    if (selectedProduct) {
+      setModalQty(selectedProduct.minOrderQuantity || 1);
+    }
+  }, [selectedProduct]);
+
+  // Formatação automática de telefone (99) 99999-9999
+  const handlePhoneChange = (val: string) => {
+    const raw = val.replace(/\D/g, '').slice(0, 11);
+    let formatted = raw;
+    if (raw.length > 2) {
+      formatted = `(${raw.slice(0, 2)}) ${raw.slice(2)}`;
+    }
+    if (raw.length > 7) {
+      formatted = `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
+    }
+    setCustomerPhone(formatted);
+    if (formErrors.phone) {
+      setFormErrors(prev => ({ ...prev, phone: undefined }));
+    }
+  };
+
+  const getProductPrice = (p: Product): number => {
+    if (p.marketPrice && p.marketPrice > 0) return p.marketPrice;
+    if (companyData) {
+      try {
+        const mockProject = { 
+          items: [{ 
+            productId: p.id, 
+            name: p.name, 
+            quantity: 1, 
+            hoursToMake: (p.minutesToMake || 0) / 60, 
+            materials: p.materials || [], 
+            profitMargin: p.profitMargin || 30, 
+            packagingCost: p.packagingCost || 0, 
+            minOrderQuantity: p.minOrderQuantity || 1 
+          }], 
+          platformId: platforms[0]?.id || '', 
+          excedente: companyData.defaultExcedente || 10 
+        };
+        const breakdown = calculateProjectBreakdown(mockProject as any, materials || [], platforms || [], companyData);
+        if (breakdown.finalPrice && breakdown.finalPrice > 0) {
+          return breakdown.finalPrice;
+        }
+      } catch (e) {
+        // Silently fallback
+      }
+    }
+    return p.marketPrice || 0;
+  };
+
   const visibleProducts = products.filter(p => p.showInCatalog !== false);
-  const categories = ['Todas', ...Array.from(new Set(visibleProducts.map(p => p.category)))];
+  const categories = ['Todas', ...Array.from(new Set(visibleProducts.map(p => p.category).filter(Boolean)))];
 
   const filteredProducts = visibleProducts.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         p.description?.toLowerCase().includes(searchTerm.toLowerCase());
+                         (p.description && p.description.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesCategory = selectedCategory === 'Todas' || p.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
   const handleWhatsAppContact = (productName: string, price: number) => {
-    if (!companyData?.phone) return;
-    const phone = companyData.phone.replace(/\D/g, '');
-    const message = encodeURIComponent(`Olá! Vi o produto *${productName}* (R$ ${price.toFixed(2)}) no seu catálogo online e gostaria de saber mais informações.`);
+    const phone = companyData?.phone?.replace(/\D/g, '') || '';
+    if (!phone) {
+      alert('O ateliê não possui número de WhatsApp cadastrado no momento.');
+      return;
+    }
+    const message = encodeURIComponent(`Olá! Vi o produto *${productName}* (R$ ${price.toFixed(2)}) no seu catálogo online da *${companyData?.name || 'loja'}* e gostaria de mais informações.`);
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
 
-  const addToCart = (product: Product, price: number) => {
+  const addToCart = (product: Product, price: number, qtyToAdd?: number) => {
+    const min = product.minOrderQuantity || 1;
+    const addAmount = qtyToAdd !== undefined ? qtyToAdd : min;
+
     setCart(prev => {
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
         return prev.map(item => 
           item.product.id === product.id 
-            ? { ...item, quantity: item.quantity + (product.minOrderQuantity || 1) } 
+            ? { ...item, quantity: item.quantity + addAmount } 
             : item
         );
       }
-      return [...prev, { product, quantity: product.minOrderQuantity || 1, price }];
+      return [...prev, { product, quantity: addAmount, price }];
     });
+
+    // Feedback visual
+    setAddedItemFeedback(product.id);
+    setTimeout(() => {
+      setAddedItemFeedback(null);
+    }, 1500);
   };
 
   const updateQuantity = (productId: string, delta: number) => {
@@ -131,54 +263,220 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
   };
 
   const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const cartItemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
-  const handleFinishOrder = async () => {
-    if (!companyData?.phone || cart.length === 0) return;
-    
-    setIsGeneratingImage(true);
-    try {
-      // Gerar imagem do resumo do pedido
-      const canvas = await html2canvas(orderSummaryRef.current, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        logging: false,
-        useCORS: true
-      });
-      
-      const imageData = canvas.toDataURL('image/png');
-      
-      // Como não podemos enviar o arquivo diretamente via link wa.me,
-      // vamos oferecer o download da imagem e enviar o texto detalhado.
-      // Em dispositivos móveis, poderíamos tentar usar a Web Share API se suportada.
-      
-      const link = document.createElement('a');
-      link.download = `pedido-${companyData.name || 'atelie'}.png`;
-      link.href = imageData;
-      link.click();
-
-      const phone = companyData.phone.replace(/\D/g, '');
-      let message = `*NOVO PEDIDO - ${companyData.name}*\n\n`;
-      cart.forEach(item => {
-        message += `• ${item.quantity}x *${item.product.name}* - R$ ${(item.price * item.quantity).toFixed(2)}\n`;
-      });
-      message += `\n*TOTAL: R$ ${cartTotal.toFixed(2)}*\n\n_Acabei de baixar a imagem do resumo do meu pedido e vou anexar aqui._`;
-      
-      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
-      setCart([]);
-      setIsCartOpen(false);
-    } catch (err) {
-      console.error("Erro ao finalizar pedido:", err);
-      alert("Houve um erro ao gerar o resumo do pedido. Mas você ainda pode enviar o texto!");
-    } finally {
-      setIsGeneratingImage(false);
+  // Validação do checkout
+  const validateForm = () => {
+    const errors: { name?: string; phone?: string; address?: string } = {};
+    if (!customerName.trim()) {
+      errors.name = 'Por favor, informe seu nome completo.';
     }
+    const cleanPhone = customerPhone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      errors.phone = 'Informe um número de WhatsApp válido com DDD.';
+    }
+    if (deliveryType === 'delivery' && !deliveryAddress.trim()) {
+      errors.address = 'Informe o endereço de entrega completo.';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Finalização do pedido automatizado via WhatsApp
+  const handleProcessOrder = async () => {
+    if (!validateForm()) return;
+    if (cart.length === 0) return;
+
+    const phone = companyData?.phone?.replace(/\D/g, '') || '';
+    if (!phone) {
+      alert('Número de WhatsApp do ateliê não encontrado. Entre em contato diretamente.');
+      return;
+    }
+
+    setIsProcessingOrder(true);
+
+    const orderNum = `#PED-${Math.floor(1000 + Math.random() * 9000)}`;
+    setCompletedOrderNumber(orderNum);
+
+    const now = new Date();
+    const dataStr = now.toLocaleDateString('pt-BR');
+    const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    const paymentLabels: Record<string, string> = {
+      pix: '⚡ Pix (Transferência Rápida)',
+      credit: '💳 Cartão de Crédito',
+      debit: '💳 Cartão de Débito',
+      cash: '💵 Dinheiro'
+    };
+
+    let deliveryDetails = '';
+    if (deliveryType === 'pickup') {
+      deliveryDetails = '• *Modalidade:* 🏬 Retirada no Ateliê';
+    } else {
+      deliveryDetails = `• *Modalidade:* 🚚 Entrega / Envio\n• *Endereço:* ${deliveryAddress}${deliveryNeighborhood ? `, Bairro ${deliveryNeighborhood}` : ''}${deliveryCity ? ` - ${deliveryCity}` : ''}`;
+    }
+
+    let itemsText = '';
+    cart.forEach((item, idx) => {
+      const sub = (item.price * item.quantity).toFixed(2);
+      itemsText += `${idx + 1}. *${item.product.name}*\n   ↳ ${item.quantity}x de R$ ${item.price.toFixed(2)} = *R$ ${sub}*\n`;
+    });
+
+    let paymentSection = `• *Forma:* ${paymentLabels[paymentMethod] || paymentMethod}`;
+
+    // Sincronização inteligente com dados bancários/Pix no WhatsApp
+    if (paymentMethod === 'pix' && companyData?.pixKey) {
+      const pixPayload = generatePixCopiaECola({
+        pixKey: companyData.pixKey,
+        merchantName: companyData.pixBeneficiaryName || companyData.name || 'ATELIE',
+        merchantCity: companyData.city || 'SAO PAULO',
+        amount: cartTotal,
+        transactionId: orderNum.replace(/[^a-zA-Z0-9]/g, '')
+      });
+
+      paymentSection += `\n• *Chave Pix:* \`${companyData.pixKey}\``;
+      if (companyData.pixBeneficiaryName) {
+        paymentSection += `\n• *Titular:* ${companyData.pixBeneficiaryName}`;
+      }
+      if (companyData.bankName) {
+        paymentSection += `\n• *Banco:* ${companyData.bankName}`;
+      }
+      if (pixPayload) {
+        paymentSection += `\n\n📋 *PIX COPIA E COLA (Código para pagamento direto no app do banco):*\n\`${pixPayload}\``;
+      }
+    } else if ((paymentMethod === 'credit' || paymentMethod === 'debit') && companyData?.paymentLink) {
+      paymentSection += `\n• *Link para Pagamento com Cartão:* ${companyData.paymentLink}`;
+    } else if (companyData?.bankName && companyData?.bankAccount) {
+      paymentSection += `\n• *Banco:* ${companyData.bankName} | Ag: ${companyData.bankAgency || '0001'} | Conta: ${companyData.bankAccount} (${companyData.bankAccountType === 'poupanca' ? 'Poupança' : 'Corrente'})`;
+      if (companyData.pixBeneficiaryName) {
+        paymentSection += `\n• *Titular:* ${companyData.pixBeneficiaryName}`;
+      }
+    }
+
+    const message = 
+`🛍️ *NOVO PEDIDO ONLINE • ${orderNum}*
+━━━━━━━━━━━━━━━━━━━━━━━━
+🏪 *Ateliê:* ${companyData?.name || 'Ateliê'}
+📅 *Data:* ${dataStr} às ${horaStr}
+
+👤 *DADOS DO CLIENTE*
+• *Nome:* ${customerName.trim()}
+• *WhatsApp:* ${customerPhone.trim()}
+
+📦 *ITENS DO PEDIDO*
+${itemsText}
+━━━━━━━━━━━━━━━━━━━━━━━━
+💰 *VALOR TOTAL: R$ ${cartTotal.toFixed(2)}*
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚚 *ENTREGA / RETIRADA*
+${deliveryDetails}
+
+💳 *FORMA DE PAGAMENTO SINCRONIZADA*
+${paymentSection}
+
+📝 *DETALHES / PERSONALIZAÇÃO*
+• ${orderObservations.trim() || 'Sem observações adicionais informado no pedido.'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+✨ _Olá! Acabei de gerar este pedido pelo seu Catálogo Online sincronizado com a conta bancária. Aguardo a confirmação dos detalhes e início da produção!_`;
+
+    setLastOrderMessage(message);
+
+    // Tentar gerar a imagem do resumo do pedido em segundo plano
+    try {
+      if (orderSummaryRef.current && typeof html2canvas !== 'undefined') {
+        const canvas = await html2canvas(orderSummaryRef.current, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          logging: false,
+          useCORS: true
+        });
+        const imageData = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.download = `pedido-${orderNum.replace('#', '')}.png`;
+        link.href = imageData;
+        link.click();
+      }
+    } catch (e) {
+      console.warn("Não foi possível gerar a imagem automática:", e);
+    }
+
+    // Salvar pedido no histórico local
+    try {
+      const existingOrders = JSON.parse(localStorage.getItem('my_online_orders') || '[]');
+      existingOrders.unshift({
+        orderNum,
+        date: new Date().toISOString(),
+        customerName,
+        customerPhone,
+        total: cartTotal,
+        items: cart.map(i => ({ name: i.product.name, qty: i.quantity, price: i.price })),
+        deliveryType,
+        paymentMethod
+      });
+      localStorage.setItem('my_online_orders', JSON.stringify(existingOrders.slice(0, 20)));
+    } catch (e) {}
+
+    // Disparar abertura do WhatsApp
+    const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+
+    setIsProcessingOrder(false);
+    setCartStep('success');
+  };
+
+  const copyPixKey = () => {
+    if (companyData?.pixKey) {
+      navigator.clipboard.writeText(companyData.pixKey);
+      setPixCopied(true);
+      setTimeout(() => setPixCopied(false), 2000);
+    }
+  };
+
+  const copyPixCopiaECola = (payload: string) => {
+    if (payload) {
+      navigator.clipboard.writeText(payload);
+      setPixCopiaColaCopied(true);
+      setTimeout(() => setPixCopiaColaCopied(false), 2000);
+    }
+  };
+
+  const copyBankData = () => {
+    if (!companyData) return;
+    const text = `Banco: ${companyData.bankName || 'Não especificado'}\nAgência: ${companyData.bankAgency || '0001'}\nConta: ${companyData.bankAccount || ''} (${companyData.bankAccountType === 'poupanca' ? 'Poupança' : 'Corrente'})\nTitular: ${companyData.pixBeneficiaryName || companyData.name || ''}\nChave Pix: ${companyData.pixKey || ''}`;
+    navigator.clipboard.writeText(text);
+    setBankDataCopied(true);
+    setTimeout(() => setBankDataCopied(false), 2000);
+  };
+
+  const copyCatalogLink = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  const resetCartAfterSuccess = () => {
+    setCart([]);
+    setCartStep('items');
+    setIsCartOpen(false);
+    setCustomerName('');
+    setCustomerPhone('');
+    setDeliveryAddress('');
+    setOrderObservations('');
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#fffcf5] flex flex-col items-center justify-center gap-4">
-        <div className="w-16 h-16 border-4 border-pink-200 border-t-pink-500 rounded-full animate-spin"></div>
-        <p className="text-gray-400 font-black text-[10px] uppercase tracking-widest">Carregando Catálogo...</p>
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-pink-200 border-t-pink-500 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <ShoppingBag size={20} className="text-pink-500" />
+          </div>
+        </div>
+        <p className="text-pink-500 font-black text-xs uppercase tracking-widest">Carregando Catálogo Oficial...</p>
       </div>
     );
   }
@@ -186,287 +484,561 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
   if (!companyData && !loading) {
     return (
       <div className="min-h-screen bg-[#fffcf5] flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
-          <Package size={48} className="text-gray-300" />
+        <div className="w-24 h-24 bg-pink-100 rounded-3xl flex items-center justify-center mb-6 shadow-sm">
+          <Package size={44} className="text-pink-400" />
         </div>
         <h2 className="text-2xl font-black text-gray-800 mb-2">Catálogo não encontrado</h2>
-        <p className="text-gray-400 max-w-xs">O ateliê solicitado ainda não configurou seu catálogo online ou o link está incorreto.</p>
+        <p className="text-gray-400 max-w-xs text-sm">O ateliê solicitado ainda não configurou seu catálogo online ou o link está incorreto.</p>
       </div>
     );
   }
 
+  const companyLogo = companyData?.logo || '/images/papelietes_calcula_logo.png';
+
   return (
     <div className="min-h-screen bg-[#fffcf5] font-['Quicksand'] text-[#4b5563]">
-      {/* HEADER DO ATELIÊ */}
-      <header className="bg-white border-b border-pink-50 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-pink-500 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden shrink-0">
-              {companyData?.logo ? (
-                <img src={companyData.logo} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              ) : (
-                <Package size={24} className="text-white" />
-              )}
+      {/* BARRA SUPERIOR ELEGANTE COM LOGO DA EMPRESA */}
+      <header className="bg-white/95 backdrop-blur-md border-b border-pink-100/70 sticky top-0 z-30 shadow-sm transition-all">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+          {/* Logo e Nome da Empresa */}
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-2xl flex items-center justify-center shadow-md shadow-pink-100/50 p-1 border-2 border-pink-100 shrink-0 overflow-hidden group">
+              <img 
+                src={companyLogo} 
+                alt={companyData?.name || 'Logo Ateliê'} 
+                className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
+                referrerPolicy="no-referrer" 
+              />
             </div>
             <div>
-              <h1 className="text-xl font-black text-gray-800 tracking-tight leading-none">{companyData?.name || 'Meu Ateliê'}</h1>
-              <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest mt-1">Loja Online</p>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg md:text-xl font-black text-gray-800 tracking-tight leading-none">
+                  {companyData?.name || 'Meu Ateliê'}
+                </h1>
+                <span className="hidden sm:inline-flex items-center gap-1 text-[9px] font-black text-pink-600 bg-pink-50 border border-pink-200/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  <ShieldCheck size={12} className="text-pink-500" /> Oficial
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Pedidos Abertos
+                </span>
+                {companyData?.city && (
+                  <span className="hidden md:flex items-center gap-1 text-[10px] font-bold text-gray-400">
+                    <MapPin size={11} className="text-pink-400" /> {companyData.city}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+
+          {/* Ações da Barra Superior */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Link Compartilhar */}
+            <button
+              onClick={copyCatalogLink}
+              className="p-2.5 sm:px-3.5 sm:py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold border border-gray-100"
+              title="Copiar Link do Catálogo"
+            >
+              {linkCopied ? <Check size={16} className="text-emerald-500" /> : <Share2 size={16} />}
+              <span className="hidden md:inline">{linkCopied ? 'Link Copiado!' : 'Compartilhar'}</span>
+            </button>
+
+            {/* Contato WhatsApp */}
             {companyData?.phone && (
               <button 
                 onClick={() => window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}`, '_blank')}
-                className="bg-green-50 text-green-600 p-3 rounded-2xl hover:bg-green-100 transition-all flex items-center gap-2"
+                className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2.5 sm:px-3.5 sm:py-2.5 rounded-2xl transition-all flex items-center gap-2 font-black text-xs border border-emerald-200/60 shadow-sm"
                 title="Falar no WhatsApp"
               >
-                <MessageCircle size={20} />
-                <span className="hidden sm:inline font-black text-[10px] uppercase tracking-widest">Contato</span>
+                <MessageCircle size={17} className="text-emerald-600" />
+                <span className="hidden sm:inline">WhatsApp</span>
               </button>
             )}
+
+            {/* BOTÃO DO CARRINHO (ROSA) */}
             <button 
-              onClick={() => setIsCartOpen(true)}
-              className="bg-pink-500 text-white p-3 rounded-2xl hover:bg-pink-600 transition-all shadow-lg shadow-pink-100 flex items-center gap-2 relative"
+              onClick={() => {
+                setCartStep('items');
+                setIsCartOpen(true);
+              }}
+              className="bg-pink-500 hover:bg-pink-600 active:scale-95 text-white p-2.5 sm:px-4 sm:py-2.5 rounded-2xl transition-all shadow-lg shadow-pink-200/70 flex items-center gap-2.5 relative"
             >
-              <ShoppingCart size={20} />
-              <span className="hidden sm:inline font-black text-[10px] uppercase tracking-widest">Carrinho</span>
-              {cart.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white">
-                  {cart.reduce((acc, item) => acc + item.quantity, 0)}
-                </span>
-              )}
+              <div className="relative">
+                <ShoppingCart size={18} />
+                {cartItemCount > 0 && (
+                  <span className="absolute -top-2.5 -right-2.5 bg-white text-pink-600 text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-pink-500 shadow-sm animate-scaleIn">
+                    {cartItemCount}
+                  </span>
+                )}
+              </div>
+              <span className="hidden sm:inline font-black text-xs uppercase tracking-wider">
+                {cartTotal > 0 ? `R$ ${cartTotal.toFixed(2)}` : 'Carrinho'}
+              </span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* HERO SECTION */}
-      <div className="bg-pink-50/50 border-b border-pink-100/50">
-        <div className="max-w-7xl mx-auto px-6 py-16 md:py-24 flex flex-col items-center text-center">
-          <span className="text-[10px] font-black text-pink-500 bg-pink-100 px-4 py-1.5 rounded-full uppercase tracking-widest mb-6">
-            Bem-vindo(a) à nossa loja
-          </span>
-          <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-6 tracking-tight max-w-2xl">
-            Produtos personalizados feitos com <span className="text-pink-500">amor e dedicação</span>
+      {/* VITRINE / HERO PROFISSIONAL COM LOGO DESTACADA */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-pink-100/60 via-pink-50/40 to-[#fffcf5] border-b border-pink-100/60 py-12 md:py-16">
+        {/* Elementos decorativos de fundo */}
+        <div className="absolute top-0 right-10 w-72 h-72 bg-pink-200/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 left-10 w-80 h-80 bg-rose-200/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10 flex flex-col items-center text-center">
+          {/* Logo da Empresa em Destaque no Hero */}
+          <div className="relative mb-6">
+            <div className="w-28 h-28 md:w-36 md:h-36 bg-white rounded-3xl md:rounded-[2.5rem] shadow-2xl shadow-pink-200/80 p-3 border-4 border-white ring-4 ring-pink-100 flex items-center justify-center overflow-hidden">
+              <img 
+                src={companyLogo} 
+                alt={companyData?.name || 'Logo Ateliê'} 
+                className="w-full h-full object-contain hover:scale-105 transition-transform duration-300"
+                referrerPolicy="no-referrer" 
+              />
+            </div>
+            <div className="absolute -bottom-2.5 bg-pink-500 text-white text-[9px] font-black uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md flex items-center gap-1 border-2 border-white">
+              <Sparkles size={11} /> Catálogo Oficial
+            </div>
+          </div>
+
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-gray-800 tracking-tight max-w-3xl leading-tight mb-3">
+            {companyData?.name || 'Nosso Ateliê Personalizado'}
           </h2>
-          <p className="text-gray-500 font-medium max-w-xl text-lg mb-10">
-            Explore nossa coleção exclusiva. Cada peça é única e produzida especialmente para você.
+
+          <p className="text-gray-500 font-medium max-w-xl text-base md:text-lg mb-8 leading-relaxed">
+            {companyData?.catalogSubtitle || 'Peças artesanais e papelaria personalizada produzidas com amor, dedicação e exclusividade para o seu momento especial.'}
           </p>
-          
-          {/* BUSCA NO HERO */}
+
+          {/* Selos de Confiança e Atendimento */}
+          <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 mb-10 text-xs font-bold text-gray-600">
+            <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full border border-pink-100 shadow-sm">
+              <MessageCircle size={15} className="text-emerald-500" />
+              <span>Atendimento via WhatsApp</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full border border-pink-100 shadow-sm">
+              <Truck size={15} className="text-pink-500" />
+              <span>Retirada & Envio</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full border border-pink-100 shadow-sm">
+              <CreditCard size={15} className="text-blue-500" />
+              <span>Pix & Cartão</span>
+            </div>
+            {companyData?.instagram && (
+              <a 
+                href={`https://instagram.com/${companyData.instagram.replace('@', '')}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full border border-pink-100 shadow-sm hover:text-pink-600 transition-colors"
+              >
+                <Instagram size={15} className="text-pink-500" />
+                <span>{companyData.instagram.startsWith('@') ? companyData.instagram : `@${companyData.instagram}`}</span>
+              </a>
+            )}
+          </div>
+
+          {/* BARRA DE PESQUISA REFINADA */}
           <div className="w-full max-w-2xl relative">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" size={24} />
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-pink-400" size={22} />
             <input 
               type="text" 
-              placeholder="Buscar produtos..." 
-              className="w-full pl-16 pr-6 py-5 bg-white border-2 border-transparent focus:border-pink-200 rounded-[2rem] shadow-xl shadow-pink-100/20 outline-none transition-all font-medium text-lg"
+              placeholder="Buscar por topo de bolo, lembrancinhas, kits..." 
+              className="w-full pl-16 pr-12 py-4 sm:py-5 bg-white border-2 border-pink-100 focus:border-pink-300 rounded-[2rem] shadow-xl shadow-pink-100/30 outline-none transition-all font-bold text-gray-700 placeholder-gray-400 text-sm sm:text-base"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')} 
+                className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
         </div>
-      </div>
+      </section>
 
-      <main className="max-w-7xl mx-auto px-6 py-16">
-        {/* FILTROS DE CATEGORIA */}
-        <div className="flex items-center justify-center gap-3 overflow-x-auto pb-8 mb-8 no-scrollbar">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-8 py-4 rounded-full text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${
-                selectedCategory === cat 
-                  ? 'bg-gray-900 text-white border-gray-900 shadow-xl shadow-gray-200' 
-                  : 'bg-white text-gray-500 border-gray-100 hover:border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        {/* GRID DE PRODUTOS */}
-        {filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {filteredProducts.map(p => {
-              // Cálculo de preço sugerido caso não tenha preço de mercado definido
-              const mockProject = { 
-                items: [{ productId: p.id, name: p.name, quantity: 1, hoursToMake: p.minutesToMake / 60, materials: p.materials, profitMargin: p.profitMargin, packagingCost: p.packagingCost, minOrderQuantity: p.minOrderQuantity }], 
-                platformId: platforms[0]?.id || '', 
-                excedente: companyData?.defaultExcedente || 10 
-              };
-              const breakdown = calculateProjectBreakdown(mockProject as any, materials, platforms, companyData!);
-              const finalPrice = p.marketPrice > 0 ? p.marketPrice : breakdown.finalPrice;
-
+      {/* CONTEÚDO PRINCIPAL DO CATÁLOGO */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-10 md:py-14">
+        {/* BARRA DE CONTROLE: CATEGORIAS & MODO DE EXIBIÇÃO */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b border-gray-100 mb-10">
+          {/* Filtros de Categoria em Chips */}
+          <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 no-scrollbar">
+            {categories.map(cat => {
+              const count = cat === 'Todas' 
+                ? visibleProducts.length 
+                : visibleProducts.filter(p => p.category === cat).length;
               return (
-                <div 
-                  key={p.id} 
-                  className="bg-white rounded-[2rem] shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group flex flex-col cursor-pointer border border-gray-100/50"
-                  onClick={() => {
-                    setSelectedProduct(p);
-                    setActiveImageIdx(0);
-                  }}
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap border flex items-center gap-2 ${
+                    selectedCategory === cat 
+                      ? 'bg-pink-500 text-white border-pink-500 shadow-md shadow-pink-100' 
+                      : 'bg-white text-gray-600 border-gray-200/80 hover:border-pink-200 hover:bg-pink-50/50'
+                  }`}
                 >
-                  <div className="aspect-[4/5] bg-gray-50 relative overflow-hidden rounded-t-[2rem]">
-                    {p.image ? (
-                      <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-200">
-                        <Package size={64} />
-                      </div>
-                    )}
-                    <div className="absolute top-4 left-4">
-                      <span className="text-[10px] font-black text-gray-800 bg-white/90 px-4 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-                        {p.category}
-                      </span>
-                    </div>
-                    
-                    {/* Hover Actions */}
-                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedProduct(p);
-                          setActiveImageIdx(0);
-                        }}
-                        className="w-12 h-12 bg-white text-gray-900 rounded-full flex items-center justify-center hover:bg-pink-500 hover:text-white transition-colors shadow-xl translate-y-4 group-hover:translate-y-0 duration-300"
-                        title="Ver Detalhes"
-                      >
-                        <Eye size={20} />
-                      </button>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleWhatsAppContact(p.name, finalPrice);
-                        }}
-                        className="w-12 h-12 bg-white text-green-600 rounded-full flex items-center justify-center hover:bg-green-500 hover:text-white transition-colors shadow-xl translate-y-4 group-hover:translate-y-0 duration-300 delay-75"
-                        title="Dúvidas no WhatsApp"
-                      >
-                        <MessageCircle size={20} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="p-6 flex flex-col flex-1">
-                    <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-1 group-hover:text-pink-600 transition-colors">{p.name}</h3>
-                    <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">
-                      {p.description || 'Peça exclusiva produzida artesanalmente.'}
-                    </p>
-                    <div className="flex items-end justify-between mb-6">
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Por apenas</p>
-                        <p className="text-2xl font-black text-gray-900">R$ {finalPrice.toFixed(2)}</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        addToCart(p, finalPrice);
-                      }}
-                      className="w-full bg-gray-900 text-white py-4 rounded-xl font-bold hover:bg-pink-600 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <ShoppingCart size={18} />
-                      Adicionar ao Carrinho
-                    </button>
-                  </div>
-                </div>
+                  <span>{cat}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${selectedCategory === cat ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                    {count}
+                  </span>
+                </button>
               );
             })}
           </div>
-        ) : (
-          <div className="py-20 text-center">
-            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Search size={32} className="text-gray-200" />
+
+          {/* Visualização e Contador */}
+          <div className="flex items-center justify-between w-full md:w-auto gap-4">
+            <p className="text-xs font-bold text-gray-400">
+              {filteredProducts.length} {filteredProducts.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
+            </p>
+            <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200/60">
+              <button 
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                title="Modo Grade"
+              >
+                <LayoutGrid size={17} />
+              </button>
+              <button 
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                title="Modo Lista"
+              >
+                <List size={17} />
+              </button>
             </div>
-            <h3 className="text-xl font-black text-gray-800 mb-2">Nenhum produto encontrado</h3>
-            <p className="text-gray-400">Tente buscar por outro termo ou categoria.</p>
+          </div>
+        </div>
+
+        {/* LISTAGEM DE PRODUTOS */}
+        {filteredProducts.length > 0 ? (
+          viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
+              {filteredProducts.map(p => {
+                const finalPrice = getProductPrice(p);
+                const isJustAdded = addedItemFeedback === p.id;
+                const imagesCount = [p.image, ...(p.images || [])].filter(Boolean).length;
+
+                return (
+                  <div 
+                    key={p.id} 
+                    className="bg-white rounded-[2rem] shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group flex flex-col cursor-pointer border border-pink-100/70 overflow-hidden"
+                    onClick={() => {
+                      setSelectedProduct(p);
+                      setActiveImageIdx(0);
+                    }}
+                  >
+                    {/* Imagem do Produto */}
+                    <div className="aspect-square bg-pink-50/40 relative overflow-hidden">
+                      {p.image ? (
+                        <img 
+                          src={p.image} 
+                          alt={p.name} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                          referrerPolicy="no-referrer" 
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-pink-200">
+                          <Package size={56} />
+                        </div>
+                      )}
+
+                      {/* Tag de Categoria */}
+                      <div className="absolute top-3.5 left-3.5">
+                        <span className="text-[10px] font-black text-pink-600 bg-white/95 backdrop-blur-sm px-3 py-1 rounded-full uppercase tracking-wider shadow-sm border border-pink-100">
+                          {p.category}
+                        </span>
+                      </div>
+
+                      {/* Indicador de Quantidade Mínima */}
+                      {p.minOrderQuantity && p.minOrderQuantity > 1 && (
+                        <div className="absolute bottom-3 left-3 bg-gray-900/80 backdrop-blur-sm text-white text-[9px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider">
+                          Mín. {p.minOrderQuantity} un
+                        </div>
+                      )}
+
+                      {/* Quantidade de Fotos */}
+                      {imagesCount > 1 && (
+                        <div className="absolute top-3.5 right-3.5 bg-black/40 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm">
+                          {imagesCount} fotos
+                        </div>
+                      )}
+
+                      {/* Botões de Ação Rápida no Hover */}
+                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-3">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedProduct(p);
+                            setActiveImageIdx(0);
+                          }}
+                          className="w-11 h-11 bg-white text-gray-700 hover:text-pink-600 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110"
+                          title="Ver Detalhes do Produto"
+                        >
+                          <Eye size={19} />
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleWhatsAppContact(p.name, finalPrice);
+                          }}
+                          className="w-11 h-11 bg-emerald-500 text-white hover:bg-emerald-600 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110"
+                          title="Tirar Dúvida no WhatsApp"
+                        >
+                          <MessageCircle size={19} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Dados e Preço */}
+                    <div className="p-5 sm:p-6 flex flex-col flex-1">
+                      <h3 className="text-base font-bold text-gray-800 mb-1.5 line-clamp-1 group-hover:text-pink-600 transition-colors">
+                        {p.name}
+                      </h3>
+                      <p className="text-xs text-gray-400 line-clamp-2 mb-4 flex-1">
+                        {p.description || 'Produto artesanal personalizado feito com materiais de alta qualidade sob encomenda.'}
+                      </p>
+
+                      <div className="flex items-baseline justify-between mb-4 pt-2 border-t border-gray-50">
+                        <div>
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-wider">A partir de</p>
+                          <p className="text-2xl font-black text-gray-800">
+                            R$ {finalPrice.toFixed(2)}
+                          </p>
+                        </div>
+                        {p.minOrderQuantity && p.minOrderQuantity > 1 && (
+                          <span className="text-[10px] text-gray-400 font-bold">
+                            R$ {(finalPrice * p.minOrderQuantity).toFixed(2)} ({p.minOrderQuantity} un)
+                          </span>
+                        )}
+                      </div>
+
+                      {/* BOTÃO ADICIONAR AO CARRINHO: ALTERADO DE PRETO PARA ROSA */}
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addToCart(p, finalPrice);
+                        }}
+                        className={`w-full py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95 shadow-md ${
+                          isJustAdded
+                            ? 'bg-emerald-500 text-white shadow-emerald-200'
+                            : 'bg-pink-500 hover:bg-pink-600 text-white shadow-pink-200/80 hover:shadow-pink-300'
+                        }`}
+                      >
+                        {isJustAdded ? (
+                          <>
+                            <Check size={16} className="animate-scaleIn" />
+                            <span>Adicionado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShoppingCart size={16} />
+                            <span>Adicionar ao Carrinho</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* Modo Lista */
+            <div className="space-y-4">
+              {filteredProducts.map(p => {
+                const finalPrice = getProductPrice(p);
+                const isJustAdded = addedItemFeedback === p.id;
+
+                return (
+                  <div 
+                    key={p.id}
+                    className="bg-white rounded-3xl p-4 sm:p-6 border border-pink-100/70 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row items-center gap-6 cursor-pointer"
+                    onClick={() => {
+                      setSelectedProduct(p);
+                      setActiveImageIdx(0);
+                    }}
+                  >
+                    <div className="w-full sm:w-36 h-36 bg-pink-50/40 rounded-2xl overflow-hidden shrink-0 relative">
+                      {p.image ? (
+                        <img src={p.image} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-pink-200"><Package size={40} /></div>
+                      )}
+                      <span className="absolute top-2 left-2 text-[9px] font-black text-pink-600 bg-white/95 px-2.5 py-0.5 rounded-full uppercase">
+                        {p.category}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 min-w-0 text-center sm:text-left">
+                      <h3 className="text-lg font-bold text-gray-800 mb-1">{p.name}</h3>
+                      <p className="text-xs text-gray-400 line-clamp-2 mb-3 max-w-xl">
+                        {p.description || 'Produto artesanal personalizado feito com carinho.'}
+                      </p>
+                      {p.minOrderQuantity && p.minOrderQuantity > 1 && (
+                        <span className="inline-block text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-100">
+                          Pedido Mínimo: {p.minOrderQuantity} unidades
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:items-end gap-3 w-full sm:w-auto shrink-0 border-t sm:border-t-0 pt-4 sm:pt-0 border-gray-100">
+                      <div className="text-center sm:text-right">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Unitário</span>
+                        <span className="text-2xl font-black text-gray-800">R$ {finalPrice.toFixed(2)}</span>
+                      </div>
+
+                      {/* BOTÃO ADICIONAR AO CARRINHO (ROSA) */}
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addToCart(p, finalPrice);
+                        }}
+                        className={`py-3 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95 shadow-md ${
+                          isJustAdded
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-pink-500 hover:bg-pink-600 text-white shadow-pink-200/80'
+                        }`}
+                      >
+                        {isJustAdded ? (
+                          <>
+                            <Check size={16} />
+                            <span>Adicionado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShoppingCart size={16} />
+                            <span>Adicionar ao Carrinho</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <div className="py-20 text-center bg-white rounded-3xl border border-dashed border-gray-200">
+            <div className="w-16 h-16 bg-pink-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-pink-300">
+              <Search size={28} />
+            </div>
+            <h3 className="text-lg font-black text-gray-800 mb-1">Nenhum produto encontrado</h3>
+            <p className="text-sm text-gray-400 max-w-sm mx-auto mb-6">
+              Não encontramos nenhum item para o termo buscado ou filtro selecionado.
+            </p>
+            <button 
+              onClick={() => { setSearchTerm(''); setSelectedCategory('Todas'); }}
+              className="bg-pink-50 text-pink-600 px-6 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider hover:bg-pink-100 transition-colors"
+            >
+              Ver todos os produtos
+            </button>
           </div>
         )}
       </main>
 
-      <footer className="bg-white border-t border-gray-100 py-12 mt-20">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-md p-1 border border-pink-100">
+      {/* RODAPÉ PROFISSIONAL */}
+      <footer className="bg-white border-t border-pink-100 py-12 mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm p-1 border border-pink-100 shrink-0">
               <img 
-                src="/images/papelietes_calcula_logo.png" 
-                alt="Papelietes Calcula" 
+                src={companyLogo} 
+                alt={companyData?.name || 'Logo'} 
                 className="w-full h-full object-contain"
                 referrerPolicy="no-referrer" 
               />
             </div>
-            <span className="text-pink-600 font-black text-lg tracking-tight">Papelietes Calcula</span>
+            <div className="text-left">
+              <h4 className="font-black text-gray-800 text-base">{companyData?.name || 'Nosso Ateliê'}</h4>
+              <p className="text-xs text-gray-400 font-medium">Catálogo Oficial de Produtos Personalizados</p>
+            </div>
           </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
-            Seu trabalho tem valor • A gente ajuda você a calcular
-          </p>
+
+          <div className="text-center md:text-right">
+            <p className="text-xs font-bold text-gray-600 flex items-center justify-center md:justify-end gap-2">
+              <ShieldCheck size={16} className="text-emerald-500" /> Compra segura com atendimento humano no WhatsApp
+            </p>
+            <p className="text-[10px] text-gray-400 font-medium mt-1">
+              Desenvolvido para {companyData?.name || 'Ateliê'} • Papelietes Calcula
+            </p>
+          </div>
         </div>
       </footer>
 
-      {/* BOTÃO FLUTUANTE DO CARRINHO */}
-      {cart.length > 0 && (
+      {/* BOTÃO FLUTUANTE DO CARRINHO (ROSA) */}
+      {cart.length > 0 && !isCartOpen && (
         <button 
-          onClick={() => setIsCartOpen(true)}
-          className="fixed bottom-8 right-8 bg-pink-600 text-white p-6 rounded-full shadow-2xl z-40 animate-bounce hover:scale-110 transition-all flex items-center gap-3"
+          onClick={() => {
+            setCartStep('items');
+            setIsCartOpen(true);
+          }}
+          className="fixed bottom-6 right-6 bg-pink-500 hover:bg-pink-600 text-white p-4 sm:px-6 sm:py-4 rounded-full shadow-2xl shadow-pink-300/80 z-40 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 animate-bounce"
         >
           <div className="relative">
-            <ShoppingBag size={28} />
-            <span className="absolute -top-2 -right-2 bg-yellow-400 text-gray-900 text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">
-              {cart.reduce((acc, item) => acc + item.quantity, 0)}
+            <ShoppingBag size={24} />
+            <span className="absolute -top-2 -right-2 bg-yellow-400 text-gray-900 text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
+              {cartItemCount}
             </span>
           </div>
-          <span className="font-black text-sm pr-2">Ver Pedido</span>
+          <div className="text-left hidden sm:block">
+            <p className="text-[10px] font-black uppercase tracking-wider text-pink-100 leading-none">Ver Pedido</p>
+            <p className="text-sm font-black leading-none mt-1">R$ {cartTotal.toFixed(2)}</p>
+          </div>
         </button>
       )}
 
-      {/* MODAL DE DETALHES DO PRODUTO */}
+      {/* MODAL DE DETALHES COMPLETOS DO PRODUTO */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-black/10 z-50 animate-fadeIn flex items-start justify-center p-4 md:p-8 overflow-y-auto pt-10 md:pt-16">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 animate-fadeIn flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
           <div 
-            className="absolute inset-0 bg-white/40" 
+            className="absolute inset-0" 
             onClick={() => setSelectedProduct(null)}
           ></div>
-          <div className="bg-white w-full max-w-6xl max-h-[85vh] rounded-[2rem] shadow-2xl overflow-y-auto flex flex-col md:flex-row animate-scaleIn relative z-10 my-4">
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row relative z-10 animate-scaleIn border border-pink-100">
+            {/* Fechar Modal */}
             <button 
               onClick={() => setSelectedProduct(null)} 
-              className="absolute top-4 right-4 md:top-6 md:right-6 text-gray-400 hover:text-gray-900 z-20 bg-white/80 p-2 rounded-full shadow-sm"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 z-20 bg-white/90 p-2.5 rounded-full shadow-sm"
             >
-              <X size={24} />
+              <X size={20} />
             </button>
 
-            {/* GALERIA DE IMAGENS */}
-            <div className="w-full md:w-3/5 bg-gray-50 relative flex flex-col">
+            {/* Galeria de Fotos */}
+            <div className="w-full md:w-1/2 bg-pink-50/30 flex flex-col justify-between p-6 border-b md:border-b-0 md:border-r border-pink-100/60">
               {(() => {
                 const allImages = [selectedProduct.image, ...(selectedProduct.images || [])].filter(Boolean) as string[];
                 return (
                   <>
-                    <div className="w-full flex-1 relative min-h-[40vh] md:min-h-0">
+                    <div className="w-full aspect-square bg-white rounded-3xl overflow-hidden shadow-sm flex items-center justify-center relative p-2">
                       {allImages.length > 0 ? (
                         <img 
                           src={allImages[activeImageIdx] || allImages[0]} 
                           alt={selectedProduct.name} 
-                          className="absolute inset-0 w-full h-full object-contain bg-gray-100/50"
+                          className="w-full h-full object-contain"
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-gray-200">
-                          <Package size={80} />
+                        <div className="flex items-center justify-center text-pink-200">
+                          <Package size={72} />
                         </div>
                       )}
                     </div>
 
-                    {/* MINIATURAS */}
+                    {/* Miniaturas se houver mais de uma */}
                     {allImages.length > 1 && (
-                      <div className="bg-white p-4 border-t border-gray-100 flex gap-3 overflow-x-auto no-scrollbar justify-start md:justify-center">
+                      <div className="flex gap-2.5 overflow-x-auto pt-4 no-scrollbar justify-center">
                         {allImages.map((img, idx) => (
                           <button 
                             key={idx}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveImageIdx(idx);
-                            }}
-                            className={`w-20 h-20 rounded-xl border-2 overflow-hidden transition-all shrink-0 ${activeImageIdx === idx ? 'border-pink-500 opacity-100' : 'border-transparent opacity-50 hover:opacity-100'}`}
+                            onClick={() => setActiveImageIdx(idx)}
+                            className={`w-14 h-14 rounded-xl border-2 overflow-hidden transition-all shrink-0 bg-white ${
+                              activeImageIdx === idx ? 'border-pink-500 scale-105 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'
+                            }`}
                           >
-                            <img src={img} alt={`Thumb ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <img src={img} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           </button>
                         ))}
                       </div>
@@ -476,199 +1048,737 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail }) => {
               })()}
             </div>
 
-            {/* INFORMAÇÕES */}
-            <div className="w-full md:w-2/5 p-8 md:p-10 flex flex-col overflow-y-auto custom-scrollbar bg-white">
-              <div className="mb-8">
-                <span className="text-[10px] font-black text-pink-500 bg-pink-50 px-3 py-1 rounded-full uppercase tracking-widest border border-pink-100">
+            {/* Informações e Botão Rosa */}
+            <div className="w-full md:w-1/2 p-6 sm:p-8 flex flex-col justify-between bg-white overflow-y-auto custom-scrollbar">
+              <div>
+                <span className="text-[10px] font-black text-pink-600 bg-pink-50 px-3 py-1 rounded-full uppercase tracking-wider border border-pink-100">
                   {selectedProduct.category}
                 </span>
-                <h2 className="text-3xl font-black text-gray-800 mt-4 leading-tight">{selectedProduct.name}</h2>
-              </div>
+                <h3 className="text-2xl font-black text-gray-800 mt-3 mb-2 leading-tight">
+                  {selectedProduct.name}
+                </h3>
 
-              <div className="flex-1 space-y-8">
-                <div>
-                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Descrição</h4>
-                  <p className="text-gray-600 font-medium leading-relaxed whitespace-pre-wrap">
-                    {selectedProduct.description || 'Este produto é feito sob encomenda com materiais de alta qualidade. Entre em contato para personalizar cores e detalhes.'}
-                  </p>
-                </div>
+                <p className="text-xs text-gray-500 font-medium leading-relaxed mb-6 whitespace-pre-wrap">
+                  {selectedProduct.description || 'Peça produzida artesanalmente com materiais de alta qualidade e acabamento impecável. Ideal para tornar sua comemoração inesquecível.'}
+                </p>
 
                 {selectedProduct.minOrderQuantity && selectedProduct.minOrderQuantity > 1 && (
-                  <div className="flex items-center gap-3 p-4 bg-yellow-50 rounded-2xl border border-yellow-100">
-                    <Info size={18} className="text-yellow-600" />
-                    <p className="text-xs font-bold text-yellow-700">Pedido mínimo de {selectedProduct.minOrderQuantity} unidades.</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-12 pt-8 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Valor Unitário</p>
-                    <p className="text-4xl font-black text-gray-800">
-                      R$ {(selectedProduct.marketPrice > 0 ? selectedProduct.marketPrice : calculateProjectBreakdown({ 
-                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin, packagingCost: selectedProduct.packagingCost, minOrderQuantity: selectedProduct.minOrderQuantity }], 
-                        platformId: platforms[0]?.id || '', 
-                        excedente: companyData?.defaultExcedente || 10 
-                      } as any, materials, platforms, companyData!).finalPrice).toFixed(2)}
+                  <div className="flex items-center gap-2.5 p-3.5 bg-amber-50 rounded-2xl border border-amber-100 mb-6 text-amber-800">
+                    <Info size={16} className="text-amber-600 shrink-0" />
+                    <p className="text-xs font-bold">
+                      Este produto possui quantidade mínima de <strong>{selectedProduct.minOrderQuantity} unidades</strong>.
                     </p>
                   </div>
-                </div>
+                )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <button 
-                    onClick={() => {
-                      const price = selectedProduct.marketPrice > 0 ? selectedProduct.marketPrice : calculateProjectBreakdown({ 
-                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin, packagingCost: selectedProduct.packagingCost, minOrderQuantity: selectedProduct.minOrderQuantity }], 
-                        platformId: platforms[0]?.id || '', 
-                        excedente: companyData?.defaultExcedente || 10 
-                      } as any, materials, platforms, companyData!).finalPrice;
-                      handleWhatsAppContact(selectedProduct.name, price);
-                    }}
-                    className="py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-green-100 hover:bg-green-600 transition-all active:scale-95"
-                  >
-                    <MessageCircle size={24} />
-                    <span>Falar no WhatsApp</span>
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const price = selectedProduct.marketPrice > 0 ? selectedProduct.marketPrice : calculateProjectBreakdown({ 
-                        items: [{ productId: selectedProduct.id, name: selectedProduct.name, quantity: 1, hoursToMake: selectedProduct.minutesToMake / 60, materials: selectedProduct.materials, profitMargin: selectedProduct.profitMargin, packagingCost: selectedProduct.packagingCost, minOrderQuantity: selectedProduct.minOrderQuantity }], 
-                        platformId: platforms[0]?.id || '', 
-                        excedente: companyData?.defaultExcedente || 10 
-                      } as any, materials, platforms, companyData!).finalPrice;
-                      addToCart(selectedProduct, price);
-                      setSelectedProduct(null);
-                    }}
-                    className="py-5 bg-pink-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-pink-100 hover:bg-pink-600 transition-all active:scale-95"
-                  >
-                    <ShoppingCart size={24} />
-                    <span>Adicionar ao Carrinho</span>
-                  </button>
+                {/* Seletor de Quantidade */}
+                <div className="mb-6 p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-600">Quantidade:</span>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => {
+                        const min = selectedProduct.minOrderQuantity || 1;
+                        setModalQty(prev => Math.max(min, prev - 1));
+                      }}
+                      className="w-8 h-8 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:text-pink-600 font-black shadow-sm"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <span className="w-8 text-center text-sm font-black text-gray-800">{modalQty}</span>
+                    <button 
+                      onClick={() => setModalQty(prev => prev + 1)}
+                      className="w-8 h-8 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:text-pink-600 font-black shadow-sm"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
                 </div>
+              </div>
+
+              {/* Preço e Ações */}
+              <div className="pt-4 border-t border-gray-100">
+                {(() => {
+                  const unitPrice = getProductPrice(selectedProduct);
+                  const totalPrice = unitPrice * modalQty;
+                  return (
+                    <>
+                      <div className="flex items-baseline justify-between mb-5">
+                        <div>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Subtotal</span>
+                          <span className="text-3xl font-black text-gray-900">R$ {totalPrice.toFixed(2)}</span>
+                        </div>
+                        {modalQty > 1 && (
+                          <span className="text-xs text-gray-400 font-bold">R$ {unitPrice.toFixed(2)} / un</span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Botão WhatsApp */}
+                        <button 
+                          onClick={() => handleWhatsAppContact(selectedProduct.name, unitPrice)}
+                          className="py-3.5 px-4 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all"
+                        >
+                          <MessageCircle size={17} className="text-emerald-600" />
+                          <span>Dúvida no WhatsApp</span>
+                        </button>
+
+                        {/* BOTÃO ADICIONAR AO CARRINHO (ROSA) */}
+                        <button 
+                          onClick={() => {
+                            addToCart(selectedProduct, unitPrice, modalQty);
+                            setSelectedProduct(null);
+                          }}
+                          className="py-3.5 px-4 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-pink-200/80 transition-all"
+                        >
+                          <ShoppingCart size={17} />
+                          <span>Adicionar ao Carrinho</span>
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL DO CARRINHO */}
+      {/* DRAWER DO CARRINHO & CHECKOUT AUTOMATIZADO */}
       {isCartOpen && (
-        <div className="fixed inset-0 bg-black/10 z-50 flex items-center justify-end animate-fadeIn">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-end animate-fadeIn">
           <div 
-            className="absolute inset-0 bg-white/40" 
+            className="absolute inset-0" 
             onClick={() => setIsCartOpen(false)}
           ></div>
-          <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col z-10 animate-slideInRight">
-            <div className="p-8 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-white w-full max-w-lg h-full shadow-2xl flex flex-col z-10 animate-slideInRight relative overflow-hidden">
+            {/* Header do Carrinho */}
+            <div className="p-6 border-b border-pink-100 flex items-center justify-between bg-pink-50/30">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-pink-100 text-pink-600 rounded-2xl"><ShoppingBag size={24} /></div>
-                <h3 className="text-xl font-black text-gray-800">Seu Pedido</h3>
-              </div>
-              <button onClick={() => setIsCartOpen(false)} className="text-gray-300 hover:text-gray-500"><X size={24} /></button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
-              {cart.map(item => (
-                <div key={item.product.id} className="flex gap-4 items-center bg-gray-50 p-4 rounded-3xl border border-gray-100">
-                  <div className="w-16 h-16 bg-white rounded-2xl overflow-hidden shadow-sm shrink-0 border border-gray-100">
-                    {item.product.image ? (
-                      <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-200"><Package size={24} /></div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-black text-gray-800 truncate text-sm">{item.product.name}</h4>
-                    <p className="text-[10px] font-black text-pink-500 uppercase tracking-widest mt-1">R$ {item.price.toFixed(2)} / un</p>
-                    <div className="flex items-center gap-3 mt-3">
-                      <div className="flex items-center bg-white rounded-xl border border-gray-100 p-1">
-                        <button onClick={() => updateQuantity(item.product.id, -1)} className="p-1 text-gray-400 hover:text-pink-500"><Minus size={14} /></button>
-                        <span className="w-8 text-center text-xs font-black text-gray-700">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.product.id, 1)} className="p-1 text-gray-400 hover:text-pink-500"><Plus size={14} /></button>
-                      </div>
-                      <button onClick={() => removeFromCart(item.product.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-gray-800">R$ {(item.price * item.quantity).toFixed(2)}</p>
-                  </div>
+                <div className="w-10 h-10 bg-pink-500 text-white rounded-2xl flex items-center justify-center shadow-md shadow-pink-200">
+                  <ShoppingBag size={20} />
                 </div>
-              ))}
-            </div>
-
-            <div className="p-8 bg-gray-50 border-t border-gray-100 space-y-6">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400 font-black uppercase text-[10px] tracking-widest">Total do Pedido</span>
-                <span className="text-3xl font-black text-gray-800">R$ {cartTotal.toFixed(2)}</span>
+                <div>
+                  <h3 className="text-lg font-black text-gray-800 leading-none">
+                    {cartStep === 'items' && 'Seu Carrinho de Compras'}
+                    {cartStep === 'checkout' && 'Finalizar Pedido'}
+                    {cartStep === 'success' && 'Pedido Confirmado!'}
+                  </h3>
+                  <p className="text-[10px] font-bold text-pink-500 uppercase tracking-wider mt-1">
+                    {cartStep === 'items' && `${cartItemCount} itens adicionados`}
+                    {cartStep === 'checkout' && 'Passo 2 de 2 • Dados do Pedido'}
+                    {cartStep === 'success' && 'Tudo pronto para enviar'}
+                  </p>
+                </div>
               </div>
               <button 
-                onClick={handleFinishOrder}
-                disabled={isGeneratingImage}
-                className="w-full py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-green-100 hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50"
+                onClick={() => setIsCartOpen(false)} 
+                className="text-gray-400 hover:text-gray-600 p-2 rounded-xl"
               >
-                {isGeneratingImage ? (
-                  <>
-                    <RefreshCw className="animate-spin" size={20} />
-                    <span>Gerando Resumo...</span>
-                  </>
-                ) : (
-                  <>
-                    <MessageCircle size={20} />
-                    <span>Enviar Pedido pelo WhatsApp</span>
-                  </>
-                )}
+                <X size={20} />
               </button>
-              <p className="text-[9px] text-gray-400 text-center font-medium italic">
-                * Ao clicar, geraremos uma imagem do seu pedido para você enviar junto com a mensagem.
-              </p>
             </div>
+
+            {/* PASSO 1: ITENS DO CARRINHO */}
+            {cartStep === 'items' && (
+              <>
+                <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                  {cart.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-6">
+                      <div className="w-20 h-20 bg-pink-50 rounded-full flex items-center justify-center mb-4 text-pink-300">
+                        <ShoppingBag size={32} />
+                      </div>
+                      <h4 className="text-base font-black text-gray-800 mb-1">Seu carrinho está vazio</h4>
+                      <p className="text-xs text-gray-400 max-w-xs mb-6">
+                        Explore nosso catálogo e clique no botão rosa "Adicionar ao Carrinho" para incluir suas peças favoritas.
+                      </p>
+                      <button 
+                        onClick={() => setIsCartOpen(false)}
+                        className="bg-pink-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-wider shadow-md shadow-pink-200 hover:bg-pink-600 transition-colors"
+                      >
+                        Continuar Comprando
+                      </button>
+                    </div>
+                  ) : (
+                    cart.map(item => (
+                      <div key={item.product.id} className="flex gap-4 items-center bg-gray-50/80 p-4 rounded-2xl border border-gray-100 hover:border-pink-100 transition-colors">
+                        <div className="w-16 h-16 bg-white rounded-xl overflow-hidden shadow-sm shrink-0 border border-gray-100">
+                          {item.product.image ? (
+                            <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-pink-300"><Package size={24} /></div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-black text-gray-800 truncate text-xs sm:text-sm">{item.product.name}</h4>
+                          <p className="text-[10px] font-bold text-pink-500 uppercase tracking-wider mt-0.5">
+                            R$ {item.price.toFixed(2)} / un
+                          </p>
+
+                          <div className="flex items-center gap-3 mt-2">
+                            <div className="flex items-center bg-white rounded-xl border border-gray-200 p-0.5">
+                              <button 
+                                onClick={() => updateQuantity(item.product.id, -1)} 
+                                className="p-1 text-gray-400 hover:text-pink-600 transition-colors"
+                                title="Diminuir quantidade"
+                              >
+                                <Minus size={13} />
+                              </button>
+                              <span className="w-7 text-center text-xs font-black text-gray-700">{item.quantity}</span>
+                              <button 
+                                onClick={() => updateQuantity(item.product.id, 1)} 
+                                className="p-1 text-gray-400 hover:text-pink-600 transition-colors"
+                                title="Aumentar quantidade"
+                              >
+                                <Plus size={13} />
+                              </button>
+                            </div>
+                            <button 
+                              onClick={() => removeFromCart(item.product.id)} 
+                              className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                              title="Remover item"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-bold text-gray-400">Total</p>
+                          <p className="text-sm font-black text-gray-800">
+                            R$ {(item.price * item.quantity).toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {cart.length > 0 && (
+                  <div className="p-6 bg-pink-50/40 border-t border-pink-100 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 font-bold text-xs uppercase tracking-wider">Subtotal dos Itens</span>
+                      <span className="text-2xl font-black text-gray-900">R$ {cartTotal.toFixed(2)}</span>
+                    </div>
+
+                    {/* BOTÃO PARA AVANÇAR PARA O CHECKOUT (ROSA) */}
+                    <button 
+                      onClick={() => setCartStep('checkout')}
+                      className="w-full py-4 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-pink-200 transition-all"
+                    >
+                      <span>Avançar para Dados & Entrega</span>
+                      <ArrowRight size={17} />
+                    </button>
+                    <button 
+                      onClick={() => setIsCartOpen(false)}
+                      className="w-full text-center text-xs text-gray-400 hover:text-gray-600 font-bold py-1"
+                    >
+                      + Continuar Escolhendo Produtos
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* PASSO 2: CHECKOUT AUTOMATIZADO COM FORMULÁRIO DO CLIENTE */}
+            {cartStep === 'checkout' && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                {/* Botão Voltar */}
+                <button 
+                  onClick={() => setCartStep('items')}
+                  className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-pink-600 transition-colors"
+                >
+                  <ChevronLeft size={16} /> Voltar aos itens
+                </button>
+
+                {/* Dados do Cliente */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">1</span>
+                    Seus Dados para o Pedido
+                  </h4>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-gray-600">Seu Nome Completo *</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Maria Silva"
+                      value={customerName}
+                      onChange={(e) => {
+                        setCustomerName(e.target.value);
+                        if (formErrors.name) setFormErrors(prev => ({ ...prev, name: undefined }));
+                      }}
+                      className={`w-full p-3.5 bg-gray-50 border rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all ${
+                        formErrors.name ? 'border-red-400 bg-red-50/20' : 'border-gray-200 focus:border-pink-300'
+                      }`}
+                    />
+                    {formErrors.name && <p className="text-[10px] text-red-500 font-bold">{formErrors.name}</p>}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-gray-600">Seu WhatsApp com DDD *</label>
+                    <input 
+                      type="tel" 
+                      placeholder="(99) 99999-9999"
+                      value={customerPhone}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
+                      className={`w-full p-3.5 bg-gray-50 border rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all ${
+                        formErrors.phone ? 'border-red-400 bg-red-50/20' : 'border-gray-200 focus:border-pink-300'
+                      }`}
+                    />
+                    {formErrors.phone && <p className="text-[10px] text-red-500 font-bold">{formErrors.phone}</p>}
+                  </div>
+                </div>
+
+                {/* Opção de Entrega */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">2</span>
+                    Forma de Entrega / Retirada
+                  </h4>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      type="button"
+                      onClick={() => setDeliveryType('pickup')}
+                      className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                        deliveryType === 'pickup' 
+                          ? 'border-pink-500 bg-pink-50/60 shadow-sm' 
+                          : 'border-gray-200 bg-gray-50 hover:bg-gray-100/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Home size={16} className={deliveryType === 'pickup' ? 'text-pink-600' : 'text-gray-400'} />
+                        <span className="text-xs font-black text-gray-800">Retirada</span>
+                      </div>
+                      <span className="text-[10px] text-gray-500 font-medium">No ateliê (A combinar)</span>
+                    </button>
+
+                    <button 
+                      type="button"
+                      onClick={() => setDeliveryType('delivery')}
+                      className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                        deliveryType === 'delivery' 
+                          ? 'border-pink-500 bg-pink-50/60 shadow-sm' 
+                          : 'border-gray-200 bg-gray-50 hover:bg-gray-100/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Truck size={16} className={deliveryType === 'delivery' ? 'text-pink-600' : 'text-gray-400'} />
+                        <span className="text-xs font-black text-gray-800">Entrega</span>
+                      </div>
+                      <span className="text-[10px] text-gray-500 font-medium">Envio / Motoboy / Correios</span>
+                    </button>
+                  </div>
+
+                  {deliveryType === 'delivery' && (
+                    <div className="space-y-3 p-4 bg-pink-50/30 rounded-2xl border border-pink-100 animate-fadeIn">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-600">Endereço (Rua e Número) *</label>
+                        <input 
+                          type="text" 
+                          placeholder="Rua das Flores, 123"
+                          value={deliveryAddress}
+                          onChange={(e) => setDeliveryAddress(e.target.value)}
+                          className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs"
+                        />
+                        {formErrors.address && <p className="text-[10px] text-red-500 font-bold">{formErrors.address}</p>}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-600">Bairro</label>
+                          <input 
+                            type="text" 
+                            placeholder="Centro"
+                            value={deliveryNeighborhood}
+                            onChange={(e) => setDeliveryNeighborhood(e.target.value)}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-600">Cidade / CEP</label>
+                          <input 
+                            type="text" 
+                            placeholder="Ex: São Paulo"
+                            value={deliveryCity}
+                            onChange={(e) => setDeliveryCity(e.target.value)}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-gray-400 italic">
+                        * O frete será calculado e confirmado pelo ateliê no WhatsApp.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Forma de Pagamento */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">3</span>
+                    Forma de Pagamento Preferida
+                  </h4>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {[
+                      { id: 'pix', label: 'Pix', icon: Sparkles, badge: 'Mais rápido' },
+                      { id: 'credit', label: 'Cartão de Crédito', icon: CreditCard },
+                      { id: 'debit', label: 'Cartão de Débito', icon: CreditCard },
+                      { id: 'cash', label: 'Dinheiro', icon: DollarSign }
+                    ].map(pm => {
+                      const Icon = pm.icon;
+                      const isSelected = paymentMethod === pm.id;
+                      return (
+                        <button
+                          key={pm.id}
+                          type="button"
+                          onClick={() => setPaymentMethod(pm.id as any)}
+                          className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                            isSelected 
+                              ? 'border-pink-500 bg-pink-50/60 shadow-sm' 
+                              : 'border-gray-200 bg-gray-50 hover:bg-gray-100/70'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Icon size={16} className={isSelected ? 'text-pink-600' : 'text-gray-400'} />
+                            <span className="text-xs font-bold text-gray-800">{pm.label}</span>
+                          </div>
+                          {pm.badge && (
+                            <span className="text-[8px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">
+                              {pm.badge}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Detalhes Sincronizados da Conta Bancária / Pix */}
+                  {paymentMethod === 'pix' && companyData?.pixKey && (
+                    <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-100 space-y-2 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                          <Landmark size={13} className="text-emerald-600" /> Sincronizado com a Conta do Ateliê
+                        </span>
+                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                          Automático
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        {companyData.pixBeneficiaryName && (
+                          <p className="font-bold text-gray-700">Titular: <span className="font-normal">{companyData.pixBeneficiaryName}</span></p>
+                        )}
+                        {companyData.bankName && (
+                          <p className="text-[11px] text-gray-500">Banco: {companyData.bankName} {companyData.bankAgency ? `• Ag: ${companyData.bankAgency}` : ''}</p>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-emerald-700 font-medium">
+                        💡 O código Pix Copia e Cola no valor exato de <strong>R$ {cartTotal.toFixed(2)}</strong> e a Chave Pix serão enviados automaticamente para o seu WhatsApp!
+                      </p>
+                    </div>
+                  )}
+
+                  {(paymentMethod === 'credit' || paymentMethod === 'debit') && companyData?.paymentLink && (
+                    <div className="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-100 flex items-center justify-between animate-fadeIn">
+                      <div className="flex items-center gap-2">
+                        <Link2 size={15} className="text-blue-600" />
+                        <span className="text-xs font-bold text-gray-700">Link de Pagamento Online Seguro</span>
+                      </div>
+                      <span className="text-[9px] font-black text-blue-600 bg-white px-2 py-0.5 rounded-md border border-blue-100">
+                        Ativado
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Personalização / Observações */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">4</span>
+                    Detalhes da Personalização (Opcional)
+                  </h4>
+                  <textarea 
+                    placeholder="Ex: Nome: Maria Eduarda, Idade: 5 anos, Tema: Jardim Encantado, Cores: Rosa e Dourado, Data da Festa: 25/10..."
+                    value={orderObservations}
+                    onChange={(e) => setOrderObservations(e.target.value)}
+                    rows={3}
+                    className="w-full p-3.5 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-medium text-xs text-gray-700 placeholder-gray-400"
+                  />
+                </div>
+
+                {/* Resumo e Botão de Envio Automático para o WhatsApp */}
+                <div className="p-5 bg-gradient-to-br from-pink-50 to-pink-100/40 rounded-3xl border border-pink-100 space-y-4">
+                  <div className="flex justify-between items-center text-xs font-bold text-gray-600">
+                    <span>Quantidade Total:</span>
+                    <span>{cartItemCount} itens</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm font-black text-gray-800">
+                    <span>Total do Pedido:</span>
+                    <span className="text-2xl text-pink-600">R$ {cartTotal.toFixed(2)}</span>
+                  </div>
+
+                  {/* BOTÃO AUTOMATIZADO WHATSAPP */}
+                  <button 
+                    onClick={handleProcessOrder}
+                    disabled={isProcessingOrder}
+                    className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-200 transition-all disabled:opacity-50"
+                  >
+                    {isProcessingOrder ? (
+                      <>
+                        <RefreshCw className="animate-spin" size={18} />
+                        <span>Gerando Pedido Automático...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={18} />
+                        <span>Finalizar & Enviar Pedido no WhatsApp</span>
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-[10px] text-gray-400 text-center font-medium">
+                    ⚡ Ao clicar, seu pedido será montado e enviado automaticamente para o WhatsApp do ateliê.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* PASSO 3: SUCESSO DO PEDIDO AUTOMATIZADO */}
+            {cartStep === 'success' && (
+              <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center text-center custom-scrollbar animate-scaleIn">
+                <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mb-6 shadow-lg shadow-emerald-100">
+                  <CheckCircle2 size={42} />
+                </div>
+
+                <span className="text-[10px] font-black text-pink-600 bg-pink-50 px-3 py-1 rounded-full uppercase tracking-wider mb-2">
+                  Pedido {completedOrderNumber}
+                </span>
+
+                <h3 className="text-2xl font-black text-gray-800 mb-2">
+                  Pedido Enviado com Sucesso! 🎉
+                </h3>
+
+                <p className="text-xs text-gray-500 max-w-xs mb-8">
+                  Seu pedido foi registrado e enviado para o WhatsApp de <strong>{companyData?.name}</strong>.
+                </p>
+
+                {/* Botão de Reabrir WhatsApp caso pop-up tenha sido bloqueado */}
+                <div className="w-full space-y-3 mb-8">
+                  <button 
+                    onClick={() => {
+                      const phone = companyData?.phone?.replace(/\D/g, '') || '';
+                      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lastOrderMessage)}`, '_blank');
+                    }}
+                    className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 transition-all"
+                  >
+                    <MessageCircle size={18} />
+                    <span>Abrir WhatsApp com o Pedido</span>
+                  </button>
+
+                  {/* Sincronização Bancária & Pix no Sucesso do Pedido */}
+                  {paymentMethod === 'pix' && companyData?.pixKey && (() => {
+                    const pixPayload = generatePixCopiaECola({
+                      pixKey: companyData.pixKey,
+                      merchantName: companyData.pixBeneficiaryName || companyData.name || 'ATELIE',
+                      merchantCity: companyData.city || 'SAO PAULO',
+                      amount: cartTotal,
+                      transactionId: completedOrderNumber.replace(/[^a-zA-Z0-9]/g, '')
+                    });
+
+                    return (
+                      <div className="space-y-4 text-left">
+                        {/* QR Code Oficial Pix */}
+                        <div className="p-5 bg-emerald-50/50 rounded-3xl border border-emerald-100/90 text-center flex flex-col items-center">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-100/80 px-3 py-1 rounded-full mb-3 flex items-center gap-1.5">
+                            <QrCode size={13} /> Pague com QR Code Pix
+                          </span>
+                          <div className="w-44 h-44 bg-white p-2.5 rounded-2xl shadow-sm border border-emerald-100 flex items-center justify-center">
+                            <img 
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixPayload || companyData.pixKey)}`}
+                              alt="QR Code Pix do Pedido"
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                          <p className="text-[11px] font-bold text-gray-700 mt-3">
+                            Valor: <span className="text-emerald-600 font-black text-sm">R$ {cartTotal.toFixed(2)}</span>
+                          </p>
+                          <p className="text-[9px] text-gray-400 mt-0.5">
+                            Abra o aplicativo do seu banco e aponte a câmera para pagar
+                          </p>
+                        </div>
+
+                        {/* Pix Copia e Cola */}
+                        {pixPayload && (
+                          <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-1">
+                                <Sparkles size={12} className="text-emerald-500" /> Pix Copia e Cola (Automático):
+                              </span>
+                              <button 
+                                onClick={() => copyPixCopiaECola(pixPayload)}
+                                className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg shadow-xs border border-emerald-200"
+                              >
+                                {pixCopiaColaCopied ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
+                                <span>{pixCopiaColaCopied ? 'Código Copiado!' : 'Copiar Código Pix'}</span>
+                              </button>
+                            </div>
+                            <p className="text-[11px] font-mono font-medium text-gray-600 bg-white p-2.5 rounded-xl border border-gray-100 break-all select-all max-h-16 overflow-y-auto">
+                              {pixPayload}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Chave Pix Manual & Dados Bancários Sincronizados */}
+                        <div className="p-4 bg-pink-50/60 rounded-2xl border border-pink-100">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-pink-600 flex items-center gap-1">
+                              <Landmark size={12} /> Chave Pix do Ateliê:
+                            </span>
+                            <button 
+                              onClick={copyPixKey}
+                              className="text-[10px] font-bold text-gray-600 hover:text-pink-600 flex items-center gap-1 bg-white px-2 py-0.5 rounded-md shadow-xs border border-pink-100"
+                            >
+                              {pixCopied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                              <span>{pixCopied ? 'Copiado!' : 'Copiar Chave'}</span>
+                            </button>
+                          </div>
+                          <p className="text-xs font-mono font-bold text-gray-800 bg-white p-2.5 rounded-xl border border-pink-100 break-all select-all">
+                            {companyData.pixKey}
+                          </p>
+
+                          {(companyData.pixBeneficiaryName || companyData.bankName) && (
+                            <div className="mt-2 pt-2 border-t border-pink-100/80 text-[10px] text-gray-500 space-y-0.5">
+                              {companyData.pixBeneficiaryName && <p><strong>Titular:</strong> {companyData.pixBeneficiaryName}</p>}
+                              {companyData.bankName && <p><strong>Banco:</strong> {companyData.bankName} {companyData.bankAgency ? `• Ag: ${companyData.bankAgency}` : ''} {companyData.bankAccount ? `• Cc: ${companyData.bankAccount}` : ''}</p>}
+                            </div>
+                          )}
+                          <p className="text-[9px] text-gray-400 mt-2 italic">
+                            Envie o comprovante no WhatsApp para início imediato da confecção!
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Caso tenha Link de Pagamento (Cartão) */}
+                  {(paymentMethod === 'credit' || paymentMethod === 'debit') && companyData?.paymentLink && (
+                    <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100 text-left space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 flex items-center gap-1">
+                          <CreditCard size={13} /> Pagar com Cartão de Crédito
+                        </span>
+                        <span className="text-[9px] font-bold text-blue-600 bg-white px-2 py-0.5 rounded-full border border-blue-200">
+                          Checkout Online
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600">
+                        Você pode efetuar o pagamento do pedido com total segurança pelo link direto do ateliê:
+                      </p>
+                      <a 
+                        href={companyData.paymentLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 shadow-md shadow-blue-200 transition-all text-center"
+                      >
+                        <Link2 size={16} />
+                        <span>Abrir Link para Pagamento com Cartão</span>
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Transferência Bancária / TED / DOC caso configurado */}
+                  {paymentMethod !== 'pix' && companyData?.bankName && companyData?.bankAccount && (
+                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 text-left">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-1">
+                          <Landmark size={12} /> Dados Bancários do Ateliê:
+                        </span>
+                        <button 
+                          onClick={copyBankData}
+                          className="text-[10px] font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1 bg-white px-2 py-0.5 rounded-md shadow-xs border border-gray-200"
+                        >
+                          {bankDataCopied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                          <span>{bankDataCopied ? 'Dados Copiados!' : 'Copiar Dados'}</span>
+                        </button>
+                      </div>
+                      <div className="bg-white p-3 rounded-xl border border-gray-100 text-xs space-y-1 text-gray-700">
+                        <p><strong>Banco:</strong> {companyData.bankName}</p>
+                        <p><strong>Agência:</strong> {companyData.bankAgency || '0001'} | <strong>Conta:</strong> {companyData.bankAccount} ({companyData.bankAccountType === 'poupanca' ? 'Poupança' : 'Corrente'})</p>
+                        {companyData.pixBeneficiaryName && <p><strong>Favorecido:</strong> {companyData.pixBeneficiaryName}</p>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  onClick={resetCartAfterSuccess}
+                  className="text-xs font-black text-pink-600 hover:text-pink-700 underline"
+                >
+                  Fazer outro pedido / Continuar no Catálogo
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* TEMPLATE OCULTO PARA GERAÇÃO DA IMAGEM DO PEDIDO */}
+      {/* TEMPLATE OCULTO PARA GERAÇÃO DO RESUMO DO PEDIDO EM IMAGEM */}
       <div className="fixed left-[-9999px] top-[-9999px]">
-        <div ref={orderSummaryRef} className="w-[600px] bg-white p-12 font-['Quicksand']">
-          <div className="flex items-center justify-between mb-12 border-b-4 border-pink-500 pb-8">
-            <div className="flex items-center gap-6">
-              <div className="w-20 h-20 bg-pink-500 rounded-3xl flex items-center justify-center shadow-lg overflow-hidden">
-                {companyData?.logo ? (
-                  <img src={companyData.logo} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <Package size={40} className="text-white" />
-                )}
+        <div ref={orderSummaryRef} className="w-[620px] bg-white p-10 font-['Quicksand'] border-8 border-pink-100">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b-2 border-pink-200 pb-6 mb-8">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-white rounded-2xl border-2 border-pink-200 flex items-center justify-center p-1 overflow-hidden">
+                <img src={companyLogo} alt="Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
               </div>
               <div>
-                <h2 className="text-3xl font-black text-gray-800">{companyData?.name || 'Meu Ateliê'}</h2>
-                <p className="text-pink-500 font-black text-xs uppercase tracking-widest mt-1">Resumo do Pedido</p>
+                <h3 className="text-2xl font-black text-gray-800 leading-none">{companyData?.name || 'Ateliê'}</h3>
+                <p className="text-[11px] font-black text-pink-500 uppercase tracking-widest mt-1">Comprovante de Pedido Online</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-1">Data</p>
-              <p className="text-sm font-black text-gray-800">{new Date().toLocaleDateString('pt-BR')}</p>
+              <p className="text-xs font-black text-pink-600 bg-pink-50 px-3 py-1 rounded-full">{completedOrderNumber || '#PED-ONLINE'}</p>
+              <p className="text-[10px] font-bold text-gray-400 mt-1">{new Date().toLocaleDateString('pt-BR')}</p>
             </div>
           </div>
 
-          <div className="space-y-6 mb-12">
+          {/* Dados do Cliente */}
+          {customerName && (
+            <div className="bg-gray-50 p-4 rounded-2xl mb-6 border border-gray-100 text-xs">
+              <p className="font-bold text-gray-700"><strong>Cliente:</strong> {customerName}</p>
+              <p className="font-bold text-gray-700 mt-0.5"><strong>WhatsApp:</strong> {customerPhone}</p>
+              <p className="font-bold text-gray-700 mt-0.5">
+                <strong>Entrega:</strong> {deliveryType === 'pickup' ? 'Retirada no Ateliê' : `Entrega: ${deliveryAddress}`}
+              </p>
+            </div>
+          )}
+
+          {/* Itens */}
+          <div className="space-y-3 mb-8">
             {cart.map(item => (
-              <div key={item.product.id} className="flex items-center justify-between py-4 border-b border-gray-100">
-                <div className="flex items-center gap-4">
-                  <span className="w-12 h-12 bg-pink-50 text-pink-600 rounded-2xl flex items-center justify-center font-black text-base shrink-0">{item.quantity}x</span>
-                  <span className="font-black text-gray-800 text-lg">{item.product.name}</span>
+              <div key={item.product.id} className="flex items-center justify-between py-2 border-b border-gray-100 text-sm">
+                <div className="flex items-center gap-3">
+                  <span className="w-7 h-7 bg-pink-50 text-pink-600 rounded-lg flex items-center justify-center text-xs font-black">
+                    {item.quantity}x
+                  </span>
+                  <span className="font-bold text-gray-800">{item.product.name}</span>
                 </div>
-                <span className="font-black text-gray-800 text-lg">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                <span className="font-black text-gray-800">R$ {(item.price * item.quantity).toFixed(2)}</span>
               </div>
             ))}
           </div>
 
-          <div className="bg-gray-50 p-8 rounded-[2rem] flex justify-between items-center">
-            <span className="text-gray-400 font-black uppercase text-xs tracking-widest">Total Geral</span>
-            <span className="text-4xl font-black text-pink-600">R$ {cartTotal.toFixed(2)}</span>
+          {/* Total */}
+          <div className="bg-pink-50 p-6 rounded-2xl flex justify-between items-center border border-pink-200">
+            <span className="text-xs font-black uppercase tracking-wider text-pink-700">Total do Pedido</span>
+            <span className="text-3xl font-black text-pink-600">R$ {cartTotal.toFixed(2)}</span>
           </div>
 
-          <div className="mt-12 text-center">
-            <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em]">Obrigado pela preferência!</p>
+          <div className="mt-8 text-center">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              Obrigado pela preferência! • Produzido com amor
+            </p>
           </div>
         </div>
       </div>

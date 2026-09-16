@@ -66,6 +66,17 @@ export interface CompanyData {
   defaultExcedente: number;
   shopeeSellerType?: 'cnpj' | 'cpf_no_fee' | 'cpf_with_fee';
   monthlyGoals?: MonthlyGoal[];
+  pixKey?: string;
+  pixKeyType?: 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
+  pixBeneficiaryName?: string;
+  bankName?: string;
+  bankAgency?: string;
+  bankAccount?: string;
+  bankAccountType?: 'corrente' | 'poupanca';
+  paymentLink?: string; // Link Mercado Pago / InfinitePay / PagSeguro / Nubank
+  instagram?: string;
+  city?: string;
+  catalogSubtitle?: string;
 }
 
 export interface ProjectItemEntry {

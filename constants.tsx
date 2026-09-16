@@ -41,7 +41,18 @@ export const INITIAL_COMPANY_DATA = {
   workDaysMonthly: 22,
   defaultProfitMargin: 30,
   defaultExcedente: 10,
-  shopeeSellerType: 'cnpj' as 'cnpj' | 'cpf_no_fee' | 'cpf_with_fee'
+  shopeeSellerType: 'cnpj' as 'cnpj' | 'cpf_no_fee' | 'cpf_with_fee',
+  pixKey: '',
+  pixKeyType: 'cpf' as 'cpf' | 'cnpj' | 'email' | 'phone' | 'random',
+  pixBeneficiaryName: '',
+  bankName: '',
+  bankAgency: '',
+  bankAccount: '',
+  bankAccountType: 'corrente' as 'corrente' | 'poupanca',
+  paymentLink: '',
+  instagram: '',
+  city: '',
+  catalogSubtitle: ''
 };
 
 export const PLATFORMS_DEFAULT = [

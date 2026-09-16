@@ -352,3 +352,96 @@ export const safeLocalStorageSet = (key: string, value: any): boolean => {
     return false;
   }
 };
+
+/**
+ * Cálculo de CRC16-CCITT (0x1021) para padrão EMV / BR Code Pix do Banco Central
+ */
+function crc16Pix(payload: string): string {
+  let crc = 0xFFFF;
+  for (let i = 0; i < payload.length; i++) {
+    crc ^= payload.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      if ((crc & 0x8000) !== 0) {
+        crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
+      } else {
+        crc = (crc << 1) & 0xFFFF;
+      }
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+function emvField(id: string, value: string): string {
+  const len = value.length.toString().padStart(2, '0');
+  return `${id}${len}${value}`;
+}
+
+/**
+ * Remove acentos e caracteres inválidos para o padrão Pix do Bacen
+ */
+function sanitizePixText(text: string, maxLen: number): string {
+  const clean = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9 ]/g, '')
+    .trim();
+  return clean.slice(0, maxLen).toUpperCase();
+}
+
+export interface PixPayloadParams {
+  pixKey: string;
+  merchantName: string;
+  merchantCity: string;
+  amount: number;
+  transactionId?: string; // txid (máx 25 chars alfanumérico)
+}
+
+/**
+ * Gera a linha oficial do Pix Copia e Cola (EMV BR Code)
+ */
+export function generatePixCopiaECola(params: PixPayloadParams): string {
+  const { pixKey, merchantName, merchantCity, amount, transactionId } = params;
+  if (!pixKey) return '';
+
+  const cleanKey = pixKey.trim();
+  const cleanName = sanitizePixText(merchantName || 'ATELIE', 25) || 'ATELIE';
+  const cleanCity = sanitizePixText(merchantCity || 'SAO PAULO', 15) || 'SAO PAULO';
+  const cleanTxid = (transactionId || '***').replace(/[^a-zA-Z0-9]/g, '').slice(0, 25) || '***';
+
+  // 00 - Payload Format Indicator: 01
+  const f00 = emvField('00', '01');
+
+  // 26 - Merchant Account Information (Pix GUI + Chave)
+  const gui = emvField('00', 'br.gov.bcb.pix');
+  const key = emvField('01', cleanKey);
+  const f26 = emvField('26', `${gui}${key}`);
+
+  // 52 - Merchant Category Code (0000)
+  const f52 = emvField('52', '0000');
+
+  // 53 - Transaction Currency: 986 (BRL)
+  const f53 = emvField('53', '986');
+
+  // 54 - Transaction Amount
+  const formattedAmount = amount > 0 ? amount.toFixed(2) : '';
+  const f54 = formattedAmount ? emvField('54', formattedAmount) : '';
+
+  // 58 - Country Code: BR
+  const f58 = emvField('58', 'BR');
+
+  // 59 - Merchant Name
+  const f59 = emvField('59', cleanName);
+
+  // 60 - Merchant City
+  const f60 = emvField('60', cleanCity);
+
+  // 62 - Additional Data Field (txid)
+  const f62_05 = emvField('05', cleanTxid);
+  const f62 = emvField('62', f62_05);
+
+  // Montagem preliminar do payload (antes do CRC 6304)
+  const rawPayload = `${f00}${f26}${f52}${f53}${f54}${f58}${f59}${f60}${f62}6304`;
+  const crc = crc16Pix(rawPayload);
+
+  return `${rawPayload}${crc}`;
+}
