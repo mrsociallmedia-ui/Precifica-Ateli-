@@ -11,7 +11,7 @@ import {
   AlertCircle,
   Truck
 } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { supabase, executeSupabaseWithRetry } from '../supabaseClient';
 import { Project, CompanyData } from '../types';
 
 interface ProjectTrackingProps {
@@ -29,11 +29,13 @@ export const ProjectTracking: React.FC<ProjectTrackingProps> = ({ projectId, use
     const fetchData = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from('user_data')
-          .select('app_state')
-          .eq('user_email', userEmail.toLowerCase())
-          .maybeSingle();
+        const { data, error } = await executeSupabaseWithRetry(() =>
+          supabase
+            .from('user_data')
+            .select('app_state')
+            .eq('user_email', userEmail.toLowerCase())
+            .maybeSingle()
+        );
 
         if (error) throw error;
 

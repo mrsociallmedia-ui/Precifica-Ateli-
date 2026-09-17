@@ -311,7 +311,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
       return `
         <tr>
           <td>
-            <span class="quote-num">#${project.quoteNumber || 'S/N'}</span>
+            <span class="quote-num">${project.quoteNumber ? (project.quoteNumber.startsWith('#') ? project.quoteNumber : `#${project.quoteNumber}`) : '#S/N'}</span>
           </td>
           <td>
             <div class="client-name">${customerName}</div>
@@ -620,7 +620,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
                         <div className="flex items-center gap-2">
                           {project.quoteNumber && (
                             <span className="flex items-center gap-0.5 text-[8px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md">
-                               <Hash size={8} /> {project.quoteNumber}
+                               <Hash size={8} /> {project.quoteNumber.replace(/^#/, '')}
                             </span>
                           )}
                         </div>

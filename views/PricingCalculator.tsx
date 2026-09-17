@@ -106,20 +106,19 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   projectToEdit,
   onClearEditProject
 }) => {
-  // Lógica para gerar número sequencial do orçamento (iniciando em 283: 283, 284, 285...)
+  // Lógica para gerar número sequencial do orçamento (iniciando em #283: #283, #284, #285...)
   const generateAutoQuoteNumber = () => {
-    if (!projects || projects.length === 0) return '283';
-    
-    const nums = projects
-      .map(p => {
+    const nums: number[] = [];
+    if (projects && projects.length > 0) {
+      projects.forEach(p => {
         const onlyNums = String(p.quoteNumber || '').replace(/\D/g, '') || '0';
-        return parseInt(onlyNums, 10);
-      })
-      .filter(n => !isNaN(n) && n > 0);
-      
+        const parsed = parseInt(onlyNums, 10);
+        if (!isNaN(parsed) && parsed > 0) nums.push(parsed);
+      });
+    }
     const max = nums.length > 0 ? Math.max(...nums) : 0;
     const nextNum = max < 283 ? 283 : max + 1;
-    return nextNum.toString();
+    return `#${nextNum}`;
   };
 
   const getLocalDate = () => {
@@ -174,7 +173,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     theme: '',
     celebrantName: '',
     celebrantAge: '',
-    quoteNumber: '',
+    quoteNumber: generateAutoQuoteNumber(),
     orderDate: getLocalDate(),
     deliveryDate: '',
     deliveryTime: '',
@@ -205,7 +204,10 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     isExchange: false,
   };
 
-  const [currentProject, setCurrentProject] = useState<Partial<Project>>(initialProjectState);
+  const [currentProject, setCurrentProject] = useState<Partial<Project>>(() => ({
+    ...initialProjectState,
+    quoteNumber: generateAutoQuoteNumber()
+  }));
   const [showCatalog, setShowCatalog] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -1030,7 +1032,11 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       if (statusFilter === 'ongoing') return matchesSearch && p.status !== 'completed';
       if (statusFilter === 'completed') return matchesSearch && p.status === 'completed';
       return matchesSearch;
-    }).sort((a, b) => parseInt(b.quoteNumber || '0') - parseInt(a.quoteNumber || '0'));
+    }).sort((a, b) => {
+      const numA = parseInt(String(a.quoteNumber || '').replace(/\D/g, '') || '0', 10);
+      const numB = parseInt(String(b.quoteNumber || '').replace(/\D/g, '') || '0', 10);
+      return numB - numA;
+    });
   }, [projects, searchTerm, statusFilter]);
 
   const statusLabels: Record<string, string> = {
@@ -1055,7 +1061,13 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       {!isFormOpen && !currentProject.id && (
         <div className="flex justify-center py-10 animate-fadeIn">
           <button 
-            onClick={() => setIsFormOpen(true)}
+            onClick={() => {
+              setCurrentProject(prev => ({
+                ...prev,
+                quoteNumber: prev.quoteNumber ? (prev.quoteNumber.startsWith('#') ? prev.quoteNumber : `#${prev.quoteNumber}`) : generateAutoQuoteNumber()
+              }));
+              setIsFormOpen(true);
+            }}
             className="bg-pink-500 hover:bg-pink-600 text-white font-black px-12 py-8 rounded-[3rem] flex items-center gap-6 transition-all shadow-2xl hover:scale-105 active:scale-95 group border-4 border-pink-400/20"
           >
             <div className="p-4 bg-white/20 rounded-[1.5rem] group-hover:rotate-90 transition-transform">

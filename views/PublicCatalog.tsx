@@ -38,7 +38,7 @@ import {
   UserCheck,
   UserPlus
 } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { supabase, executeSupabaseWithRetry } from '../supabaseClient';
 import { Product, CompanyData, Material, Platform, CatalogCustomerProfile } from '../types';
 import { CatalogCustomerModal } from './CatalogCustomerModal';
 import { CatalogTrackingModal } from './CatalogTrackingModal';
@@ -340,11 +340,13 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
       try {
         setLoading(true);
         // 1. Tentar buscar dados públicos no Supabase
-        const { data, error } = await supabase
-          .from('user_data')
-          .select('app_state')
-          .eq('user_email', userEmail.toLowerCase())
-          .maybeSingle();
+        const { data, error } = await executeSupabaseWithRetry(() =>
+          supabase
+            .from('user_data')
+            .select('app_state')
+            .eq('user_email', userEmail.toLowerCase())
+            .maybeSingle()
+        );
 
         if (data?.app_state) {
           const s = data.app_state;

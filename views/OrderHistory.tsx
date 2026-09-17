@@ -684,7 +684,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             {project.quoteNumber && (
-                              <span className="text-[8px] font-black bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded uppercase tracking-widest">#{project.quoteNumber}</span>
+                              <span className="text-[8px] font-black bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded uppercase tracking-widest">#{String(project.quoteNumber).replace(/^#/, '')}</span>
                             )}
                             <p className="font-black text-gray-800 text-sm">{project.theme}</p>
                             {project.isExchange && (
