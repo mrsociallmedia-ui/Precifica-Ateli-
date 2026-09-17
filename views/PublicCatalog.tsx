@@ -773,6 +773,37 @@ ${deliveryDetails}
           localStorage.setItem(catKey, JSON.stringify(existingCats));
           localStorage.setItem('craft_trans_categories', JSON.stringify(existingCats));
         }
+
+        // Transmitir evento em tempo real via BroadcastChannel para abas abertas no mesmo navegador
+        try {
+          if (typeof BroadcastChannel !== 'undefined') {
+            const bc = new BroadcastChannel('precifica_atelie_sync');
+            bc.postMessage({
+              type: 'CATALOG_ORDER_CREATED',
+              userEmail: userEmail.trim().toLowerCase(),
+              project: localProject,
+              transaction: localTransaction,
+              customer: localCustomer,
+              timestamp: Date.now()
+            });
+            bc.close();
+          }
+        } catch (bcErr) {
+          console.warn("BroadcastChannel notice:", bcErr);
+        }
+
+        // Disparar evento de janela local
+        try {
+          window.dispatchEvent(new CustomEvent('precifica:catalog_order_created', {
+            detail: {
+              userEmail: userEmail.trim().toLowerCase(),
+              project: localProject,
+              transaction: localTransaction,
+              customer: localCustomer,
+              timestamp: Date.now()
+            }
+          }));
+        } catch (evErr) {}
       } catch (cacheErr) {
         console.warn("Aviso ao sincronizar cache local de pedido:", cacheErr);
       }
@@ -782,8 +813,24 @@ ${deliveryDetails}
       }
 
       apiPromise.then(res => {
-        if (res?.project && onOrderCreated) {
-          onOrderCreated(res.project, res.transaction, res.customerId ? { ...localCustomer, id: res.customerId } : undefined);
+        if (res?.project) {
+          if (onOrderCreated) {
+            onOrderCreated(res.project, res.transaction, res.customerId ? { ...localCustomer, id: res.customerId } : undefined);
+          }
+          try {
+            if (typeof BroadcastChannel !== 'undefined') {
+              const bc = new BroadcastChannel('precifica_atelie_sync');
+              bc.postMessage({
+                type: 'CATALOG_ORDER_CREATED',
+                userEmail: userEmail.trim().toLowerCase(),
+                project: res.project,
+                transaction: res.transaction,
+                customer: res.customerId ? { ...localCustomer, id: res.customerId } : localCustomer,
+                timestamp: Date.now()
+              });
+              bc.close();
+            }
+          } catch (e) {}
         }
       });
     } catch (autoErr) {

@@ -134,6 +134,103 @@ const App: React.FC = () => {
   const [transactionCategories, setTransactionCategories] = useState<string[]>(['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Permuta', 'Outros']);
   const [paymentMethods, setPaymentMethods] = useState<string[]>(['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']);
 
+  // Notificação de novos pedidos recebidos em tempo real pelo catálogo
+  const [orderNotification, setOrderNotification] = useState<{
+    id: string;
+    quoteNumber: string;
+    customerName: string;
+    total: number;
+    itemsSummary: string;
+    timestamp: number;
+  } | null>(null);
+
+  // Refs para comparação em tempo real sem dependências cíclicas
+  const projectsRef = useRef<Project[]>([]);
+  projectsRef.current = projects;
+  const transactionsRef = useRef<Transaction[]>([]);
+  transactionsRef.current = transactions;
+  const customersRef = useRef<Customer[]>([]);
+  customersRef.current = customers;
+
+  // Som suave de notificação via Web Audio API (100% offline, seguro e instantâneo)
+  const playOrderChime = useCallback(() => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6 (acorde alegre)
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.08);
+        gain.gain.setValueAtTime(0, ctx.currentTime + idx * 0.08);
+        gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + idx * 0.08 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.08 + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + idx * 0.08);
+        osc.stop(ctx.currentTime + idx * 0.08 + 0.36);
+      });
+    } catch {
+      // Audio fallback silencioso
+    }
+  }, []);
+
+  // Processador central de novo pedido do catálogo em tempo real
+  const handleIncomingCatalogOrder = useCallback((newProj: any, newTx: any, newCust: any) => {
+    if (!newProj) return;
+
+    const numClean = String(newProj.quoteNumber || '').replace(/\D/g, '');
+    const alreadyExists = projectsRef.current.some(p => 
+      p.id === newProj.id || 
+      (numClean && String(p.quoteNumber || '').replace(/\D/g, '') === numClean)
+    );
+
+    if (newCust) {
+      setCustomers(prev => {
+        const exists = prev.some(c => c.id === newCust.id || (c.phone && newCust.phone && c.phone.replace(/\D/g, '') === newCust.phone.replace(/\D/g, '')));
+        return exists ? prev : [newCust, ...prev];
+      });
+    }
+
+    setProjects(prev => {
+      const exists = prev.some(p => 
+        p.id === newProj.id || 
+        (numClean && String(p.quoteNumber || '').replace(/\D/g, '') === numClean)
+      );
+      if (exists) return prev;
+      return [newProj, ...prev];
+    });
+
+    if (newTx) {
+      setTransactions(prev => {
+        const exists = prev.some(t => t.id === newTx.id || (t.projectId && t.projectId === newProj.id));
+        if (exists) return prev;
+        return [newTx, ...prev];
+      });
+    }
+
+    if (!alreadyExists) {
+      playOrderChime();
+      const custName = newCust?.name || newProj.celebrantName || newProj.name?.replace('Pedido Catálogo:', '').trim() || 'Cliente';
+      const num = newProj.quoteNumber ? `#${String(newProj.quoteNumber).replace(/\D/g, '')}` : '#Catálogo';
+      const amount = Number(newTx?.amount) || Number(newProj.downPayment) || 0;
+      
+      setOrderNotification({
+        id: newProj.id || String(Date.now()),
+        quoteNumber: num,
+        customerName: custName,
+        total: amount,
+        itemsSummary: newProj.description || 'Novo pedido recebido pelo catálogo online',
+        timestamp: Date.now()
+      });
+    }
+  }, [playOrderChime]);
+
   // Monitorar Sessão Supabase (Única fonte de verdade para Auth)
   useEffect(() => {
     // Verificar se é uma rota de catálogo público
@@ -434,55 +531,246 @@ const App: React.FC = () => {
     }
   }, [saveLocalCache, companyData, materials, customers, platforms, projects, products, transactions, closures, productCategories, transactionCategories, paymentMethods, currentUser]);
 
-  useEffect(() => {
-    if (isAuthenticated && currentUser) {
-      fetchCloudData(currentUser).then(() => {
-        initializedRef.current = true;
-        setIsInitialLoadDone(true);
-      }).catch(() => setIsInitialLoadDone(true));
+  // Função para sincronização silenciosa em background (sem loading screen)
+  const fetchCloudDataSilently = useCallback(async (email: string) => {
+    if (!supabase || isMock) return;
+    try {
+      const { data, error } = await supabase
+        .from('user_data')
+        .select('app_state')
+        .eq('user_email', email.toLowerCase())
+        .maybeSingle();
 
-      // Configurar Sincronização em Tempo Real (Realtime)
-      if (supabase && !isMock) {
-        const channel = supabase
-          .channel('user_data_realtime')
-          .on('postgres_changes', { 
-            event: '*', 
-            schema: 'public', 
-            table: 'user_data', 
-            filter: `user_email=eq.${currentUser.toLowerCase()}` 
-          }, (payload: any) => {
-            // Quando os dados mudam no banco (por outro dispositivo), atualizamos o estado local
-            if (payload.new && payload.new.app_state) {
-              const s = payload.new.app_state;
-              
-              // Evitar loops redundantes se o dado que chegou for exatamente igual ao que já temos localmente
-              const serializedPayload = JSON.stringify(s);
-              if (serializedPayload === lastSyncedStateRef.current) return;
+      if (!error && data?.app_state) {
+        const s = data.app_state;
+        const serialized = JSON.stringify(s);
+        if (serialized !== lastSyncedStateRef.current) {
+          // Detectar novos projetos do catálogo para alertar o usuário
+          if (Array.isArray(s.craft_projects)) {
+            const currentProjIds = new Set(projectsRef.current.map(p => p.id));
+            const currentQuotes = new Set(projectsRef.current.map(p => String(p.quoteNumber || '').replace(/\D/g, '')));
 
-              if (s.craft_company) setCompanyData(s.craft_company);
-              if (s.craft_materials) setMaterials(s.craft_materials);
-              if (s.craft_customers) setCustomers(s.craft_customers);
-              if (s.craft_platforms) setPlatforms(s.craft_platforms);
-              if (s.craft_projects) setProjects(s.craft_projects);
-              if (s.craft_products) setProducts(s.craft_products);
-              if (s.craft_transactions) setTransactions(s.craft_transactions);
-              if (s.craft_closures) setClosures(s.craft_closures);
-              if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
-              if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
-              if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
-              
-              lastSyncedStateRef.current = serializedPayload;
-              setSyncStatus('synced');
+            const newCatalogProjects = s.craft_projects.filter((p: any) => {
+              if (currentProjIds.has(p.id)) return false;
+              const q = String(p.quoteNumber || '').replace(/\D/g, '');
+              if (q && currentQuotes.has(q)) return false;
+              return (p.notes && p.notes.includes('Catálogo Online')) || (p.name && p.name.includes('Pedido Catálogo')) || (p.theme && p.theme.includes('Catálogo'));
+            });
+
+            if (newCatalogProjects.length > 0) {
+              const latest = newCatalogProjects[0];
+              const matchedTx = Array.isArray(s.craft_transactions) ? s.craft_transactions.find((t: any) => t.projectId === latest.id) : null;
+              const matchedCust = Array.isArray(s.craft_customers) ? s.craft_customers.find((c: any) => c.id === latest.customerId) : null;
+
+              playOrderChime();
+              setOrderNotification({
+                id: latest.id,
+                quoteNumber: latest.quoteNumber ? `#${String(latest.quoteNumber).replace(/\D/g, '')}` : '#Catálogo',
+                customerName: latest.celebrantName || matchedCust?.name || 'Cliente',
+                total: Number(matchedTx?.amount) || 0,
+                itemsSummary: latest.description || 'Novo pedido recebido pelo catálogo online',
+                timestamp: Date.now()
+              });
             }
-          })
-          .subscribe();
+          }
 
-        return () => {
-          supabase.removeChannel(channel);
+          if (s.craft_company) setCompanyData(s.craft_company);
+          if (s.craft_materials) setMaterials(s.craft_materials);
+          if (s.craft_customers) setCustomers(s.craft_customers);
+          if (s.craft_platforms) setPlatforms(s.craft_platforms);
+          if (s.craft_projects) setProjects(s.craft_projects);
+          if (s.craft_products) setProducts(s.craft_products);
+          if (s.craft_transactions) setTransactions(s.craft_transactions);
+          if (s.craft_closures) setClosures(s.craft_closures);
+          if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
+          if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
+          if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
+
+          lastSyncedStateRef.current = serialized;
+          setSyncStatus('synced');
+        }
+      }
+    } catch {
+      // Ignorar erros transitórios de background
+    }
+  }, [playOrderChime]);
+
+  // Sincronização em Tempo Real (Supabase Realtime + BroadcastChannel + Eventos Locais + Polling Inteligente)
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser) return;
+
+    fetchCloudData(currentUser).then(() => {
+      initializedRef.current = true;
+      setIsInitialLoadDone(true);
+    }).catch(() => setIsInitialLoadDone(true));
+
+    // 1. Supabase Postgres Changes Realtime
+    let channel: any = null;
+    if (supabase && !isMock) {
+      channel = supabase
+        .channel(`user_data_realtime_${currentUser.toLowerCase().replace(/[^a-z0-9]/g, '_')}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'user_data', 
+          filter: `user_email=eq.${currentUser.toLowerCase()}` 
+        }, (payload: any) => {
+          if (payload.new && payload.new.app_state) {
+            const s = payload.new.app_state;
+            const serializedPayload = JSON.stringify(s);
+            if (serializedPayload === lastSyncedStateRef.current) return;
+
+            // Verificar se chegaram novos pedidos do catálogo
+            if (Array.isArray(s.craft_projects)) {
+              const currentProjIds = new Set(projectsRef.current.map(p => p.id));
+              const currentQuotes = new Set(projectsRef.current.map(p => String(p.quoteNumber || '').replace(/\D/g, '')));
+
+              const newCatalogProjects = s.craft_projects.filter((p: any) => {
+                if (currentProjIds.has(p.id)) return false;
+                const q = String(p.quoteNumber || '').replace(/\D/g, '');
+                if (q && currentQuotes.has(q)) return false;
+                return (p.notes && p.notes.includes('Catálogo Online')) || (p.name && p.name.includes('Pedido Catálogo')) || (p.theme && p.theme.includes('Catálogo'));
+              });
+
+              if (newCatalogProjects.length > 0) {
+                const latest = newCatalogProjects[0];
+                const matchedTx = Array.isArray(s.craft_transactions) ? s.craft_transactions.find((t: any) => t.projectId === latest.id) : null;
+                const matchedCust = Array.isArray(s.craft_customers) ? s.craft_customers.find((c: any) => c.id === latest.customerId) : null;
+
+                playOrderChime();
+                setOrderNotification({
+                  id: latest.id,
+                  quoteNumber: latest.quoteNumber ? `#${String(latest.quoteNumber).replace(/\D/g, '')}` : '#Catálogo',
+                  customerName: latest.celebrantName || matchedCust?.name || 'Cliente',
+                  total: Number(matchedTx?.amount) || 0,
+                  itemsSummary: latest.description || 'Novo pedido recebido pelo catálogo online',
+                  timestamp: Date.now()
+                });
+              }
+            }
+
+            if (s.craft_company) setCompanyData(s.craft_company);
+            if (s.craft_materials) setMaterials(s.craft_materials);
+            if (s.craft_customers) setCustomers(s.craft_customers);
+            if (s.craft_platforms) setPlatforms(s.craft_platforms);
+            if (s.craft_projects) setProjects(s.craft_projects);
+            if (s.craft_products) setProducts(s.craft_products);
+            if (s.craft_transactions) setTransactions(s.craft_transactions);
+            if (s.craft_closures) setClosures(s.craft_closures);
+            if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
+            if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
+            if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
+            
+            lastSyncedStateRef.current = serializedPayload;
+            setSyncStatus('synced');
+          }
+        })
+        .subscribe();
+    }
+
+    // 2. BroadcastChannel para comunicação instantânea entre abas e catálogo
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bc = new BroadcastChannel('precifica_atelie_sync');
+        bc.onmessage = (event) => {
+          if (event?.data?.type === 'CATALOG_ORDER_CREATED') {
+            const dataUser = String(event.data.userEmail || '').toLowerCase().trim();
+            if (dataUser === currentUser.toLowerCase().trim() || !dataUser) {
+              handleIncomingCatalogOrder(event.data.project, event.data.transaction, event.data.customer);
+            }
+          }
         };
       }
+    } catch (bcErr) {
+      console.warn("BroadcastChannel error:", bcErr);
     }
-  }, [isAuthenticated, currentUser, fetchCloudData]);
+
+    // 3. CustomEvent da mesma janela
+    const handleCustomEvent = (e: any) => {
+      if (e?.detail?.project) {
+        const dataUser = String(e.detail.userEmail || '').toLowerCase().trim();
+        if (dataUser === currentUser.toLowerCase().trim() || !dataUser) {
+          handleIncomingCatalogOrder(e.detail.project, e.detail.transaction, e.detail.customer);
+        }
+      }
+    };
+    window.addEventListener('precifica:catalog_order_created', handleCustomEvent);
+
+    // 4. Storage Event (quando o catálogo salva no localStorage em outra aba)
+    const handleStorageEvent = (e: StorageEvent) => {
+      const userKey = currentUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+      if (e.key === `${userKey}_craft_projects` || e.key === 'craft_projects') {
+        if (e.newValue) {
+          try {
+            const parsedProjects = JSON.parse(e.newValue);
+            if (Array.isArray(parsedProjects)) {
+              setProjects(parsedProjects);
+            }
+          } catch {}
+        }
+      }
+      if (e.key === `${userKey}_craft_transactions` || e.key === 'craft_transactions') {
+        if (e.newValue) {
+          try {
+            const parsedTx = JSON.parse(e.newValue);
+            if (Array.isArray(parsedTx)) {
+              setTransactions(parsedTx);
+            }
+          } catch {}
+        }
+      }
+      if (e.key === `${userKey}_craft_customers` || e.key === 'craft_customers') {
+        if (e.newValue) {
+          try {
+            const parsedCust = JSON.parse(e.newValue);
+            if (Array.isArray(parsedCust)) {
+              setCustomers(parsedCust);
+            }
+          } catch {}
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageEvent);
+
+    // 5. Polling silencioso em segundo plano a cada 8 segundos e ao focar a aba
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchCloudDataSilently(currentUser);
+      }
+    }, 8000);
+
+    const handleFocusOrVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchCloudDataSilently(currentUser);
+      }
+    };
+    window.addEventListener('focus', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+
+    return () => {
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+      if (bc) {
+        bc.close();
+      }
+      window.removeEventListener('precifica:catalog_order_created', handleCustomEvent);
+      window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('focus', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+      clearInterval(pollInterval);
+    };
+  }, [isAuthenticated, currentUser, fetchCloudData, fetchCloudDataSilently, handleIncomingCatalogOrder, playOrderChime]);
+
+  // Auto-dispensar notificação flutuante de pedido após 10 segundos
+  useEffect(() => {
+    if (!orderNotification) return;
+    const timer = setTimeout(() => {
+      setOrderNotification(null);
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [orderNotification]);
 
   useEffect(() => {
     if (!isAuthenticated || !currentUser || !initializedRef.current) return;
@@ -580,18 +868,7 @@ const App: React.FC = () => {
       <PublicCatalog 
         userEmail={publicCatalogEmail} 
         onOrderCreated={(newProj, newTx, newCust) => {
-          if (newCust) setCustomers(prev => {
-            const exists = prev.some(c => c.id === newCust.id || (c.phone && newCust.phone && c.phone.replace(/\D/g, '') === newCust.phone.replace(/\D/g, '')));
-            return exists ? prev : [newCust, ...prev];
-          });
-          if (newProj) setProjects(prev => {
-            const exists = prev.some(p => p.id === newProj.id || (p.quoteNumber && p.quoteNumber === newProj.quoteNumber));
-            return exists ? prev : [newProj, ...prev];
-          });
-          if (newTx) setTransactions(prev => {
-            const exists = prev.some(t => t.id === newTx.id);
-            return exists ? prev : [newTx, ...prev];
-          });
+          handleIncomingCatalogOrder(newProj, newTx, newCust);
         }}
       />
     );
@@ -794,7 +1071,7 @@ const App: React.FC = () => {
                   case 'pricing': return <PricingCalculator {...props} setCustomers={setCustomers} products={products} setProjects={setProjects} setTransactions={setTransactions} paymentMethods={paymentMethods} projectToEdit={projectToEdit} onClearEditProject={() => setProjectToEdit(null)} />;
                   case 'schedule': return <Schedule {...props} currentUser={currentUser || ''} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
-                  case 'catalog': return <CatalogManager currentUser={currentUser || ''} companyData={companyData} products={products} projects={projects} transactions={transactions} customers={customers} onNavigate={(tab) => setActiveTab(tab)} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
+                  case 'catalog': return <CatalogManager currentUser={currentUser || ''} companyData={companyData} materials={materials} platforms={platforms} products={products} projects={projects} transactions={transactions} customers={customers} onNavigate={(tab) => setActiveTab(tab)} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} setCustomers={setCustomers} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} setProjects={setProjects} />;
                   case 'captions': return <AICaptionGenerator companyData={companyData} products={products} projects={projects} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
@@ -842,6 +1119,69 @@ const App: React.FC = () => {
                 Sair
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notificação em Tempo Real de Novo Pedido no Catálogo */}
+      {orderNotification && (
+        <div className="fixed top-5 right-5 z-[9999] max-w-md w-[calc(100vw-2.5rem)] bg-white border-2 border-pink-200 rounded-3xl p-4 shadow-2xl animate-bounce-subtle flex flex-col gap-3 transition-all duration-300">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-400 flex items-center justify-center text-white shadow-md shadow-pink-200 shrink-0">
+                <ShoppingBag size={20} className="animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
+                  </span>
+                  <h4 className="text-[11px] font-black text-pink-600 uppercase tracking-wider">Novo Pedido no Catálogo!</h4>
+                </div>
+                <p className="text-sm font-black text-gray-800">
+                  {orderNotification.quoteNumber} • {orderNotification.customerName}
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setOrderNotification(null)}
+              className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-xl transition-colors"
+              title="Fechar notificação"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="bg-pink-50/60 rounded-2xl px-3.5 py-2.5 flex items-center justify-between border border-pink-100/50">
+            <p className="text-xs text-gray-600 font-semibold truncate max-w-[220px]">
+              {orderNotification.itemsSummary}
+            </p>
+            <span className="text-xs font-black text-pink-600 shrink-0 ml-2">
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orderNotification.total)}
+            </span>
+          </div>
+
+          <div className="flex gap-2 pt-0.5">
+            <button
+              onClick={() => {
+                setActiveTab('schedule');
+                setOrderNotification(null);
+              }}
+              className="flex-1 py-2.5 bg-pink-500 hover:bg-pink-600 text-white font-black text-xs rounded-xl shadow-md shadow-pink-200 transition-all flex items-center justify-center gap-2"
+            >
+              <Calendar size={14} />
+              Ver no Cronograma
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('catalog');
+                setOrderNotification(null);
+              }}
+              className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-xs rounded-xl transition-colors"
+            >
+              Ver Catálogo
+            </button>
           </div>
         </div>
       )}

@@ -21,11 +21,14 @@ import {
   AlertCircle,
   CreditCard
 } from 'lucide-react';
-import { Project, Product, Transaction, CompanyData, Customer } from '../types';
+import { Project, Product, Transaction, CompanyData, Customer, Material, Platform } from '../types';
+import { calculateProjectBreakdown } from '../utils';
 
 interface CatalogManagerProps {
   currentUser: string;
   companyData: CompanyData;
+  materials?: Material[];
+  platforms?: Platform[];
   products: Product[];
   projects: Project[];
   transactions: Transaction[];
@@ -37,6 +40,8 @@ interface CatalogManagerProps {
 export const CatalogManager: React.FC<CatalogManagerProps> = ({
   currentUser,
   companyData,
+  materials = [],
+  platforms = [],
   products,
   projects,
   transactions,
@@ -52,6 +57,39 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
   // Link do catálogo online
   const baseUrl = typeof window !== 'undefined' ? (window.location.origin + window.location.pathname) : '';
   const catalogUrl = `${baseUrl}?catalog=${encodeURIComponent(currentUser || '')}`;
+
+  // Helper para calcular o valor total real do pedido do catálogo
+  const getOrderTotal = (order: Project) => {
+    // 1. Calcular decomposição completa de preço do projeto
+    try {
+      const breakdown = calculateProjectBreakdown(order, materials, platforms, companyData, transactions);
+      if (breakdown && breakdown.finalPrice > 0) {
+        return breakdown.finalPrice;
+      }
+    } catch {}
+
+    // 2. Somatório direto dos itens do pedido (preço unitário * quantidade)
+    if (order.items && order.items.length > 0) {
+      const itemsTotal = order.items.reduce((acc, it) => {
+        const unit = Number(it.unitPrice || 0);
+        const qty = Number(it.quantity || 1);
+        return acc + (unit * qty);
+      }, 0);
+      if (itemsTotal > 0) return itemsTotal;
+    }
+
+    // 3. Buscar na lista de transações financeiras vinculadas ao projeto
+    const tx = transactions.find(t => 
+      t.projectId === order.id || 
+      (order.quoteNumber && t.description && t.description.includes(String(order.quoteNumber)))
+    );
+    if (tx && tx.amount > 0) return tx.amount;
+
+    // 4. Se houver valor cadastrado em downPayment
+    if (order.downPayment && order.downPayment > 0) return order.downPayment;
+
+    return 0;
+  };
 
   // Filtrar pedidos que vieram do catálogo online
   const catalogOrders = projects.filter(p => 
@@ -69,7 +107,8 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
 
   const totalCatalogRevenue = catalogTransactions
     .filter(t => t.type === 'income')
-    .reduce((acc, t) => acc + t.amount, 0);
+    .reduce((acc, t) => acc + t.amount, 0) ||
+    catalogOrders.reduce((acc, o) => acc + getOrderTotal(o), 0);
 
   const catalogProducts = products.filter(p => p.showInCatalog !== false);
 
@@ -329,7 +368,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                         <div className="text-right">
                           <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">Total</span>
                           <span className="text-base font-black text-emerald-600">
-                            R$ {(order.downPayment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {getOrderTotal(order).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
                       </div>
