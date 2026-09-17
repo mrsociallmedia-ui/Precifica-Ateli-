@@ -33,10 +33,15 @@ import {
   Instagram,
   AlertCircle,
   Share2,
-  QrCode
+  QrCode,
+  User,
+  UserCheck,
+  UserPlus
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { Product, CompanyData, Material, Platform } from '../types';
+import { Product, CompanyData, Material, Platform, CatalogCustomerProfile } from '../types';
+import { CatalogCustomerModal } from './CatalogCustomerModal';
+import { CatalogTrackingModal } from './CatalogTrackingModal';
 import { calculateProjectBreakdown } from '../utils';
 
 declare const html2canvas: any;
@@ -96,7 +101,52 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
   const [orderObservations, setOrderObservations] = useState('');
   const [formErrors, setFormErrors] = useState<{ name?: string; phone?: string; address?: string }>({});
 
+  // Estados de Cadastro do Cliente & Acompanhamento de Pedidos
+  const [customerProfile, setCustomerProfile] = useState<CatalogCustomerProfile | null>(null);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const [trackingDefaultOrder, setTrackingDefaultOrder] = useState<string | undefined>(undefined);
+
+  // Carregar cadastro salvo do cliente neste navegador
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('catalog_customer_profile');
+      if (saved) {
+        const parsed: CatalogCustomerProfile = JSON.parse(saved);
+        if (parsed && parsed.name) {
+          setCustomerProfile(parsed);
+          setCustomerName(parsed.name || '');
+          setCustomerPhone(parsed.phone || '');
+          setCustomerEmail(parsed.email || '');
+          setDeliveryAddress(parsed.address || '');
+          setDeliveryNeighborhood(parsed.neighborhood || '');
+          setDeliveryCity(parsed.city || '');
+          if (parsed.deliveryType) setDeliveryType(parsed.deliveryType);
+        }
+      }
+    } catch (e) {}
+  }, []);
+
+  const handleSaveCustomerProfile = (profile: CatalogCustomerProfile) => {
+    setCustomerProfile(profile);
+    setCustomerName(profile.name);
+    setCustomerPhone(profile.phone);
+    if (profile.email) setCustomerEmail(profile.email);
+    if (profile.address) setDeliveryAddress(profile.address);
+    if (profile.neighborhood) setDeliveryNeighborhood(profile.neighborhood);
+    if (profile.city) setDeliveryCity(profile.city);
+    if (profile.deliveryType) setDeliveryType(profile.deliveryType);
+  };
+
+  const handleLogoutCustomerProfile = () => {
+    try {
+      localStorage.removeItem('catalog_customer_profile');
+    } catch (e) {}
+    setCustomerProfile(null);
+  };
+
   const orderSummaryRef = useRef<HTMLDivElement>(null);
+  const hasAutoSentWhatsAppRef = useRef(false);
 
   // Monitorar se a integração com Mercado Pago está ativa (pela conta do artesão ou secret do sistema)
   useEffect(() => {
@@ -115,27 +165,99 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
       .catch(() => {});
   }, [companyData?.mercadoPagoAccessToken]);
 
-  // Polling automático para atualizar status do Pix no Mercado Pago em tempo real
+  // Detectar retorno de pagamento aprovado do Mercado Pago (via redirecionamento do Checkout Pro)
   useEffect(() => {
-    if ((cartStep !== 'payment' && cartStep !== 'success') || !mpPixData?.id || mpPaymentStatus === 'approved') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const paymentStatus = params.get('collection_status') || params.get('status') || params.get('payment');
+      const orderParam = params.get('order') || params.get('external_reference');
 
-    const interval = setInterval(async () => {
-      try {
-        const userToken = companyData?.mercadoPagoAccessToken?.trim();
-        const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';
-        const res = await fetch(`/api/mercadopago/check-payment/${mpPixData.id}${tokenQuery}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.status === 'approved') {
-            setMpPaymentStatus('approved');
-            clearInterval(interval);
-          }
+      if ((paymentStatus === 'approved' || paymentStatus === 'success') && orderParam) {
+        const saved = localStorage.getItem('pending_catalog_order');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.orderNum && (parsed.orderNum === orderParam || orderParam.includes(parsed.orderNum.replace(/#/g, '')))) {
+              setCompletedOrderNumber(parsed.orderNum);
+              if (parsed.customerName) setCustomerName(parsed.customerName);
+              if (parsed.customerPhone) setCustomerPhone(parsed.customerPhone);
+              if (parsed.deliveryType) setDeliveryType(parsed.deliveryType);
+              if (parsed.deliveryAddress) setDeliveryAddress(parsed.deliveryAddress);
+              if (parsed.deliveryNeighborhood) setDeliveryNeighborhood(parsed.deliveryNeighborhood);
+              if (parsed.deliveryCity) setDeliveryCity(parsed.deliveryCity);
+              if (parsed.orderObservations) setOrderObservations(parsed.orderObservations);
+              if (parsed.cart && parsed.cart.length > 0) setCart(parsed.cart);
+              setPaymentMethod('credit');
+              setMpPaymentStatus('approved');
+              setCartStep('payment');
+              setIsCartOpen(true);
+            }
+          } catch (e) {}
+        } else {
+          setCompletedOrderNumber(orderParam);
+          setPaymentMethod('credit');
+          setMpPaymentStatus('approved');
+          setCartStep('payment');
+          setIsCartOpen(true);
         }
-      } catch (err) {}
-    }, 4000);
+      }
+    } catch (e) {}
+  }, []);
 
-    return () => clearInterval(interval);
-  }, [cartStep, mpPixData?.id, mpPaymentStatus, companyData?.mercadoPagoAccessToken]);
+  // Polling automático para atualizar status do Pix e Cartão no Mercado Pago em tempo real e disparar baixa automática
+  useEffect(() => {
+    if ((cartStep !== 'payment' && cartStep !== 'success') || mpPaymentStatus === 'approved') return;
+
+    // Caso 1: Pagamento via Pix com id gerado
+    if (paymentMethod === 'pix' && mpPixData?.id) {
+      const interval = setInterval(async () => {
+        try {
+          const userToken = companyData?.mercadoPagoAccessToken?.trim();
+          const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';
+          const res = await fetch(`/api/mercadopago/check-payment/${mpPixData.id}${tokenQuery}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.status === 'approved') {
+              setMpPaymentStatus('approved');
+              clearInterval(interval);
+            }
+          }
+        } catch (err) {}
+      }, 2500);
+
+      return () => clearInterval(interval);
+    }
+
+    // Caso 2: Pagamento via Cartão de Crédito no Mercado Pago
+    if (paymentMethod === 'credit' && completedOrderNumber) {
+      const interval = setInterval(async () => {
+        try {
+          const userToken = companyData?.mercadoPagoAccessToken?.trim();
+          const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';
+          const res = await fetch(`/api/mercadopago/check-order-payment/${encodeURIComponent(completedOrderNumber)}${tokenQuery}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.status === 'approved') {
+              setMpPaymentStatus('approved');
+              clearInterval(interval);
+            }
+          }
+        } catch (err) {}
+      }, 2500);
+
+      return () => clearInterval(interval);
+    }
+  }, [cartStep, paymentMethod, mpPixData?.id, completedOrderNumber, mpPaymentStatus, companyData?.mercadoPagoAccessToken]);
+
+  // Auto-redirecionamento para o Checkout do Mercado Pago quando estiver na etapa de pagamento com cartão
+  useEffect(() => {
+    if (cartStep === 'payment' && paymentMethod === 'credit' && mpPreferenceData?.initPoint && mpPaymentStatus !== 'approved') {
+      const timer = setTimeout(() => {
+        window.location.href = mpPreferenceData.initPoint;
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [cartStep, paymentMethod, mpPreferenceData?.initPoint, mpPaymentStatus]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -337,6 +459,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     }
 
     setIsProcessingOrder(true);
+    hasAutoSentWhatsAppRef.current = false;
 
     const orderNum = completedOrderNumber || `#PED-${Math.floor(1000 + Math.random() * 9000)}`;
     setCompletedOrderNumber(orderNum);
@@ -380,7 +503,10 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
       } catch (err) {
         console.warn("Mercado Pago Pix não disponível:", err);
       }
-    } else if (paymentMethod === 'credit') {
+    }
+
+    let targetInitPoint = '';
+    if (paymentMethod === 'credit') {
       try {
         const mpRes = await fetch('/api/mercadopago/create-preference', {
           method: 'POST',
@@ -392,13 +518,32 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
             payer: {
               name: customerName,
               email: safePayerEmail
-            }
+            },
+            catalogEmail: userEmail
           })
         });
         if (mpRes.ok) {
           const data = await mpRes.json();
           if (data?.initPoint) {
+            targetInitPoint = data.initPoint;
             setMpPreferenceData(data);
+            try {
+              localStorage.setItem('pending_catalog_order', JSON.stringify({
+                orderNum,
+                customerName,
+                customerPhone,
+                customerEmail,
+                deliveryType,
+                deliveryAddress,
+                deliveryNeighborhood,
+                deliveryCity,
+                cart,
+                cartTotal,
+                paymentMethod: 'credit',
+                orderObservations,
+                date: new Date().toISOString()
+              }));
+            } catch (e) {}
           }
         }
       } catch (err) {
@@ -574,14 +719,38 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         paymentMethod
       });
       localStorage.setItem('my_online_orders', JSON.stringify(existingOrders.slice(0, 20)));
+
+      // Auto-salvar perfil do cliente se ainda não existir
+      if (!customerProfile && customerName.trim() && customerPhone.trim()) {
+        const autoProfile: CatalogCustomerProfile = {
+          name: customerName.trim(),
+          phone: customerPhone.trim(),
+          email: customerEmail.trim() || undefined,
+          address: deliveryAddress.trim() || undefined,
+          neighborhood: deliveryNeighborhood.trim() || undefined,
+          city: deliveryCity.trim() || undefined,
+          deliveryType
+        };
+        localStorage.setItem('catalog_customer_profile', JSON.stringify(autoProfile));
+        setCustomerProfile(autoProfile);
+      }
     } catch (e) {}
 
     setIsProcessingOrder(false);
+    if (paymentMethod === 'credit' && targetInitPoint) {
+      window.location.href = targetInitPoint;
+      return;
+    }
     setCartStep('payment');
   };
 
-  // Passo 3: Disparado APÓS o pagamento para montar e enviar o pedido no WhatsApp do ateliê
+  // Passo 3: Disparado AUTOMATICAMENTE assim que dá baixa na venda para enviar ao WhatsApp
   const handleFinishAndSendWhatsApp = async () => {
+    if (hasAutoSentWhatsAppRef.current && cartStep === 'success') {
+      return;
+    }
+    hasAutoSentWhatsAppRef.current = true;
+
     const phone = companyData?.phone?.replace(/\D/g, '') || '';
     if (!phone) {
       alert('Número de WhatsApp do ateliê não encontrado. Entre em contato diretamente.');
@@ -609,12 +778,14 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     });
 
     let paymentStatusSection = '';
-    if (mpPaymentStatus === 'approved') {
-      paymentStatusSection = `• *Forma:* ⚡ Pix Automático Mercado Pago\n• *Status:* ✅ PAGO E APROVADO PELO MERCADO PAGO`;
+    if (paymentMethod === 'credit') {
+      paymentStatusSection = `• *Forma:* 💳 Cartão de Crédito Mercado Pago\n• *Status:* ✅ PAGO E APROVADO (BAIXA AUTOMÁTICA REGISTRADA)`;
+    } else if (mpPaymentStatus === 'approved') {
+      paymentStatusSection = `• *Forma:* ⚡ Pix Automático Mercado Pago\n• *Status:* ✅ PAGO E APROVADO (BAIXA AUTOMÁTICA REGISTRADA)`;
     } else if (paymentMethod === 'pix') {
-      paymentStatusSection = `• *Forma:* ⚡ Pix (Transferência Realizada)\n• *Status:* 💸 Realizado pelo cliente (Comprovante em anexo nesta conversa)`;
+      paymentStatusSection = `• *Forma:* ⚡ Pix\n• *Status:* ✅ BAIXA DADA NA VENDA / PAGO`;
     } else {
-      paymentStatusSection = `• *Forma:* 💳 Cartão de Crédito Mercado Pago\n• *Status:* 💳 Finalizado / Processando`;
+      paymentStatusSection = `• *Forma:* 💳 Cartão de Crédito Mercado Pago\n• *Status:* ✅ PAGO E APROVADO (BAIXA AUTOMÁTICA REGISTRADA)`;
     }
 
     const message = 
@@ -643,7 +814,7 @@ ${paymentStatusSection}
 • ${orderObservations.trim() || 'Sem observações adicionais informadas no pedido.'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-✨ _Olá! Realizei o pagamento do meu pedido pelo seu Catálogo Online. Segue o resumo para conferência e início da confecção!_`;
+✨ _Olá! Foi dada baixa no pagamento do meu pedido pelo seu Catálogo Online! Segue o resumo com status confirmado para início da confecção!_`;
 
     setLastOrderMessage(message);
 
@@ -666,13 +837,28 @@ ${paymentStatusSection}
       console.warn("Não foi possível gerar a imagem automática:", e);
     }
 
-    // Disparar abertura do WhatsApp
+    // Disparar abertura automática do WhatsApp
     const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
+    try {
+      const openedWin = window.open(whatsappUrl, '_blank');
+      if (!openedWin || openedWin.closed || typeof openedWin.closed === 'undefined') {
+        // Se bloqueado pelo popup blocker, tenta abrir no mesmo local ou o botão de sucesso permitirá abrir
+        window.location.href = whatsappUrl;
+      }
+    } catch (e) {
+      console.warn("Aviso ao abrir WhatsApp:", e);
+    }
 
     setIsProcessingOrder(false);
     setCartStep('success');
   };
+
+  // Disparo AUTOMÁTICO assim que der baixa na venda (pagamento aprovado)
+  useEffect(() => {
+    if (mpPaymentStatus === 'approved' && cartStep === 'payment' && !isProcessingOrder) {
+      handleFinishAndSendWhatsApp();
+    }
+  }, [mpPaymentStatus, cartStep, isProcessingOrder]);
 
   const handleProcessOrder = handleProceedToPayment;
 
@@ -700,6 +886,7 @@ ${paymentStatusSection}
   };
 
   const resetCartAfterSuccess = () => {
+    hasAutoSentWhatsAppRef.current = false;
     setCart([]);
     setCartStep('items');
     setIsCartOpen(false);
@@ -781,26 +968,60 @@ ${paymentStatusSection}
           </div>
 
           {/* Ações da Barra Superior */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Acompanhar Pedido */}
+            <button
+              onClick={() => {
+                setTrackingDefaultOrder(undefined);
+                setIsTrackingModalOpen(true);
+              }}
+              className="p-2 sm:px-3 sm:py-2.5 bg-pink-50 hover:bg-pink-100 text-pink-700 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold border border-pink-200/80 cursor-pointer shadow-2xs"
+              title="Acompanhar Meus Pedidos"
+            >
+              <Clock size={16} className="text-pink-600 shrink-0" />
+              <span className="hidden md:inline">Acompanhar Pedido</span>
+            </button>
+
+            {/* Cadastro / Meu Perfil */}
+            <button
+              onClick={() => setIsCustomerModalOpen(true)}
+              className="p-2 sm:px-3 sm:py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold border border-gray-200/80 cursor-pointer shadow-2xs"
+              title={customerProfile?.name ? `Meu Perfil: ${customerProfile.name}` : "Cadastre-se no Catálogo"}
+            >
+              {customerProfile?.name ? (
+                <>
+                  <UserCheck size={16} className="text-pink-600 shrink-0" />
+                  <span className="hidden sm:inline font-black text-gray-800">
+                    {customerProfile.name.split(' ')[0]}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <UserPlus size={16} className="text-gray-500 shrink-0" />
+                  <span className="hidden sm:inline">Cadastrar</span>
+                </>
+              )}
+            </button>
+
             {/* Link Compartilhar */}
             <button
               onClick={copyCatalogLink}
-              className="p-2.5 sm:px-3.5 sm:py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold border border-gray-100"
+              className="hidden lg:flex p-2.5 px-3.5 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl transition-all items-center gap-1.5 text-xs font-bold border border-gray-100 cursor-pointer"
               title="Copiar Link do Catálogo"
             >
               {linkCopied ? <Check size={16} className="text-emerald-500" /> : <Share2 size={16} />}
-              <span className="hidden md:inline">{linkCopied ? 'Link Copiado!' : 'Compartilhar'}</span>
+              <span className="hidden xl:inline">{linkCopied ? 'Copiado!' : 'Compartilhar'}</span>
             </button>
 
             {/* Contato WhatsApp */}
             {companyData?.phone && (
               <button 
                 onClick={() => window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}`, '_blank')}
-                className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2.5 sm:px-3.5 sm:py-2.5 rounded-2xl transition-all flex items-center gap-2 font-black text-xs border border-emerald-200/60 shadow-sm"
+                className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2 sm:px-3 sm:py-2.5 rounded-2xl transition-all flex items-center gap-1.5 font-black text-xs border border-emerald-200/60 shadow-2xs cursor-pointer"
                 title="Falar no WhatsApp"
               >
-                <MessageCircle size={17} className="text-emerald-600" />
-                <span className="hidden sm:inline">WhatsApp</span>
+                <MessageCircle size={16} className="text-emerald-600 shrink-0" />
+                <span className="hidden lg:inline">WhatsApp</span>
               </button>
             )}
 
@@ -810,7 +1031,7 @@ ${paymentStatusSection}
                 setCartStep('items');
                 setIsCartOpen(true);
               }}
-              className="bg-pink-500 hover:bg-pink-600 active:scale-95 text-white p-2.5 sm:px-4 sm:py-2.5 rounded-2xl transition-all shadow-lg shadow-pink-200/70 flex items-center gap-2.5 relative"
+              className="bg-pink-500 hover:bg-pink-600 active:scale-95 text-white p-2.5 sm:px-4 sm:py-2.5 rounded-2xl transition-all shadow-lg shadow-pink-200/70 flex items-center gap-2 relative cursor-pointer"
             >
               <div className="relative">
                 <ShoppingCart size={18} />
@@ -883,6 +1104,30 @@ ${paymentStatusSection}
                 <span>{companyData.instagram.startsWith('@') ? companyData.instagram : `@${companyData.instagram}`}</span>
               </a>
             )}
+          </div>
+
+          {/* Atalhos Rápidos: Acompanhar Pedido e Cadastro do Cliente */}
+          <div className="flex flex-wrap items-center justify-center gap-2.5 mb-8">
+            <button
+              type="button"
+              onClick={() => {
+                setTrackingDefaultOrder(undefined);
+                setIsTrackingModalOpen(true);
+              }}
+              className="bg-white hover:bg-pink-50 text-pink-700 px-4 py-2 rounded-2xl border border-pink-200/80 shadow-xs text-xs font-black flex items-center gap-2 transition-all cursor-pointer hover:shadow-md"
+            >
+              <Clock size={15} className="text-pink-500" />
+              <span>Acompanhar Meus Pedidos</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsCustomerModalOpen(true)}
+              className="bg-white hover:bg-pink-50 text-gray-700 px-4 py-2 rounded-2xl border border-pink-100 shadow-xs text-xs font-black flex items-center gap-2 transition-all cursor-pointer hover:shadow-md"
+            >
+              <User size={15} className="text-pink-500" />
+              <span>{customerProfile?.name ? `Meu Cadastro (${customerProfile.name.split(' ')[0]})` : 'Cadastrar / Meu Perfil'}</span>
+            </button>
           </div>
 
           {/* BARRA DE PESQUISA REFINADA */}
@@ -1535,10 +1780,59 @@ ${paymentStatusSection}
                 {/* Botão Voltar */}
                 <button 
                   onClick={() => setCartStep('items')}
-                  className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-pink-600 transition-colors"
+                  className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-pink-600 transition-colors cursor-pointer"
                 >
                   <ChevronLeft size={16} /> Voltar aos itens
                 </button>
+
+                {/* Banner de Perfil / Cadastro do Cliente */}
+                {customerProfile ? (
+                  <div className="p-3.5 bg-pink-50 border border-pink-200 rounded-2xl flex items-center justify-between shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-pink-500 text-white flex items-center justify-center shrink-0">
+                        <UserCheck size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-gray-800">
+                          Olá, {customerProfile.name.split(' ')[0]}!
+                        </p>
+                        <p className="text-[10px] text-pink-700 font-bold">
+                          Dados de entrega e contato preenchidos do seu perfil.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomerModalOpen(true)}
+                      className="text-[11px] font-black text-pink-600 hover:text-pink-700 underline cursor-pointer"
+                    >
+                      Editar Perfil
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-gray-50 border border-gray-200/80 rounded-2xl flex items-center justify-between shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-gray-200 text-gray-600 flex items-center justify-center shrink-0">
+                        <UserPlus size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-800">
+                          Quer salvar seus dados para próximas compras?
+                        </p>
+                        <p className="text-[10px] text-gray-400 font-medium">
+                          Cadastre-se com facilidade e acompanhe seus pedidos
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomerModalOpen(true)}
+                      className="px-3 py-1.5 bg-white border border-gray-200 hover:border-pink-300 text-pink-600 font-black text-[11px] rounded-xl shadow-2xs transition-all cursor-pointer"
+                    >
+                      Cadastrar
+                    </button>
+                  </div>
+                )}
 
                 {/* Dados do Cliente */}
                 <div className="space-y-4">
@@ -1755,23 +2049,35 @@ ${paymentStatusSection}
                   <button 
                     onClick={handleProceedToPayment}
                     disabled={isProcessingOrder}
-                    className="w-full py-4 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 shadow-xl shadow-pink-200 transition-all disabled:opacity-50 cursor-pointer"
+                    className={`w-full py-4 ${paymentMethod === 'credit' ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-200' : 'bg-pink-500 hover:bg-pink-600 shadow-pink-200'} active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 shadow-xl transition-all disabled:opacity-50 cursor-pointer`}
                   >
                     {isProcessingOrder ? (
                       <>
                         <RefreshCw className="animate-spin" size={18} />
-                        <span>Preparando Pagamento...</span>
+                        <span>{paymentMethod === 'credit' ? 'Direcionando ao Mercado Pago...' : 'Preparando Pagamento...'}</span>
                       </>
                     ) : (
                       <>
-                        <span>Avançar para Pagamento</span>
-                        <ArrowRight size={18} />
+                        {paymentMethod === 'credit' ? (
+                          <>
+                            <CreditCard size={18} />
+                            <span>Ir para o Checkout do Mercado Pago</span>
+                            <ArrowRight size={18} />
+                          </>
+                        ) : (
+                          <>
+                            <span>Avançar para Pagamento</span>
+                            <ArrowRight size={18} />
+                          </>
+                        )}
                       </>
                     )}
                   </button>
 
                   <p className="text-[10px] text-gray-400 text-center font-medium">
-                    🔒 Prossiga para ver o QR Code Pix ou link de pagamento. O envio ao WhatsApp será feito após o pagamento.
+                    {paymentMethod === 'credit'
+                      ? '🔒 Você será direcionado para pagar com segurança no Mercado Pago. Ao concluir, seu pedido será enviado automaticamente ao WhatsApp!'
+                      : '🔒 Prossiga para ver o QR Code Pix do pagamento. O envio ao WhatsApp será feito após o pagamento.'}
                   </p>
                 </div>
               </div>
@@ -1863,25 +2169,55 @@ ${paymentStatusSection}
 
                 {/* CASO LINK DE CHECKOUT MERCADO PAGO GERADO (CARTÃO OU FALLBACK PIX) */}
                 {mpPreferenceData?.initPoint && (
-                  <div className="p-5 bg-gradient-to-b from-blue-50/70 to-blue-50/30 rounded-3xl border border-blue-200 text-center space-y-3">
-                    <span className="text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white px-3 py-1 rounded-full inline-block">
-                      {paymentMethod === 'pix' ? '⚡ Pagamento Mercado Pago (Pix & Cartão)' : '💳 Cartão de Crédito ou Débito'}
-                    </span>
-                    <p className="text-xs font-bold text-gray-700">
-                      {paymentMethod === 'pix' 
-                        ? 'Clique abaixo para concluir seu pagamento oficial com Pix ou Cartão no Mercado Pago:'
-                        : 'Finalize o pagamento com segurança no ambiente do Mercado Pago (parcele em até 12x):'
-                      }
-                    </p>
-                    <button 
-                      type="button"
-                      onClick={() => window.open(mpPreferenceData.initPoint, '_blank')}
-                      className="w-full py-4 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-all cursor-pointer"
-                    >
-                      <CreditCard size={18} />
-                      <span>{paymentMethod === 'pix' ? 'Pagar com Pix / Cartão no Mercado Pago' : 'Pagar Agora no Mercado Pago'}</span>
-                      <ExternalLink size={14} />
-                    </button>
+                  <div className="p-5 bg-gradient-to-b from-blue-50/80 to-blue-50/40 rounded-3xl border border-blue-200 text-center space-y-3.5 shadow-xs">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white px-3 py-1 rounded-full inline-flex items-center gap-1 shadow-xs">
+                        <CreditCard size={12} /> {paymentMethod === 'credit' ? 'Cartão de Crédito • Mercado Pago' : '⚡ Mercado Pago Oficial'}
+                      </span>
+                    </div>
+
+                    {mpPaymentStatus === 'approved' ? (
+                      <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-emerald-800 text-xs font-bold space-y-1">
+                        <p className="text-sm font-black flex items-center justify-center gap-1.5 text-emerald-700">
+                          <CheckCircle2 size={18} /> Pagamento com Cartão Aprovado!
+                        </p>
+                        <p className="text-[11px] font-medium text-emerald-600">
+                          Dando baixa na venda e enviando seu pedido automaticamente para o WhatsApp do ateliê...
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="space-y-1.5">
+                          <p className="text-sm font-black text-gray-800">
+                            {paymentMethod === 'credit' 
+                              ? 'Checkout Oficial Mercado Pago' 
+                              : 'Conclua seu pagamento no Mercado Pago:'}
+                          </p>
+                          <p className="text-xs text-gray-600 font-medium leading-relaxed max-w-xs mx-auto">
+                            {paymentMethod === 'credit'
+                              ? 'Efetue seu pagamento no Checkout Oficial do Mercado Pago com cartão em até 12x, Pix ou débito:'
+                              : 'Clique no botão abaixo para concluir o pagamento com segurança no ambiente oficial:'}
+                          </p>
+                        </div>
+
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            window.location.href = mpPreferenceData.initPoint;
+                          }}
+                          className="w-full py-4 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-all cursor-pointer"
+                        >
+                          <CreditCard size={18} />
+                          <span>Ir para o Checkout do Mercado Pago</span>
+                          <ArrowRight size={16} />
+                        </button>
+
+                        <div className="p-3 bg-white/90 rounded-2xl border border-blue-100 flex items-center justify-center gap-2 text-xs font-bold text-blue-700 shadow-xs">
+                          <Clock size={14} className="animate-spin text-blue-500 shrink-0" />
+                          <span className="text-[11px]">Aguardando conclusão do pagamento no Mercado Pago (baixa automática)...</span>
+                        </div>
+                      </>
+                    )}
 
                     {mpNotice && (
                       <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-left text-xs text-amber-900 space-y-1">
@@ -1922,41 +2258,41 @@ ${paymentStatusSection}
 
                     <div className="text-[11px] text-gray-500 space-y-1">
                       <p><strong>1.</strong> Copie a chave Pix acima e realize a transferência de <strong>R$ {cartTotal.toFixed(2)}</strong> no app do seu banco.</p>
-                      <p><strong>2.</strong> Em seguida, clique no botão abaixo para enviar o pedido com seu comprovante para o WhatsApp do ateliê.</p>
+                      <p><strong>2.</strong> Ao concluir, você pode notificar o ateliê diretamente:</p>
                     </div>
+
+                    <button 
+                      type="button"
+                      onClick={handleFinishAndSendWhatsApp}
+                      disabled={isProcessingOrder}
+                      className="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                    >
+                      <Send size={15} />
+                      <span>{isProcessingOrder ? 'Enviando ao WhatsApp...' : 'Já fiz o Pix (Avisar no WhatsApp)'}</span>
+                    </button>
                   </div>
                 )}
 
-                {/* BOTÃO FINALIZAR & ENVIAR PEDIDO NO WHATSAPP (ENVIADO APÓS O PAGAMENTO) */}
-                <div className="p-5 bg-gradient-to-br from-pink-50 to-pink-100/40 rounded-3xl border border-pink-100 space-y-3">
-                  <button 
-                    type="button"
-                    onClick={handleFinishAndSendWhatsApp}
-                    disabled={isProcessingOrder}
-                    className={`w-full py-4 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 shadow-xl transition-all cursor-pointer ${
-                      mpPaymentStatus === 'approved'
-                        ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200 ring-4 ring-emerald-200'
-                        : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200 active:scale-95'
-                    }`}
-                  >
-                    {isProcessingOrder ? (
-                      <>
-                        <RefreshCw className="animate-spin" size={18} />
-                        <span>Montando e Enviando ao WhatsApp...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send size={18} />
-                        <span>{mpPaymentStatus === 'approved' ? 'Enviar Pedido Confirmado no WhatsApp' : 'Finalizar & Enviar Pedido no WhatsApp'}</span>
-                      </>
-                    )}
-                  </button>
-
-                  <p className="text-[10px] text-gray-500 text-center font-medium">
-                    {mpPaymentStatus === 'approved' 
-                      ? '🎉 Pagamento identificado! Ao clicar, seu pedido será montado e enviado com a confirmação para o WhatsApp do ateliê.'
-                      : '⚡ Ao clicar, seu pedido será montado e enviado automaticamente para o WhatsApp do ateliê após o pagamento.'}
+                {/* BAIXA AUTOMÁTICA & ENVIO AUTOMÁTICO AO WHATSAPP */}
+                <div className="p-4 bg-gradient-to-br from-emerald-50/90 to-teal-50/70 rounded-3xl border border-emerald-200/80 text-center space-y-2 shadow-xs">
+                  <div className="flex items-center justify-center gap-2 text-emerald-800 font-black text-xs">
+                    <Sparkles size={16} className="text-emerald-600 animate-pulse" />
+                    <span>Baixa Automática & Envio ao WhatsApp</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 leading-relaxed max-w-sm mx-auto">
+                    Assim que você realizar o pagamento, nosso sistema <strong>dá baixa na venda e envia o pedido automaticamente para o WhatsApp do ateliê</strong>!
                   </p>
+                  {isProcessingOrder || mpPaymentStatus === 'approved' ? (
+                    <div className="p-3 bg-emerald-100/90 rounded-2xl flex items-center justify-center gap-2 text-xs font-black text-emerald-800 animate-pulse">
+                      <RefreshCw className="animate-spin" size={16} />
+                      <span>Pagamento identificado! Dando baixa e abrindo WhatsApp...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-600 font-bold">
+                      <Clock size={12} className="animate-spin" />
+                      <span>Aguardando confirmação bancária em tempo real...</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1981,7 +2317,7 @@ ${paymentStatusSection}
                 </p>
 
                 {/* Botões de Ação e Reabertura do WhatsApp */}
-                <div className="w-full space-y-4 mb-8">
+                <div className="w-full space-y-3 mb-8">
                   <button 
                     onClick={() => {
                       const phone = companyData?.phone?.replace(/\D/g, '') || '';
@@ -1991,6 +2327,18 @@ ${paymentStatusSection}
                   >
                     <MessageCircle size={18} />
                     <span>Abrir WhatsApp com o Pedido</span>
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      setIsCartOpen(false);
+                      setTrackingDefaultOrder(completedOrderNumber || undefined);
+                      setIsTrackingModalOpen(true);
+                    }}
+                    className="w-full py-3.5 bg-pink-50 hover:bg-pink-100 active:scale-95 text-pink-700 border border-pink-200 font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                  >
+                    <Clock size={16} className="text-pink-600" />
+                    <span>Acompanhar Status deste Pedido</span>
                   </button>
                 </div>
 
@@ -2065,6 +2413,26 @@ ${paymentStatusSection}
           </div>
         </div>
       </div>
+
+      {/* MODAL DE CADASTRO / PERFIL DO CLIENTE NO CATÁLOGO */}
+      <CatalogCustomerModal
+        isOpen={isCustomerModalOpen}
+        onClose={() => setIsCustomerModalOpen(false)}
+        userEmail={userEmail}
+        initialProfile={customerProfile}
+        onSaveProfile={handleSaveCustomerProfile}
+        onLogout={handleLogoutCustomerProfile}
+      />
+
+      {/* MODAL DE ACOMPANHAMENTO DE PEDIDOS EM TEMPO REAL */}
+      <CatalogTrackingModal
+        isOpen={isTrackingModalOpen}
+        onClose={() => setIsTrackingModalOpen(false)}
+        userEmail={userEmail}
+        companyData={companyData}
+        defaultPhone={customerProfile?.phone || customerPhone}
+        defaultOrderNumber={trackingDefaultOrder || completedOrderNumber || undefined}
+      />
     </div>
   );
 };

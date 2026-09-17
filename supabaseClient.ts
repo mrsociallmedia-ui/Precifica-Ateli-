@@ -164,6 +164,21 @@ try {
         detectSessionInUrl: true,
       }
     });
+
+    // Tratar erro de refresh token expirado/revogado automaticamente
+    if (typeof window !== 'undefined') {
+      window.addEventListener('unhandledrejection', (event) => {
+        const reasonStr = String(event.reason?.message || event.reason || '');
+        if (reasonStr.includes('Refresh Token Not Found') || reasonStr.includes('Invalid Refresh Token')) {
+          console.warn("⚠️ Sessão Supabase expirada/inválida detectada. Limpando tokens obsoletos.");
+          clearStaleSupabaseAuth();
+          if (typeof event.preventDefault === 'function') {
+            event.preventDefault();
+          }
+        }
+      });
+    }
+
     isMock = false;
     console.log("🚀 Supabase: Conexão REAL ativa.", connectionDiagnostics);
   } else {

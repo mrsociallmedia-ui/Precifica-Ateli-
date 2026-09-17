@@ -271,13 +271,15 @@ async function startServer() {
           });
         }
 
-        const { items, orderId, payer, returnUrl } = req.body;
+        const { items, orderId, payer, returnUrl, catalogEmail } = req.body;
         if (!items || !Array.isArray(items) || items.length === 0) {
           return res.status(400).json({ error: "Itens do pedido não fornecidos." });
         }
 
         const origin = req.headers.origin || req.headers.referer || "";
         const cleanOrigin = origin.startsWith("http") ? origin.replace(/\/$/, "") : "";
+        const safeOrderId = encodeURIComponent(String(orderId || ""));
+        const catalogParam = catalogEmail ? `&catalog=${encodeURIComponent(catalogEmail)}` : "";
 
         const prefPayload: any = {
           items: items.map((it: any) => ({
@@ -291,14 +293,14 @@ async function startServer() {
             email: (payer?.email?.trim() || "").includes("@") ? payer.email.trim() : "cliente.pedidos@gmail.com"
           },
           external_reference: String(orderId || ""),
-          statement_descriptor: "ATELIE PAPELARIA"
+          statement_descriptor: "ATELIE"
         };
 
-        if (cleanOrigin && cleanOrigin.startsWith("https")) {
+        if (cleanOrigin && cleanOrigin.startsWith("http")) {
           prefPayload.back_urls = {
-            success: `${cleanOrigin}/?order=${orderId}&payment=success`,
-            failure: `${cleanOrigin}/?order=${orderId}&payment=failure`,
-            pending: `${cleanOrigin}/?order=${orderId}&payment=pending`
+            success: `${cleanOrigin}/?order=${safeOrderId}${catalogParam}&payment=approved&status=approved`,
+            failure: `${cleanOrigin}/?order=${safeOrderId}${catalogParam}&payment=failure&status=rejected`,
+            pending: `${cleanOrigin}/?order=${safeOrderId}${catalogParam}&payment=pending&status=pending`
           };
           prefPayload.auto_return = "approved";
         }
@@ -330,6 +332,60 @@ async function startServer() {
       } catch (error: any) {
         console.warn("Aviso interno ao criar preferência do Mercado Pago:", error?.message || error);
         res.status(500).json({ error: error.message || "Erro interno ao processar link de pagamento." });
+      }
+    });
+
+    // Mercado Pago Check Payment Status by Order ID (external_reference)
+    app.get("/api/mercadopago/check-order-payment/:orderId", async (req: Request, res: Response) => {
+      try {
+        const customToken = (req.query.token as string) || (req.headers['x-mp-token'] as string);
+        const token = getMercadoPagoToken(customToken);
+        if (!token) {
+          return res.status(400).json({ error: "Mercado Pago não configurado." });
+        }
+
+        const rawOrderId = String(req.params.orderId || "");
+        const cleanOrderId = rawOrderId.replace(/#/g, '');
+
+        const searchUrl = `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(rawOrderId)}&sort=date_created&criteria=desc&limit=5`;
+        const mpResponse = await fetch(searchUrl, {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        const mpData: any = await mpResponse.json();
+        let results = mpData?.results || [];
+
+        if (results.length === 0 && cleanOrderId !== rawOrderId) {
+          const secondSearch = await fetch(`https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(cleanOrderId)}&sort=date_created&criteria=desc&limit=5`, {
+            headers: {
+              "Authorization": `Bearer ${token}`
+            }
+          });
+          const secondData: any = await secondSearch.json();
+          results = secondData?.results || [];
+        }
+
+        const approvedPayment = results.find((p: any) => p.status === "approved");
+        const latestPayment = approvedPayment || results[0];
+
+        if (!latestPayment) {
+          return res.json({ found: false, status: "pending" });
+        }
+
+        res.json({
+          found: true,
+          id: latestPayment.id,
+          status: latestPayment.status,
+          statusDetail: latestPayment.status_detail,
+          paymentType: latestPayment.payment_type_id,
+          transactionAmount: latestPayment.transaction_amount,
+          dateApproved: latestPayment.date_approved
+        });
+      } catch (error: any) {
+        console.warn("Aviso ao buscar pagamento por pedido no Mercado Pago:", error?.message || error);
+        res.status(500).json({ error: error.message || "Erro interno ao consultar pagamento do pedido." });
       }
     });
 
