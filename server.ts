@@ -590,13 +590,28 @@ async function startServer() {
 
         const itemsSummary = orderItems.map((i: any) => `${i.quantity || 1}x ${i.product?.name || i.name || 'Produto'}`).join(', ');
 
+        // Gerar ou validar número sequencial (#283, #284, ...)
+        let finalQuoteNumber = '';
+        if (orderNum && String(orderNum).match(/\d+/)) {
+          finalQuoteNumber = String(orderNum).replace(/\D/g, '');
+        } else {
+          const nums = craftProjects.map((p: any) => {
+            const onlyNums = String(p.quoteNumber || '').replace(/\D/g, '') || '0';
+            return parseInt(onlyNums, 10);
+          }).filter((n: number) => !isNaN(n) && n > 0);
+          const max = nums.length > 0 ? Math.max(...nums) : 0;
+          const nextNum = max < 283 ? 283 : max + 1;
+          finalQuoteNumber = nextNum.toString();
+        }
+        const formattedOrderNum = `#${finalQuoteNumber}`;
+
         const newProject = {
           id: projectId,
           name: `Pedido Catálogo: ${customerName.trim()}`,
           customerId: customerId,
           description: itemsSummary || 'Pedido realizado pelo Catálogo Online',
           observations: orderObservations ? String(orderObservations).trim() : '',
-          notes: `Origem: Catálogo Online • Pedido ${orderNum || ''}\nModalidade: ${deliveryType === 'pickup' ? 'Retirada no Ateliê' : `Entrega: ${deliveryAddress || ''} ${deliveryNeighborhood ? `- ${deliveryNeighborhood}` : ''} ${deliveryCity ? `- ${deliveryCity}` : ''}`}\nPagamento: ${paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito'}`,
+          notes: `Origem: Catálogo Online • Pedido ${formattedOrderNum}\nModalidade: ${deliveryType === 'pickup' ? 'Retirada no Ateliê' : `Entrega: ${deliveryAddress || ''} ${deliveryNeighborhood ? `- ${deliveryNeighborhood}` : ''} ${deliveryCity ? `- ${deliveryCity}` : ''}`}\nPedido feito via WhatsApp (Pagamento a combinar)`,
           items: orderItems.map((i: any) => ({
             productId: i.product?.id || i.productId,
             name: i.product?.name || i.name || 'Produto',
@@ -619,27 +634,27 @@ async function startServer() {
           theme: orderObservations ? String(orderObservations).trim().slice(0, 40) : 'Catálogo Online',
           celebrantName: customerName.trim(),
           celebrantAge: '',
-          quoteNumber: orderNum || `#PED-${Math.floor(1000 + Math.random() * 9000)}`,
-          paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
-          paidAt: now.toISOString(),
+          quoteNumber: finalQuoteNumber,
+          paymentMethod: 'A Combinar (WhatsApp)',
+          paidAt: '',
           hoursToMake: orderItems.reduce((acc: number, i: any) => acc + (((Number(i.product?.minutesToMake) || 60) / 60) * (Number(i.quantity) || 1)), 0),
           materials: [],
           profitMargin: 30,
           quantity: orderItems.reduce((acc: number, i: any) => acc + (Number(i.quantity) || 1), 0),
-          downPayment: Number(cartTotal) || 0
+          downPayment: 0
         };
 
-        // Criar Transação (Financeiro)
+        // Criar Transação (Financeiro) - entra como PENDENTE (A Receber)
         const transactionId = `tx_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
         const newTransaction = {
           id: transactionId,
-          description: `Compra pelo Catálogo - ${customerName.trim()} (${orderNum || newProject.quoteNumber})`,
+          description: `Pedido Catálogo - ${customerName.trim()} (${formattedOrderNum})`,
           amount: Number(cartTotal) || 0,
           type: 'income',
           category: 'Compra pelo Catálogo',
-          paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
+          paymentMethod: 'A Combinar (WhatsApp)',
           date: dateStr,
-          status: 'paid',
+          status: 'pending',
           projectId: projectId,
           customerId: customerId
         };

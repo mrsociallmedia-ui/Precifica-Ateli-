@@ -55,9 +55,10 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
 
   // Filtrar pedidos que vieram do catálogo online
   const catalogOrders = projects.filter(p => 
-    (p.quoteNumber && p.quoteNumber.startsWith('#PED-')) ||
+    (p.quoteNumber && String(p.quoteNumber).startsWith('#PED-')) ||
     (p.notes && p.notes.toLowerCase().includes('catálogo')) ||
-    (p.name && p.name.toLowerCase().includes('catálogo'))
+    (p.name && p.name.toLowerCase().includes('catálogo')) ||
+    (p.theme && p.theme.toLowerCase().includes('catálogo'))
   ).sort((a, b) => new Date(b.createdAt || b.orderDate).getTime() - new Date(a.createdAt || a.orderDate).getTime());
 
   // Filtrar transações financeiras do catálogo
@@ -305,7 +306,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-xs font-black text-pink-600 bg-pink-50 px-2 py-0.5 rounded-md border border-pink-100">
-                              {order.quoteNumber || order.id.slice(0, 8)}
+                              {order.quoteNumber ? `#${String(order.quoteNumber).replace(/^#/, '')}` : order.id.slice(0, 8)}
                             </span>
                             <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${badge.className}`}>
                               {badge.label}

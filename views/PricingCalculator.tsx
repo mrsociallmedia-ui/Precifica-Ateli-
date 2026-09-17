@@ -106,19 +106,20 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   projectToEdit,
   onClearEditProject
 }) => {
-  // Lógica para gerar número sequencial simples (1, 2, 3, 4...)
+  // Lógica para gerar número sequencial do orçamento (iniciando em 283: 283, 284, 285...)
   const generateAutoQuoteNumber = () => {
-    if (!projects || projects.length === 0) return '1';
+    if (!projects || projects.length === 0) return '283';
     
     const nums = projects
       .map(p => {
-        const onlyNums = p.quoteNumber?.replace(/\D/g, '') || '0';
-        return parseInt(onlyNums);
+        const onlyNums = String(p.quoteNumber || '').replace(/\D/g, '') || '0';
+        return parseInt(onlyNums, 10);
       })
-      .filter(n => !isNaN(n));
+      .filter(n => !isNaN(n) && n > 0);
       
     const max = nums.length > 0 ? Math.max(...nums) : 0;
-    return (max + 1).toString();
+    const nextNum = max < 283 ? 283 : max + 1;
+    return nextNum.toString();
   };
 
   const getLocalDate = () => {
@@ -672,7 +673,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     const dateFormatted = formatDisplayDate(currentProject.deliveryDate, currentProject.deliveryTime);
 
     let message = `*Olá! Segue o Orçamento: ${companyData.name}*\n\n`;
-    if (currentProject.quoteNumber) message += `🔖 *Nº Orçamento:* #${currentProject.quoteNumber}\n`;
+    if (currentProject.quoteNumber) message += `🔖 *Nº Orçamento:* #${String(currentProject.quoteNumber).replace(/^#/, '')}\n`;
     message += `📝 *Pedido:* ${currentProject.theme}\n`;
     
     message += `\n*Itens:*\n`;
@@ -1078,7 +1079,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 <div>
                   <h2 className="text-3xl font-black text-gray-800 tracking-tight">
                     {currentProject.id ? 'Editando Orçamento' : 'Novo Orçamento'} 
-                    {currentProject.quoteNumber && <span className="text-pink-500 ml-2">#{currentProject.quoteNumber}</span>}
+                    {currentProject.quoteNumber && <span className="text-pink-500 ml-2">#{String(currentProject.quoteNumber).replace(/^#/, '')}</span>}
                   </h2>
                   <p className="text-gray-400 font-medium text-sm">Monte o pedido e visualize os lucros em tempo real.</p>
                 </div>
@@ -1932,7 +1933,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                    </span>
                    {proj.quoteNumber && (
                       <span className="bg-pink-50 text-pink-500 px-3 py-1 rounded-xl text-[9px] font-black uppercase text-center flex-1 md:flex-none">
-                         #{proj.quoteNumber}
+                         #{String(proj.quoteNumber).replace(/^#/, '')}
                       </span>
                    )}
                 </div>
