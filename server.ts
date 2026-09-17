@@ -39,6 +39,17 @@ async function startServer() {
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
 
+    // Enable CORS for all API routes so mobile devices, Capacitor, and proxies communicate freely
+    app.use("/api", (req: Request, res: Response, next) => {
+      res.header("Access-Control-Allow-Origin", "*");
+      res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+      res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-mp-token");
+      if (req.method === "OPTIONS") {
+        return res.sendStatus(204);
+      }
+      next();
+    });
+
     // Log all requests with timestamp and details
     app.use((req, res, next) => {
       const start = Date.now();
@@ -62,14 +73,22 @@ async function startServer() {
       });
     });
 
+    // Helper to sanitize tokens removing quotes, Bearer prefix, and invisible zero-width unicode chars
+    const sanitizeToken = (raw?: string | null): string | null => {
+      if (!raw || typeof raw !== 'string') return null;
+      const clean = raw
+        .replace(/^Bearer\s+/i, '')
+        .replace(/["'`]/g, '')
+        .replace(/[\u200B-\u200D\uFEFF\u00A0\r\n\t]/g, '')
+        .trim();
+      return clean.length > 10 ? clean : null;
+    };
+
     // Helper to get sanitized Mercado Pago token (supports user-level custom token or system env fallback)
     const getMercadoPagoToken = (customToken?: string | null) => {
-      if (customToken && typeof customToken === 'string') {
-        const trimmed = customToken.trim();
-        if (trimmed.length > 10) return trimmed;
-      }
-      const token = process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim();
-      return token && token.length > 10 ? token : null;
+      const cleanCustom = sanitizeToken(customToken);
+      if (cleanCustom) return cleanCustom;
+      return sanitizeToken(process.env.MERCADO_PAGO_ACCESS_TOKEN);
     };
 
     // Mercado Pago Status Endpoint (allows checking specific user's token or global env)
@@ -94,28 +113,66 @@ async function startServer() {
           });
         }
 
-        const mpRes = await fetch("https://api.mercadopago.com/users/me", {
-          headers: { "Authorization": `Bearer ${finalToken}` }
-        });
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
 
-        const data: any = await mpRes.json();
-        if (!mpRes.ok) {
-          return res.status(400).json({ 
-            success: false, 
-            error: data.message || "Access Token inválido ou sem permissão. Verifique suas credenciais no Mercado Pago." 
+        try {
+          const mpRes = await fetch("https://api.mercadopago.com/users/me", {
+            headers: { 
+              "Authorization": `Bearer ${finalToken}`,
+              "User-Agent": "PrecificaAtelie/1.0",
+              "Accept": "application/json"
+            },
+            signal: controller.signal
           });
-        }
+          clearTimeout(timeout);
 
-        res.json({
-          success: true,
-          id: data.id,
-          nickname: data.nickname,
-          email: data.email,
-          siteId: data.site_id,
-          isSandbox: finalToken.startsWith("TEST-")
-        });
+          const text = await mpRes.text();
+          let data: any = {};
+          try {
+            data = JSON.parse(text);
+          } catch (e) {
+            console.warn("Mercado Pago response not JSON:", text.substring(0, 200));
+          }
+
+          if (!mpRes.ok) {
+            const rawMsg = data.message || (Array.isArray(data.cause) && data.cause[0]?.description) || data.error;
+            let friendlyError = "Access Token inválido ou não autorizado pelo Mercado Pago.";
+            if (rawMsg) {
+              if (rawMsg.includes("UNAUTHORIZED") || rawMsg.includes("unauthorized") || mpRes.status === 401 || mpRes.status === 403) {
+                friendlyError = "Token não autorizado ou expirado. Acesse 'Credenciais de Produção' no painel do Mercado Pago e copie o campo 'Access Token'.";
+              } else {
+                friendlyError = `Mercado Pago: ${rawMsg}`;
+              }
+            }
+            return res.status(400).json({ 
+              success: false, 
+              error: friendlyError,
+              status: mpRes.status
+            });
+          }
+
+          return res.json({
+            success: true,
+            id: data.id,
+            nickname: data.nickname,
+            email: data.email,
+            siteId: data.site_id,
+            isSandbox: finalToken.startsWith("TEST-")
+          });
+        } catch (fetchErr: any) {
+          clearTimeout(timeout);
+          if (fetchErr.name === 'AbortError') {
+            return res.status(504).json({
+              success: false,
+              error: "Tempo limite esgotado ao conectar aos servidores do Mercado Pago. Tente novamente."
+            });
+          }
+          throw fetchErr;
+        }
       } catch (err: any) {
-        res.status(500).json({ 
+        console.error("Erro no endpoint test-connection:", err);
+        return res.status(500).json({ 
           success: false, 
           error: err.message || "Erro ao conectar com a API do Mercado Pago." 
         });

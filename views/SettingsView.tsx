@@ -76,8 +76,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   } | null>(null);
 
   const handleTestMercadoPago = async () => {
-    const token = companyData.mercadoPagoAccessToken?.trim();
-    if (!token) {
+    const rawToken = companyData.mercadoPagoAccessToken;
+    if (!rawToken || !rawToken.trim()) {
       setMpTestResult({
         success: false,
         message: 'Por favor, insira o seu Access Token antes de testar a conexão.'
@@ -85,17 +85,41 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       return;
     }
 
+    // Higieniza o token removendo aspas, prefixo 'Bearer' e caracteres invisíveis de copia-e-cola no celular
+    const cleanToken = rawToken
+      .replace(/^Bearer\s+/i, '')
+      .replace(/["'`]/g, '')
+      .replace(/[\u200B-\u200D\uFEFF\u00A0\r\n\t]/g, '')
+      .trim();
+
+    if (cleanToken !== rawToken) {
+      setCompanyData(prev => ({ ...prev, mercadoPagoAccessToken: cleanToken }));
+    }
+
     setIsTestingMp(true);
     setMpTestResult(null);
 
+    let backendErrorMessage = '';
+
+    // Tentativa 1: Validar via backend local /api/mercadopago/test-connection
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
       const res = await fetch('/api/mercadopago/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
+        body: JSON.stringify({ token: cleanToken }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {}
+
       if (res.ok && data?.success) {
         setMpTestResult({
           success: true,
@@ -106,16 +130,61 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             isSandbox: data.isSandbox
           }
         });
-      } else {
-        setMpTestResult({
-          success: false,
-          message: data?.error || 'Não foi possível validar o token. Verifique se copiou o token de produção correto.'
-        });
+        return;
+      } else if (data?.error) {
+        backendErrorMessage = data.error;
       }
     } catch (err: any) {
+      console.warn("Validação via backend falhou, tentando validação direta com Mercado Pago...", err);
+    }
+
+    // Tentativa 2: Consulta direta à API do Mercado Pago (possui CORS habilitado para browser)
+    // Garante que funcione mesmo com oscilação na rede móvel ou proxy
+    try {
+      const mpDirectRes = await fetch('https://api.mercadopago.com/users/me', {
+        headers: {
+          'Authorization': `Bearer ${cleanToken}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      const mpText = await mpDirectRes.text();
+      let mpData: any = {};
+      try {
+        mpData = JSON.parse(mpText);
+      } catch (e) {}
+
+      if (mpDirectRes.ok && mpData?.id) {
+        setMpTestResult({
+          success: true,
+          message: 'Conexão estabelecida com sucesso com sua conta Mercado Pago!',
+          account: {
+            email: mpData.email,
+            nickname: mpData.nickname,
+            isSandbox: cleanToken.startsWith('TEST-')
+          }
+        });
+        return;
+      } else {
+        const rawMsg = mpData?.message || backendErrorMessage;
+        let finalMsg = 'Não foi possível validar o token. Verifique se copiou o Access Token correto.';
+        if (rawMsg) {
+          if (rawMsg.includes('UNAUTHORIZED') || rawMsg.includes('unauthorized') || mpDirectRes.status === 401 || mpDirectRes.status === 403) {
+            finalMsg = 'Access Token não autorizado ou expirado. Acesse suas "Credenciais de Produção" no painel do Mercado Pago e copie o campo "Access Token".';
+          } else {
+            finalMsg = rawMsg;
+          }
+        }
+        setMpTestResult({
+          success: false,
+          message: finalMsg
+        });
+        return;
+      }
+    } catch (directErr: any) {
       setMpTestResult({
         success: false,
-        message: 'Erro de rede ou servidor ao testar token.'
+        message: backendErrorMessage || 'Não foi possível conectar ao Mercado Pago. Verifique sua conexão com a internet e tente novamente.'
       });
     } finally {
       setIsTestingMp(false);
@@ -450,7 +519,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       className="w-full p-4 pr-12 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-mono font-bold text-gray-800 text-xs focus:border-blue-400 focus:bg-white transition-all"
                       value={companyData.mercadoPagoAccessToken || ''} 
                       onChange={e => {
-                        setCompanyData({ ...companyData, mercadoPagoAccessToken: e.target.value.trim() });
+                        const clean = e.target.value
+                          .replace(/^Bearer\s+/i, '')
+                          .replace(/["'`]/g, '')
+                          .replace(/[\u200B-\u200D\uFEFF\u00A0\r\n\t]/g, '')
+                          .trim();
+                        setCompanyData({ ...companyData, mercadoPagoAccessToken: clean });
                         setMpTestResult(null);
                       }} 
                     />
@@ -470,7 +544,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     placeholder="APP_USR-... ou TEST-..." 
                     className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-mono font-bold text-gray-800 text-xs focus:border-blue-400 focus:bg-white transition-all"
                     value={companyData.mercadoPagoPublicKey || ''} 
-                    onChange={e => setCompanyData({ ...companyData, mercadoPagoPublicKey: e.target.value.trim() })} 
+                    onChange={e => {
+                      const cleanKey = e.target.value
+                        .replace(/["'`]/g, '')
+                        .replace(/[\u200B-\u200D\uFEFF\u00A0\r\n\t]/g, '')
+                        .trim();
+                      setCompanyData({ ...companyData, mercadoPagoPublicKey: cleanKey });
+                    }} 
                   />
                 </div>
 
