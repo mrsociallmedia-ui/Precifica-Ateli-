@@ -846,7 +846,13 @@ ${deliveryDetails}
         customerName,
         customerPhone,
         total: cartTotal,
-        items: cart.map(i => ({ name: i.product.name, qty: i.quantity, price: i.price })),
+        items: cart.map(i => ({ 
+          name: i.product.name, 
+          qty: i.quantity, 
+          quantity: i.quantity, 
+          price: Number(i.price) || 0,
+          unitPrice: Number(i.price) || 0 
+        })),
         deliveryType,
         paymentMethod: 'whatsapp'
       });

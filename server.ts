@@ -833,6 +833,7 @@ async function startServer() {
 
         const craftProjects = Array.isArray(appState.craft_projects) ? appState.craft_projects : [];
         const craftCustomers = Array.isArray(appState.craft_customers) ? appState.craft_customers : [];
+        const craftTransactions = Array.isArray(appState.craft_transactions) ? appState.craft_transactions : [];
 
         const cleanSearch = search.toLowerCase().replace(/[^a-z0-9]/g, '');
         const cleanPhoneSearch = search.replace(/\D/g, '');
@@ -882,9 +883,27 @@ async function startServer() {
         // Mapear para objeto de acompanhamento claro para o cliente
         const orders = matchedProjects.map((p: any) => {
           const cust = craftCustomers.find((c: any) => c.id === p.customerId);
+          const matchedTx = craftTransactions.find((t: any) => t.projectId === p.id);
+          
+          const mappedItems = Array.isArray(p.items) ? p.items.map((it: any) => {
+            const qty = Number(it.quantity) || Number(it.qty) || 1;
+            const unitPrice = Number(it.unitPrice) || Number(it.price) || Number(it.product?.marketPrice) || 0;
+            return {
+              name: it.name || it.product?.name || 'Produto',
+              quantity: qty,
+              price: unitPrice
+            };
+          }) : [];
+
+          const calculatedItemsSum = mappedItems.reduce((acc: number, it: any) => acc + (it.price * it.quantity), 0);
+          const finalTotal = Number(matchedTx?.amount) || calculatedItemsSum || Number(p.downPayment) || 0;
+
+          const rawQuote = p.quoteNumber || p.id;
+          const formattedQuote = rawQuote ? (String(rawQuote).startsWith('#') ? rawQuote : `#${rawQuote}`) : '#Pedido';
+
           return {
             id: p.id,
-            orderNum: p.quoteNumber || p.id,
+            orderNum: formattedQuote,
             date: p.orderDate || p.createdAt || new Date().toISOString(),
             createdAt: p.createdAt || p.orderDate,
             dueDate: p.dueDate || p.deliveryDate,
@@ -895,13 +914,9 @@ async function startServer() {
             description: p.description || '',
             notes: p.notes || '',
             observations: p.observations || '',
-            items: Array.isArray(p.items) ? p.items.map((it: any) => ({
-              name: it.name || 'Produto',
-              quantity: it.quantity || 1,
-              price: it.unitPrice || 0
-            })) : [],
-            total: Number(p.downPayment) || 0,
-            paymentMethod: p.paymentMethod || 'Pix',
+            items: mappedItems,
+            total: finalTotal,
+            paymentMethod: matchedTx?.paymentMethod || p.paymentMethod || 'A Combinar',
             paidAt: p.paidAt,
             customer: cust ? {
               name: cust.name,
