@@ -214,7 +214,9 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         try {
           const userToken = companyData?.mercadoPagoAccessToken?.trim();
           const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';
-          const res = await fetch(`/api/mercadopago/check-payment/${mpPixData.id}${tokenQuery}`);
+          const res = await fetch(`/api/mercadopago/check-payment/${mpPixData.id}${tokenQuery}`, {
+            credentials: 'include'
+          });
           if (res.ok) {
             const data = await res.json();
             if (data?.status === 'approved') {
@@ -234,7 +236,9 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         try {
           const userToken = companyData?.mercadoPagoAccessToken?.trim();
           const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';
-          const res = await fetch(`/api/mercadopago/check-order-payment/${encodeURIComponent(completedOrderNumber)}${tokenQuery}`);
+          const res = await fetch(`/api/mercadopago/check-order-payment/${encodeURIComponent(completedOrderNumber)}${tokenQuery}`, {
+            credentials: 'include'
+          });
           if (res.ok) {
             const data = await res.json();
             if (data?.status === 'approved') {
@@ -476,6 +480,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         const mpRes = await fetch('/api/mercadopago/create-pix', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             accessToken: userMpToken || undefined,
             amount: cartTotal,
@@ -511,6 +516,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         const mpRes = await fetch('/api/mercadopago/create-preference', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             accessToken: userMpToken || undefined,
             items: cart.map(i => ({ name: i.product.name, quantity: i.quantity, price: i.price })),

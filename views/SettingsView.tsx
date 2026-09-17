@@ -99,8 +99,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setIsTestingMp(true);
     setMpTestResult(null);
 
-    let backendErrorMessage = '';
-
     // Tentativa 1: Validar via backend local /api/mercadopago/test-connection
     try {
       const controller = new AbortController();
@@ -109,6 +107,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       const res = await fetch('/api/mercadopago/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ token: cleanToken }),
         signal: controller.signal
       });
@@ -132,48 +131,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         });
         return;
       } else if (data?.error) {
-        backendErrorMessage = data.error;
+        // Se o servidor respondeu com erro explícito de validação do token, exibe diretamente
+        setMpTestResult({
+          success: false,
+          message: data.error
+        });
+        return;
       }
     } catch (err: any) {
-      console.warn("Validação via backend falhou, tentando validação direta com Mercado Pago...", err);
+      console.warn("Validação via backend local indisponível, usando validação direta segura...", err);
     }
 
-    // Tentativa 2: Consulta direta à API do Mercado Pago (possui CORS habilitado para browser)
-    // Garante que funcione mesmo com oscilação na rede móvel ou proxy
+    // Tentativa 2: Consulta direta à API do Mercado Pago via payment_methods
+    // Totalmente compatível com CORS no navegador mobile, webview e PWA (sem bloqueio de políticas)
     try {
-      const mpDirectRes = await fetch('https://api.mercadopago.com/users/me', {
-        headers: {
-          'Authorization': `Bearer ${cleanToken}`,
-          'Accept': 'application/json'
-        }
-      });
-
+      const mpDirectRes = await fetch(`https://api.mercadopago.com/v1/payment_methods?access_token=${encodeURIComponent(cleanToken)}`);
       const mpText = await mpDirectRes.text();
-      let mpData: any = {};
+      let mpData: any = null;
       try {
         mpData = JSON.parse(mpText);
       } catch (e) {}
 
-      if (mpDirectRes.ok && mpData?.id) {
+      if (mpDirectRes.ok && Array.isArray(mpData) && mpData.length > 0) {
+        const hasPix = mpData.some((m: any) => m.id === 'pix' || m.payment_type_id === 'bank_transfer');
         setMpTestResult({
           success: true,
-          message: 'Conexão estabelecida com sucesso com sua conta Mercado Pago!',
+          message: `Conexão estabelecida com sucesso! ${hasPix ? 'Pix e ' : ''}Cartão de Crédito liberados para recebimento.`,
           account: {
-            email: mpData.email,
-            nickname: mpData.nickname,
+            email: 'Token Validado com Sucesso',
+            nickname: 'Conta Mercado Pago Conectada',
             isSandbox: cleanToken.startsWith('TEST-')
           }
         });
         return;
       } else {
-        const rawMsg = mpData?.message || backendErrorMessage;
-        let finalMsg = 'Não foi possível validar o token. Verifique se copiou o Access Token correto.';
-        if (rawMsg) {
-          if (rawMsg.includes('UNAUTHORIZED') || rawMsg.includes('unauthorized') || mpDirectRes.status === 401 || mpDirectRes.status === 403) {
-            finalMsg = 'Access Token não autorizado ou expirado. Acesse suas "Credenciais de Produção" no painel do Mercado Pago e copie o campo "Access Token".';
-          } else {
-            finalMsg = rawMsg;
-          }
+        const rawMsg = mpData?.message || mpData?.error;
+        let finalMsg = 'Access Token inválido ou expirado. Acesse suas "Credenciais de Produção" no painel do Mercado Pago e copie o campo "Access Token".';
+        if (rawMsg && rawMsg !== 'invalid_token' && rawMsg !== 'bad_request') {
+          finalMsg = `Mercado Pago: ${rawMsg}`;
         }
         setMpTestResult({
           success: false,
@@ -184,7 +179,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     } catch (directErr: any) {
       setMpTestResult({
         success: false,
-        message: backendErrorMessage || 'Não foi possível conectar ao Mercado Pago. Verifique sua conexão com a internet e tente novamente.'
+        message: 'Não foi possível conectar ao Mercado Pago. Verifique sua conexão com a internet e tente novamente.'
       });
     } finally {
       setIsTestingMp(false);

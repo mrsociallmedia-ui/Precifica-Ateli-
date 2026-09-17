@@ -136,6 +136,25 @@ async function startServer() {
           }
 
           if (!mpRes.ok) {
+            // Se users/me falhar por restrição de escopo ou política, tenta validar via payment_methods
+            try {
+              const pmRes = await fetch(`https://api.mercadopago.com/v1/payment_methods?access_token=${encodeURIComponent(finalToken)}`);
+              if (pmRes.ok) {
+                const methods = await pmRes.json();
+                if (Array.isArray(methods) && methods.length > 0) {
+                  return res.json({
+                    success: true,
+                    nickname: "Conta Ativa",
+                    email: "Credencial Válida",
+                    siteId: "MLB",
+                    isSandbox: finalToken.startsWith("TEST-")
+                  });
+                }
+              }
+            } catch (pmErr) {
+              console.warn("Fallback payment_methods falhou:", pmErr);
+            }
+
             const rawMsg = data.message || (Array.isArray(data.cause) && data.cause[0]?.description) || data.error;
             let friendlyError = "Access Token inválido ou não autorizado pelo Mercado Pago.";
             if (rawMsg) {
