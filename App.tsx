@@ -467,16 +467,16 @@ const App: React.FC = () => {
       if (data?.app_state) {
         const s = data.app_state;
         if (s.craft_company) setCompanyData(s.craft_company);
-        if (s.craft_materials) setMaterials(s.craft_materials);
-        if (s.craft_customers) setCustomers(s.craft_customers);
+        if (s.craft_materials) setMaterials(prev => mergeCollection(prev, s.craft_materials));
+        if (s.craft_customers) setCustomers(prev => mergeCollection(prev, s.craft_customers));
         if (s.craft_platforms) setPlatforms(s.craft_platforms);
-        if (s.craft_projects) setProjects(s.craft_projects);
-        if (s.craft_products) setProducts(s.craft_products);
-        if (s.craft_transactions) setTransactions(s.craft_transactions);
-        if (s.craft_closures) setClosures(s.craft_closures);
-        if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
-        if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
-        if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
+        if (s.craft_projects) setProjects(prev => mergeCollection(prev, s.craft_projects));
+        if (s.craft_products) setProducts(prev => mergeCollection(prev, s.craft_products));
+        if (s.craft_transactions) setTransactions(prev => mergeCollection(prev, s.craft_transactions));
+        if (s.craft_closures) setClosures(prev => mergeCollection(prev, s.craft_closures));
+        if (s.craft_prod_categories) setProductCategories(prev => Array.from(new Set([...prev, ...(s.craft_prod_categories || [])])));
+        if (s.craft_trans_categories) setTransactionCategories(prev => Array.from(new Set([...prev, ...(s.craft_trans_categories || [])])));
+        if (s.craft_pay_methods) setPaymentMethods(prev => Array.from(new Set([...prev, ...(s.craft_pay_methods || [])])));
         
         lastSyncedStateRef.current = JSON.stringify(s);
         setSyncStatus('synced');
@@ -614,9 +614,9 @@ const App: React.FC = () => {
           if (s.craft_products) setProducts(prev => mergeCollection(prev, s.craft_products));
           if (s.craft_transactions) setTransactions(prev => mergeCollection(prev, s.craft_transactions));
           if (s.craft_closures) setClosures(prev => mergeCollection(prev, s.craft_closures));
-          if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
-          if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
-          if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
+          if (s.craft_prod_categories) setProductCategories(prev => Array.from(new Set([...prev, ...(s.craft_prod_categories || [])])));
+          if (s.craft_trans_categories) setTransactionCategories(prev => Array.from(new Set([...prev, ...(s.craft_trans_categories || [])])));
+          if (s.craft_pay_methods) setPaymentMethods(prev => Array.from(new Set([...prev, ...(s.craft_pay_methods || [])])));
 
           lastSyncedStateRef.current = serialized;
           setSyncStatus('synced');
@@ -689,9 +689,9 @@ const App: React.FC = () => {
             if (s.craft_products) setProducts(prev => mergeCollection(prev, s.craft_products));
             if (s.craft_transactions) setTransactions(prev => mergeCollection(prev, s.craft_transactions));
             if (s.craft_closures) setClosures(prev => mergeCollection(prev, s.craft_closures));
-            if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
-            if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
-            if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
+            if (s.craft_prod_categories) setProductCategories(prev => Array.from(new Set([...prev, ...(s.craft_prod_categories || [])])));
+            if (s.craft_trans_categories) setTransactionCategories(prev => Array.from(new Set([...prev, ...(s.craft_trans_categories || [])])));
+            if (s.craft_pay_methods) setPaymentMethods(prev => Array.from(new Set([...prev, ...(s.craft_pay_methods || [])])));
             
             lastSyncedStateRef.current = serializedPayload;
             setSyncStatus('synced');
