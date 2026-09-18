@@ -151,6 +151,12 @@ const App: React.FC = () => {
   transactionsRef.current = transactions;
   const customersRef = useRef<Customer[]>([]);
   customersRef.current = customers;
+  const materialsRef = useRef<Material[]>([]);
+  materialsRef.current = materials;
+  const productsRef = useRef<Product[]>([]);
+  productsRef.current = products;
+  const closuresRef = useRef<CashClosure[]>([]);
+  closuresRef.current = closures;
 
   // Som suave de notificação via Web Audio API (100% offline, seguro e instantâneo)
   const playOrderChime = useCallback(() => {
@@ -230,6 +236,32 @@ const App: React.FC = () => {
       });
     }
   }, [playOrderChime]);
+
+  // Helper para mesclar coleções sem perder registros locais recém-adicionados
+  const mergeCollection = useCallback(<T extends { id: string }>(localList: T[], cloudList: T[]): T[] => {
+    if (!Array.isArray(localList)) return Array.isArray(cloudList) ? cloudList : [];
+    if (!Array.isArray(cloudList)) return localList;
+
+    const map = new Map<string, T>();
+    // 1. Primeiro itens da nuvem
+    cloudList.forEach(item => {
+      if (item && item.id) {
+        map.set(item.id, item);
+      }
+    });
+    // 2. Mescla itens locais para garantir que orçamentos/pedidos recém-criados localmente nunca sumam
+    localList.forEach(item => {
+      if (item && item.id) {
+        const existing = map.get(item.id);
+        if (!existing) {
+          map.set(item.id, item);
+        } else {
+          map.set(item.id, { ...existing, ...item });
+        }
+      }
+    });
+    return Array.from(map.values());
+  }, []);
 
   // Monitorar Sessão Supabase (Única fonte de verdade para Auth)
   useEffect(() => {
@@ -575,13 +607,13 @@ const App: React.FC = () => {
           }
 
           if (s.craft_company) setCompanyData(s.craft_company);
-          if (s.craft_materials) setMaterials(s.craft_materials);
-          if (s.craft_customers) setCustomers(s.craft_customers);
+          if (s.craft_materials) setMaterials(prev => mergeCollection(prev, s.craft_materials));
+          if (s.craft_customers) setCustomers(prev => mergeCollection(prev, s.craft_customers));
           if (s.craft_platforms) setPlatforms(s.craft_platforms);
-          if (s.craft_projects) setProjects(s.craft_projects);
-          if (s.craft_products) setProducts(s.craft_products);
-          if (s.craft_transactions) setTransactions(s.craft_transactions);
-          if (s.craft_closures) setClosures(s.craft_closures);
+          if (s.craft_projects) setProjects(prev => mergeCollection(prev, s.craft_projects));
+          if (s.craft_products) setProducts(prev => mergeCollection(prev, s.craft_products));
+          if (s.craft_transactions) setTransactions(prev => mergeCollection(prev, s.craft_transactions));
+          if (s.craft_closures) setClosures(prev => mergeCollection(prev, s.craft_closures));
           if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
           if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
           if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
@@ -593,7 +625,7 @@ const App: React.FC = () => {
     } catch {
       // Ignorar erros transitórios de background
     }
-  }, [playOrderChime]);
+  }, [playOrderChime, mergeCollection]);
 
   // Sincronização em Tempo Real (Supabase Realtime + BroadcastChannel + Eventos Locais + Polling Inteligente)
   useEffect(() => {
@@ -650,13 +682,13 @@ const App: React.FC = () => {
             }
 
             if (s.craft_company) setCompanyData(s.craft_company);
-            if (s.craft_materials) setMaterials(s.craft_materials);
-            if (s.craft_customers) setCustomers(s.craft_customers);
+            if (s.craft_materials) setMaterials(prev => mergeCollection(prev, s.craft_materials));
+            if (s.craft_customers) setCustomers(prev => mergeCollection(prev, s.craft_customers));
             if (s.craft_platforms) setPlatforms(s.craft_platforms);
-            if (s.craft_projects) setProjects(s.craft_projects);
-            if (s.craft_products) setProducts(s.craft_products);
-            if (s.craft_transactions) setTransactions(s.craft_transactions);
-            if (s.craft_closures) setClosures(s.craft_closures);
+            if (s.craft_projects) setProjects(prev => mergeCollection(prev, s.craft_projects));
+            if (s.craft_products) setProducts(prev => mergeCollection(prev, s.craft_products));
+            if (s.craft_transactions) setTransactions(prev => mergeCollection(prev, s.craft_transactions));
+            if (s.craft_closures) setClosures(prev => mergeCollection(prev, s.craft_closures));
             if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
             if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
             if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
@@ -772,13 +804,19 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [orderNotification]);
 
+  // Salvar cache local instantaneamente a cada alteração (0ms de atraso, proteção contra perda de dados)
+  useEffect(() => {
+    if (!currentUser) return;
+    saveLocalCache();
+  }, [companyData, materials, customers, platforms, projects, products, transactions, closures, productCategories, transactionCategories, paymentMethods, currentUser, saveLocalCache]);
+
   useEffect(() => {
     if (!isAuthenticated || !currentUser || !initializedRef.current) return;
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     
     syncTimeoutRef.current = setTimeout(() => {
       pushCloudData();
-    }, 2000);
+    }, 500);
 
     return () => clearTimeout(syncTimeoutRef.current);
   }, [companyData, materials, customers, platforms, projects, products, transactions, closures, productCategories, transactionCategories, paymentMethods, isAuthenticated, currentUser, pushCloudData]);

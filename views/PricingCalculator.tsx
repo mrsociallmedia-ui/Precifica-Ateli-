@@ -654,7 +654,19 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       }
     }
     
+    setSearchTerm('');
+    if (newProj.status === 'completed') {
+      setStatusFilter('completed');
+    } else {
+      setStatusFilter('ongoing');
+    }
+
     resetForm();
+
+    setTimeout(() => {
+      const historyEl = document.getElementById('quotes-history');
+      if (historyEl) historyEl.scrollIntoView({ behavior: 'smooth' });
+    }, 150);
   };
 
   const formatDisplayDate = (dateStr?: string, timeStr?: string) => {
@@ -1026,13 +1038,24 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
   const filteredHistory = useMemo(() => {
     return projects.filter(p => {
-      const matchesSearch = p.theme?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.celebrantName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.quoteNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+      const term = (searchTerm || '').trim().toLowerCase();
+      const themeStr = String(p.theme || p.name || '').toLowerCase();
+      const celebStr = String(p.celebrantName || '').toLowerCase();
+      const quoteStr = String(p.quoteNumber || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanSearch = term.replace(/[^a-z0-9]/g, '');
+
+      const matchesSearch = !term || 
+        themeStr.includes(term) || 
+        celebStr.includes(term) || 
+        (cleanSearch && quoteStr.includes(cleanSearch));
+
       if (statusFilter === 'ongoing') return matchesSearch && p.status !== 'completed';
       if (statusFilter === 'completed') return matchesSearch && p.status === 'completed';
       return matchesSearch;
     }).sort((a, b) => {
+      const dateA = new Date(a.createdAt || a.orderDate || 0).getTime();
+      const dateB = new Date(b.createdAt || b.orderDate || 0).getTime();
+      if (dateB !== dateA) return dateB - dateA;
       const numA = parseInt(String(a.quoteNumber || '').replace(/\D/g, '') || '0', 10);
       const numB = parseInt(String(b.quoteNumber || '').replace(/\D/g, '') || '0', 10);
       return numB - numA;
@@ -1911,7 +1934,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       )}
 
       {/* HISTÓRICO DE ORÇAMENTOS - MOVIDO PARA BAIXO DO FORMULÁRIO */}
-      <div className="space-y-8 animate-fadeIn border-t border-gray-100 pt-16">
+      <div id="quotes-history" className="space-y-8 animate-fadeIn border-t border-gray-100 pt-16">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
           <div className="flex flex-col gap-1">
              <h2 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-2">
