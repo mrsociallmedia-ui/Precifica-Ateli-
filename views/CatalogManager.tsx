@@ -539,6 +539,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 </div>
                 {/* Iframe carregando o catálogo em tempo real */}
                 <iframe 
+                  key={`${companyData?.phone || ''}_${companyData?.name || ''}`}
                   src={catalogUrl}
                   title="Pré-visualização do Catálogo"
                   className="w-full flex-1 border-0"

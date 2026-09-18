@@ -42,12 +42,13 @@ import { supabase, executeSupabaseWithRetry } from '../supabaseClient';
 import { Product, CompanyData, Material, Platform, CatalogCustomerProfile } from '../types';
 import { CatalogCustomerModal } from './CatalogCustomerModal';
 import { CatalogTrackingModal } from './CatalogTrackingModal';
-import { calculateProjectBreakdown, buildWhatsAppLink } from '../utils';
+import { calculateProjectBreakdown, buildWhatsAppLink, getCleanWhatsAppDigits } from '../utils';
 
 declare const html2canvas: any;
 
 interface PublicCatalogProps {
   userEmail: string;
+  initialCompanyData?: CompanyData | null;
   onOrderCreated?: (newProject: any, newTransaction: any, newCustomer?: any) => void;
 }
 
@@ -57,10 +58,10 @@ interface CartItem {
   price: number;
 }
 
-export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrderCreated }) => {
+export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, initialCompanyData, onOrderCreated }) => {
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
-  const [companyData, setCompanyData] = useState<CompanyData | null>(null);
+  const [companyData, setCompanyData] = useState<CompanyData | null>(initialCompanyData || null);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,6 +71,44 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [modalQty, setModalQty] = useState(1);
   const [addedItemFeedback, setAddedItemFeedback] = useState<string | null>(null);
+
+  // Sincronizar dados da empresa caso initialCompanyData mude ou seja atualizado
+  useEffect(() => {
+    if (initialCompanyData) {
+      setCompanyData(prev => {
+        if (!prev) return initialCompanyData;
+        return { ...prev, ...initialCompanyData };
+      });
+    }
+  }, [initialCompanyData]);
+
+  // Ouvir atualizações de perfil do ateliê em tempo real (mesma aba ou abas sincronizadas)
+  useEffect(() => {
+    const handleCompanyUpdate = (e: any) => {
+      const updated = e?.detail;
+      if (updated && (updated.phone || updated.name)) {
+        setCompanyData(prev => prev ? { ...prev, ...updated } : updated);
+      }
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key && (e.key.includes('craft_company') || e.key === 'craft_company')) {
+        try {
+          if (e.newValue) {
+            const parsed = JSON.parse(e.newValue);
+            if (parsed?.phone || parsed?.name) {
+              setCompanyData(prev => prev ? { ...prev, ...parsed } : parsed);
+            }
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('precifica:company_updated', handleCompanyUpdate);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('precifica:company_updated', handleCompanyUpdate);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
   
   // Estados do Carrinho & Checkout Automatizado
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -339,35 +378,86 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     const fetchData = async () => {
       try {
         setLoading(true);
-        // 1. Tentar buscar dados públicos no Supabase
-        const { data, error } = await executeSupabaseWithRetry(() =>
-          supabase
-            .from('user_data')
-            .select('app_state')
-            .eq('user_email', userEmail.toLowerCase())
-            .maybeSingle()
-        );
+        let s: any = null;
 
-        if (data?.app_state) {
-          const s = data.app_state;
+        // 1. Tentar buscar dados públicos pela API do servidor
+        try {
+          const apiRes = await fetch(`/api/catalog/data?userEmail=${encodeURIComponent(userEmail.toLowerCase())}`);
+          if (apiRes.ok) {
+            const apiData = await apiRes.json();
+            if (apiData?.company || (Array.isArray(apiData?.products) && apiData.products.length > 0)) {
+              s = {
+                craft_company: apiData.company,
+                craft_products: apiData.products,
+                craft_materials: apiData.materials,
+                craft_platforms: apiData.platforms,
+                craft_projects: apiData.projects
+              };
+            }
+          }
+        } catch (apiErr) {
+          console.warn("Aviso ao buscar dados via API do catálogo:", apiErr);
+        }
+
+        // 2. Tentar buscar dados públicos no Supabase caso a rota da API não tenha retornado
+        if (!s) {
+          const { data } = await executeSupabaseWithRetry(() =>
+            supabase
+              .from('user_data')
+              .select('app_state')
+              .eq('user_email', userEmail.toLowerCase())
+              .maybeSingle()
+          );
+          if (data?.app_state) {
+            s = data.app_state;
+          }
+        }
+
+        if (s) {
           setProducts(s.craft_products || []);
-          setCompanyData(s.craft_company || null);
+          if (s.craft_company) {
+            setCompanyData(prev => {
+              // Preservar telefone válido caso o objeto vindo da nuvem venha sem telefone
+              if (prev?.phone && prev.phone.replace(/\D/g, '').length >= 10 && (!s.craft_company.phone || s.craft_company.phone.replace(/\D/g, '').length < 10)) {
+                return { ...s.craft_company, phone: prev.phone };
+              }
+              return s.craft_company;
+            });
+          }
           setMaterials(s.craft_materials || []);
           setPlatforms(s.craft_platforms || []);
           if (Array.isArray(s.craft_projects)) {
             setExistingProjects(s.craft_projects);
           }
         } else {
-          // 2. Fallback de localStorage caso esteja rodando localmente ou no mesmo navegador
+          // 3. Fallback de localStorage caso esteja rodando localmente ou no mesmo navegador
           const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-          const localCompany = localStorage.getItem(`craft_company_${userKey}`) || localStorage.getItem('craft_company');
-          const localProducts = localStorage.getItem(`craft_products_${userKey}`) || localStorage.getItem('craft_products');
-          const localMaterials = localStorage.getItem(`craft_materials_${userKey}`) || localStorage.getItem('craft_materials');
-          const localPlatforms = localStorage.getItem(`craft_platforms_${userKey}`) || localStorage.getItem('craft_platforms');
-          const localProjects = localStorage.getItem(`craft_projects_${userKey}`) || localStorage.getItem(`${userKey}_craft_projects`) || localStorage.getItem('craft_projects');
+          const localCompany = 
+            localStorage.getItem(`${userKey}_craft_company`) || 
+            localStorage.getItem(`craft_company_${userKey}`) || 
+            localStorage.getItem('craft_company');
+          const localProducts = 
+            localStorage.getItem(`${userKey}_craft_products`) || 
+            localStorage.getItem(`craft_products_${userKey}`) || 
+            localStorage.getItem('craft_products');
+          const localMaterials = 
+            localStorage.getItem(`${userKey}_craft_materials`) || 
+            localStorage.getItem(`craft_materials_${userKey}`) || 
+            localStorage.getItem('craft_materials');
+          const localPlatforms = 
+            localStorage.getItem(`${userKey}_craft_platforms`) || 
+            localStorage.getItem(`craft_platforms_${userKey}`) || 
+            localStorage.getItem('craft_platforms');
+          const localProjects = 
+            localStorage.getItem(`${userKey}_craft_projects`) || 
+            localStorage.getItem(`craft_projects_${userKey}`) || 
+            localStorage.getItem('craft_projects');
 
           if (localCompany) {
-            try { setCompanyData(JSON.parse(localCompany)); } catch (e) {}
+            try { 
+              const parsed = JSON.parse(localCompany);
+              setCompanyData(prev => prev ? { ...prev, ...parsed } : parsed); 
+            } catch (e) {}
           }
           if (localProducts) {
             try { setProducts(JSON.parse(localProducts)); } catch (e) {}
@@ -386,11 +476,23 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         console.error("Erro ao carregar catálogo público:", err);
         // Fallback secundário de localStorage
         const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-        const localCompany = localStorage.getItem(`craft_company_${userKey}`) || localStorage.getItem('craft_company');
-        const localProducts = localStorage.getItem(`craft_products_${userKey}`) || localStorage.getItem('craft_products');
-        const localProjects = localStorage.getItem(`craft_projects_${userKey}`) || localStorage.getItem(`${userKey}_craft_projects`) || localStorage.getItem('craft_projects');
+        const localCompany = 
+          localStorage.getItem(`${userKey}_craft_company`) || 
+          localStorage.getItem(`craft_company_${userKey}`) || 
+          localStorage.getItem('craft_company');
+        const localProducts = 
+          localStorage.getItem(`${userKey}_craft_products`) || 
+          localStorage.getItem(`craft_products_${userKey}`) || 
+          localStorage.getItem('craft_products');
+        const localProjects = 
+          localStorage.getItem(`${userKey}_craft_projects`) || 
+          localStorage.getItem(`craft_projects_${userKey}`) || 
+          localStorage.getItem('craft_projects');
         if (localCompany) {
-          try { setCompanyData(JSON.parse(localCompany)); } catch (e) {}
+          try { 
+            const parsed = JSON.parse(localCompany);
+            setCompanyData(prev => prev ? { ...prev, ...parsed } : parsed); 
+          } catch (e) {}
         }
         if (localProducts) {
           try { setProducts(JSON.parse(localProducts)); } catch (e) {}
@@ -468,13 +570,40 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     return matchesSearch && matchesCategory;
   });
 
+  // Obtém o número de WhatsApp de Contato (Recebimento de Pedidos) do ateliê com fallback ultra-robusto
+  const getAtelierWhatsAppPhone = (): string => {
+    let phone = companyData?.phone;
+    if (!phone || phone.replace(/\D/g, '').length < 10) {
+      if (initialCompanyData?.phone && initialCompanyData.phone.replace(/\D/g, '').length >= 10) {
+        phone = initialCompanyData.phone;
+      }
+    }
+    if (!phone || phone.replace(/\D/g, '').length < 10) {
+      try {
+        const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const saved = 
+          localStorage.getItem(`${userKey}_craft_company`) || 
+          localStorage.getItem(`craft_company_${userKey}`) || 
+          localStorage.getItem('craft_company');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed?.phone && parsed.phone.replace(/\D/g, '').length >= 10) {
+            phone = parsed.phone;
+          }
+        }
+      } catch (e) {}
+    }
+    return phone || '';
+  };
+
   const handleWhatsAppContact = (productName: string, price: number) => {
-    if (!companyData?.phone) {
-      alert('O ateliê não possui número de WhatsApp cadastrado no momento.');
+    const targetPhone = getAtelierWhatsAppPhone();
+    if (!targetPhone) {
+      alert('O ateliê não possui número de WhatsApp de Contato (Recebimento de Pedidos) cadastrado no momento.');
       return;
     }
     const message = `Olá! Vi o produto *${productName}* (R$ ${price.toFixed(2)}) no seu catálogo online da *${companyData?.name || 'loja'}* e gostaria de mais informações.`;
-    const whatsappUrl = buildWhatsAppLink(companyData.phone, message);
+    const whatsappUrl = buildWhatsAppLink(targetPhone, message);
     if (!whatsappUrl) {
       alert('Número de WhatsApp do ateliê inválido.');
       return;
@@ -585,9 +714,10 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     if (!validateForm()) return;
     if (cart.length === 0) return;
 
-    const phone = companyData?.phone?.replace(/\D/g, '') || '';
-    if (!phone) {
-      alert('Número de WhatsApp do ateliê não encontrado. Por favor, entre em contato diretamente.');
+    const targetPhone = getAtelierWhatsAppPhone();
+    const cleanPhone = getCleanWhatsAppDigits(targetPhone);
+    if (!cleanPhone) {
+      alert('Número de WhatsApp de Contato (Recebimento de Pedidos) do ateliê não encontrado. Por favor, cadastre o número nas configurações do ateliê.');
       return;
     }
 
@@ -878,8 +1008,8 @@ ${deliveryDetails}
       }
     } catch (e) {}
 
-    // Abrir WhatsApp diretamente com a mensagem do pedido pronta
-    const whatsappUrl = buildWhatsAppLink(companyData?.phone, message);
+    // Abrir WhatsApp diretamente com a mensagem do pedido pronta para o WhatsApp do ateliê
+    const whatsappUrl = buildWhatsAppLink(targetPhone, message);
     try {
       const openedWin = window.open(whatsappUrl, '_blank');
       if (!openedWin || openedWin.closed || typeof openedWin.closed === 'undefined') {
@@ -1047,10 +1177,11 @@ ${deliveryDetails}
             </button>
 
             {/* Contato WhatsApp */}
-            {companyData?.phone && (
+            {getAtelierWhatsAppPhone() && (
               <button 
                 onClick={() => {
-                  const url = buildWhatsAppLink(companyData.phone, `Olá! Estou visitando o catálogo da ${companyData?.name || 'loja'} e gostaria de tirar uma dúvida.`);
+                  const targetPhone = getAtelierWhatsAppPhone();
+                  const url = buildWhatsAppLink(targetPhone, `Olá! Estou visitando o catálogo da ${companyData?.name || 'loja'} e gostaria de tirar uma dúvida.`);
                   if (url) window.open(url, '_blank');
                 }}
                 className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2 sm:px-3 sm:py-2.5 rounded-2xl transition-all flex items-center gap-1.5 font-black text-xs border border-emerald-200/60 shadow-2xs cursor-pointer"
@@ -2081,7 +2212,8 @@ ${deliveryDetails}
                 <div className="w-full space-y-3 mb-8">
                   <button 
                     onClick={() => {
-                      const url = buildWhatsAppLink(companyData?.phone, lastOrderMessage);
+                      const targetPhone = getAtelierWhatsAppPhone();
+                      const url = buildWhatsAppLink(targetPhone, lastOrderMessage);
                       if (url) window.open(url, '_blank');
                     }}
                     className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 transition-all cursor-pointer"

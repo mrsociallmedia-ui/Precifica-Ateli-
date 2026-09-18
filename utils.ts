@@ -481,7 +481,17 @@ export function getCleanWhatsAppDigits(phone?: string): string {
   let digits = phone.replace(/\D/g, '');
   if (!digits) return '';
 
-  // Se já tiver 12 ou 13 dígitos começando com 55 (ex: 5511999999999)
+  // Remove zeros à esquerda (ex: 066992442924 -> 66992442924)
+  if (digits.startsWith('0')) {
+    digits = digits.replace(/^0+/, '');
+  }
+
+  // Remove zero acidental após DDI 55 (ex: 55066992442924 -> 5566992442924)
+  if (digits.startsWith('550')) {
+    digits = '55' + digits.slice(3);
+  }
+
+  // Se já tiver 12 ou 13 dígitos começando com 55 (ex: 5566992442924)
   if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
     return digits;
   }

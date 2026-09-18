@@ -431,6 +431,14 @@ const App: React.FC = () => {
 
     Object.entries(data).forEach(([key, value]) => {
       safeLocalStorageSet(`${userKey}_${key}`, value);
+      // Garantir compatibilidade com todas as variações de chaves e o catálogo público
+      if (key === 'craft_company') {
+        safeLocalStorageSet(`craft_company_${userKey}`, value);
+        safeLocalStorageSet('craft_company', value);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('precifica:company_updated', { detail: value }));
+        }
+      }
     });
   }, [currentUser, companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods]);
 
@@ -910,6 +918,7 @@ const App: React.FC = () => {
     return (
       <PublicCatalog 
         userEmail={publicCatalogEmail} 
+        initialCompanyData={currentUser && currentUser.toLowerCase() === publicCatalogEmail.toLowerCase() ? companyData : (companyData || undefined)}
         onOrderCreated={(newProj, newTx, newCust) => {
           handleIncomingCatalogOrder(newProj, newTx, newCust);
         }}

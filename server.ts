@@ -508,6 +508,43 @@ async function startServer() {
       res.status(200).send("OK");
     });
 
+    // API Route: Buscar Dados Públicos do Catálogo Online (Empresa, Telefone WhatsApp, Produtos, etc.)
+    app.get("/api/catalog/data", async (req: Request, res: Response) => {
+      try {
+        const userEmail = req.query.userEmail;
+        if (!userEmail) {
+          return res.status(400).json({ error: "E-mail do ateliê é obrigatório." });
+        }
+        const normalizedEmail = String(userEmail).toLowerCase().trim();
+        const primarySupabaseUrl = process.env.VITE_SUPABASE_URL || 'https://scnjxuzapasdfgevegds.supabase.co';
+        const primarySupabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow';
+
+        const fetchRes = await fetch(`${primarySupabaseUrl}/rest/v1/user_data?user_email=eq.${encodeURIComponent(normalizedEmail)}&select=app_state`, {
+          headers: {
+            'apikey': primarySupabaseKey,
+            'Authorization': `Bearer ${primarySupabaseKey}`
+          }
+        });
+        if (fetchRes.ok) {
+          const data = await fetchRes.json();
+          if (Array.isArray(data) && data.length > 0 && data[0]?.app_state) {
+            const s = data[0].app_state;
+            return res.json({
+              company: s.craft_company || null,
+              products: s.craft_products || [],
+              materials: s.craft_materials || [],
+              platforms: s.craft_platforms || [],
+              projects: s.craft_projects || []
+            });
+          }
+        }
+        return res.json({ company: null, products: [] });
+      } catch (err: any) {
+        console.warn("Aviso ao buscar catálogo no servidor:", err);
+        return res.status(500).json({ error: err?.message || "Erro ao consultar catálogo." });
+      }
+    });
+
     // API Route: Submeter Pedido do Catálogo Online (Automação de Cronograma + Financeiro)
     app.post("/api/catalog/submit-order", async (req: Request, res: Response) => {
       try {
