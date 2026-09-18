@@ -42,7 +42,7 @@ import { supabase, executeSupabaseWithRetry } from '../supabaseClient';
 import { Product, CompanyData, Material, Platform, CatalogCustomerProfile } from '../types';
 import { CatalogCustomerModal } from './CatalogCustomerModal';
 import { CatalogTrackingModal } from './CatalogTrackingModal';
-import { calculateProjectBreakdown } from '../utils';
+import { calculateProjectBreakdown, buildWhatsAppLink } from '../utils';
 
 declare const html2canvas: any;
 
@@ -469,13 +469,17 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
   });
 
   const handleWhatsAppContact = (productName: string, price: number) => {
-    const phone = companyData?.phone?.replace(/\D/g, '') || '';
-    if (!phone) {
+    if (!companyData?.phone) {
       alert('O ateliê não possui número de WhatsApp cadastrado no momento.');
       return;
     }
-    const message = encodeURIComponent(`Olá! Vi o produto *${productName}* (R$ ${price.toFixed(2)}) no seu catálogo online da *${companyData?.name || 'loja'}* e gostaria de mais informações.`);
-    window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+    const message = `Olá! Vi o produto *${productName}* (R$ ${price.toFixed(2)}) no seu catálogo online da *${companyData?.name || 'loja'}* e gostaria de mais informações.`;
+    const whatsappUrl = buildWhatsAppLink(companyData.phone, message);
+    if (!whatsappUrl) {
+      alert('Número de WhatsApp do ateliê inválido.');
+      return;
+    }
+    window.open(whatsappUrl, '_blank');
   };
 
   const addToCart = (product: Product, price: number, qtyToAdd?: number) => {
@@ -875,7 +879,7 @@ ${deliveryDetails}
     } catch (e) {}
 
     // Abrir WhatsApp diretamente com a mensagem do pedido pronta
-    const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = buildWhatsAppLink(companyData?.phone, message);
     try {
       const openedWin = window.open(whatsappUrl, '_blank');
       if (!openedWin || openedWin.closed || typeof openedWin.closed === 'undefined') {
@@ -1045,7 +1049,10 @@ ${deliveryDetails}
             {/* Contato WhatsApp */}
             {companyData?.phone && (
               <button 
-                onClick={() => window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}`, '_blank')}
+                onClick={() => {
+                  const url = buildWhatsAppLink(companyData.phone, `Olá! Estou visitando o catálogo da ${companyData?.name || 'loja'} e gostaria de tirar uma dúvida.`);
+                  if (url) window.open(url, '_blank');
+                }}
                 className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2 sm:px-3 sm:py-2.5 rounded-2xl transition-all flex items-center gap-1.5 font-black text-xs border border-emerald-200/60 shadow-2xs cursor-pointer"
                 title="Falar no WhatsApp"
               >
@@ -2074,8 +2081,8 @@ ${deliveryDetails}
                 <div className="w-full space-y-3 mb-8">
                   <button 
                     onClick={() => {
-                      const phone = companyData?.phone?.replace(/\D/g, '') || '';
-                      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lastOrderMessage)}`, '_blank');
+                      const url = buildWhatsAppLink(companyData?.phone, lastOrderMessage);
+                      if (url) window.open(url, '_blank');
                     }}
                     className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 transition-all cursor-pointer"
                   >

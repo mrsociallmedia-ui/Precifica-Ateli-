@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { supabase, executeSupabaseWithRetry } from '../supabaseClient';
 import { Project, CompanyData } from '../types';
+import { buildWhatsAppLink } from '../utils';
 
 interface ProjectTrackingProps {
   projectId: string;
@@ -120,9 +121,11 @@ export const ProjectTracking: React.FC<ProjectTrackingProps> = ({ projectId, use
 
   const handleWhatsAppContact = () => {
     if (!companyData?.phone) return;
-    const phone = companyData.phone.replace(/\D/g, '');
-    const message = encodeURIComponent(`Olá! Estou acompanhando meu pedido *${project.theme}* e gostaria de falar com você.`);
-    window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
+    const message = `Olá! Estou acompanhando meu pedido *${project.theme}* e gostaria de falar com você.`;
+    const url = buildWhatsAppLink(companyData.phone, message);
+    if (url) {
+      window.open(url, '_blank');
+    }
   };
 
   return (

@@ -44,7 +44,7 @@ import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 import { supabase, isMock, clearStaleSupabaseAuth, executeSupabaseWithRetry, handleSupabaseExpiredJwt } from './supabaseClient';
-import { safeLocalStorageSet, compressImage } from './utils';
+import { safeLocalStorageSet, compressImage, formatBrazilianPhone } from './utils';
 import { PWAInstallBanner, PWAInstallButton } from './components/PWAInstallBanner';
 
 const App: React.FC = () => {
@@ -401,7 +401,13 @@ const App: React.FC = () => {
     Object.entries(setters).forEach(([key, setter]) => {
       const saved = localStorage.getItem(`${userKey}_${key}`);
       if (saved) {
-        try { setter(JSON.parse(saved)); } catch (e) { console.error(`Erro ao carregar cache ${key}`, e); }
+        try { 
+          const parsed = JSON.parse(saved);
+          if (key === 'craft_company' && parsed && parsed.phone) {
+            parsed.phone = formatBrazilianPhone(parsed.phone);
+          }
+          setter(parsed); 
+        } catch (e) { console.error(`Erro ao carregar cache ${key}`, e); }
       }
     });
   }, []);
@@ -466,7 +472,11 @@ const App: React.FC = () => {
 
       if (data?.app_state) {
         const s = data.app_state;
-        if (s.craft_company) setCompanyData(s.craft_company);
+        if (s.craft_company) {
+          const comp = { ...s.craft_company };
+          if (comp.phone) comp.phone = formatBrazilianPhone(comp.phone);
+          setCompanyData(comp);
+        }
         if (s.craft_materials) setMaterials(prev => mergeCollection(prev, s.craft_materials));
         if (s.craft_customers) setCustomers(prev => mergeCollection(prev, s.craft_customers));
         if (s.craft_platforms) setPlatforms(s.craft_platforms);
@@ -606,17 +616,10 @@ const App: React.FC = () => {
             }
           }
 
-          if (s.craft_company) setCompanyData(s.craft_company);
-          if (s.craft_materials) setMaterials(prev => mergeCollection(prev, s.craft_materials));
+          // Sincronizar apenas novos pedidos, clientes e transações recebidos do catálogo online
           if (s.craft_customers) setCustomers(prev => mergeCollection(prev, s.craft_customers));
-          if (s.craft_platforms) setPlatforms(s.craft_platforms);
           if (s.craft_projects) setProjects(prev => mergeCollection(prev, s.craft_projects));
-          if (s.craft_products) setProducts(prev => mergeCollection(prev, s.craft_products));
           if (s.craft_transactions) setTransactions(prev => mergeCollection(prev, s.craft_transactions));
-          if (s.craft_closures) setClosures(prev => mergeCollection(prev, s.craft_closures));
-          if (s.craft_prod_categories) setProductCategories(prev => Array.from(new Set([...prev, ...(s.craft_prod_categories || [])])));
-          if (s.craft_trans_categories) setTransactionCategories(prev => Array.from(new Set([...prev, ...(s.craft_trans_categories || [])])));
-          if (s.craft_pay_methods) setPaymentMethods(prev => Array.from(new Set([...prev, ...(s.craft_pay_methods || [])])));
 
           lastSyncedStateRef.current = serialized;
           setSyncStatus('synced');
@@ -681,7 +684,11 @@ const App: React.FC = () => {
               }
             }
 
-            if (s.craft_company) setCompanyData(s.craft_company);
+            if (s.craft_company) {
+              const comp = { ...s.craft_company };
+              if (comp.phone) comp.phone = formatBrazilianPhone(comp.phone);
+              setCompanyData(comp);
+            }
             if (s.craft_materials) setMaterials(prev => mergeCollection(prev, s.craft_materials));
             if (s.craft_customers) setCustomers(prev => mergeCollection(prev, s.craft_customers));
             if (s.craft_platforms) setPlatforms(s.craft_platforms);
@@ -777,7 +784,6 @@ const App: React.FC = () => {
         fetchCloudDataSilently(currentUser);
       }
     };
-    window.addEventListener('focus', handleFocusOrVisible);
     document.addEventListener('visibilitychange', handleFocusOrVisible);
 
     return () => {
@@ -789,7 +795,6 @@ const App: React.FC = () => {
       }
       window.removeEventListener('precifica:catalog_order_created', handleCustomEvent);
       window.removeEventListener('storage', handleStorageEvent);
-      window.removeEventListener('focus', handleFocusOrVisible);
       document.removeEventListener('visibilitychange', handleFocusOrVisible);
       clearInterval(pollInterval);
     };

@@ -18,6 +18,7 @@ import {
   FileText
 } from 'lucide-react';
 import { CompanyData } from '../types';
+import { buildWhatsAppLink } from '../utils';
 
 interface OrderTrackItem {
   id: string;
@@ -220,16 +221,16 @@ export const CatalogTrackingModal: React.FC<CatalogTrackingModalProps> = ({
   };
 
   const openWhatsAppForOrder = (order: OrderTrackItem) => {
-    const ateliePhone = companyData?.phone?.replace(/\D/g, '') || '';
-    if (!ateliePhone) {
+    if (!companyData?.phone) {
       alert("Número de WhatsApp do ateliê não encontrado.");
       return;
     }
 
-    const text = encodeURIComponent(
-      `Olá ${companyData?.name || 'Ateliê'}! Gostaria de acompanhar o andamento do meu pedido *${order.orderNum}* (Cliente: ${order.celebrantName || order.customerName || 'Cliente'}). Como está a confecção?`
-    );
-    window.open(`https://wa.me/${ateliePhone}?text=${text}`, '_blank');
+    const text = `Olá ${companyData?.name || 'Ateliê'}! Gostaria de acompanhar o andamento do meu pedido *${order.orderNum}* (Cliente: ${order.celebrantName || order.customerName || 'Cliente'}). Como está a confecção?`;
+    const url = buildWhatsAppLink(companyData.phone, text);
+    if (url) {
+      window.open(url, '_blank');
+    }
   };
 
   return (

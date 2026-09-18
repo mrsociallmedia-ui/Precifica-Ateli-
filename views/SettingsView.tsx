@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 import { supabase } from '../supabaseClient';
-import { compressImage } from '../utils';
+import { compressImage, formatBrazilianPhone, buildWhatsAppLink } from '../utils';
 import { PWAInstallButton } from '../components/PWAInstallBanner';
 
 interface SettingsViewProps {
@@ -263,8 +263,143 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">WhatsApp de Contato (Recebimento de Pedidos)</label>
-                    <input type="text" placeholder="(99) 99999-9999" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800" value={companyData.phone} onChange={e => setCompanyData({...companyData, phone: e.target.value})} />
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                        <MessageCircle size={12} className="text-emerald-500" />
+                        WhatsApp de Contato (Recebimento de Pedidos)
+                      </label>
+                      {companyData.phone && (companyData.phone.replace(/\D/g, '').length >= 10) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const link = buildWhatsAppLink(companyData.phone, 'Olá! Teste de recebimento de pedidos no WhatsApp do ateliê.');
+                            if (link) window.open(link, '_blank');
+                          }}
+                          className="text-[9px] font-black uppercase tracking-wider text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                          title="Abrir no WhatsApp para testar recebimento"
+                        >
+                          <ExternalLink size={10} /> Testar Link
+                        </button>
+                      )}
+                    </div>
+                    
+                    {(() => {
+                      const phoneDigits = (companyData.phone || '').replace(/\D/g, '');
+                      const cleanDigits = (phoneDigits.startsWith('55') && phoneDigits.length > 11) 
+                        ? phoneDigits.slice(2) 
+                        : phoneDigits;
+
+                      // Extrair DDD (até 2 dígitos) e número do celular (até 9 dígitos)
+                      const dddVal = cleanDigits.slice(0, 2);
+                      const numDigits = cleanDigits.slice(2, 11);
+                      const formattedNum = numDigits.length > 5 
+                        ? `${numDigits.slice(0, numDigits.length - 4)}-${numDigits.slice(numDigits.length - 4)}` 
+                        : numDigits;
+
+                      const updatePhone = (newDdd: string, newNumDigits: string) => {
+                        const cleanDdd = newDdd.replace(/\D/g, '').slice(0, 2);
+                        const cleanNum = newNumDigits.replace(/\D/g, '').slice(0, 9);
+                        const formatted = cleanNum.length > 5 
+                          ? `${cleanNum.slice(0, cleanNum.length - 4)}-${cleanNum.slice(cleanNum.length - 4)}` 
+                          : cleanNum;
+
+                        let fullPhone = '';
+                        if (cleanDdd && formatted) {
+                          fullPhone = `(${cleanDdd}) ${formatted}`;
+                        } else if (cleanDdd) {
+                          fullPhone = `(${cleanDdd})`;
+                        } else if (formatted) {
+                          fullPhone = formatted;
+                        }
+                        setCompanyData(prev => ({ ...prev, phone: fullPhone }));
+                      };
+
+                      const handleDddInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+                        const val = e.target.value.replace(/\D/g, '');
+                        // Se o usuário digitou ou colou um número longo no campo de DDD (ex: 66992442924)
+                        if (val.length > 2) {
+                          let p = val;
+                          if (p.startsWith('55') && p.length > 11) p = p.slice(2);
+                          updatePhone(p.slice(0, 2), p.slice(2, 11));
+                          return;
+                        }
+                        updatePhone(val, numDigits);
+                      };
+
+                      const handleNumInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+                        const val = e.target.value.replace(/\D/g, '');
+                        // Se o usuário digitou ou colou o número completo com DDD (ex: 10 ou 11 dígitos)
+                        if (val.length >= 10) {
+                          let p = val;
+                          if (p.startsWith('55') && p.length > 11) p = p.slice(2);
+                          updatePhone(p.slice(0, 2), p.slice(2, 11));
+                          return;
+                        }
+                        updatePhone(dddVal, val);
+                      };
+
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            {/* DDI Brasil */}
+                            <div className="flex items-center gap-1 text-xs font-black text-gray-500 bg-gray-100 border border-gray-200 px-3 py-3.5 rounded-2xl select-none shrink-0" title="Código do Brasil (+55)">
+                              <span>🇧🇷</span>
+                              <span>+55</span>
+                            </div>
+
+                            {/* Campo DDD dedicado */}
+                            <div className="w-24 shrink-0 relative">
+                              <input 
+                                type="tel" 
+                                placeholder="DDD" 
+                                maxLength={2}
+                                className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-center text-gray-800 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all text-sm md:text-base" 
+                                value={dddVal} 
+                                onChange={handleDddInput}
+                                title="Código DDD da sua região (ex: 11, 21, 66)"
+                              />
+                              <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black uppercase tracking-wider text-gray-400 rounded pointer-events-none">
+                                DDD
+                              </span>
+                            </div>
+
+                            {/* Campo Número Celular */}
+                            <div className="flex-1 relative">
+                              <input 
+                                type="tel" 
+                                placeholder="99999-9999" 
+                                maxLength={10}
+                                className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all text-sm md:text-base" 
+                                value={formattedNum} 
+                                onChange={handleNumInput}
+                              />
+                              <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black uppercase tracking-wider text-gray-400 rounded pointer-events-none">
+                                Celular / WhatsApp
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Feedback de Validação */}
+                          {!cleanDigits ? (
+                            <p className="text-[10px] text-gray-400 font-semibold ml-1">
+                              Informe o DDD (ex: 66) e o número do celular para receber os pedidos pelo WhatsApp.
+                            </p>
+                          ) : dddVal.length < 2 ? (
+                            <p className="text-[10px] text-amber-600 font-bold ml-1 flex items-center gap-1 animate-fadeIn">
+                              ⚠️ Digite os 2 dígitos do DDD da sua região (ex: 11, 21, 66...).
+                            </p>
+                          ) : numDigits.length < 8 ? (
+                            <p className="text-[10px] text-amber-600 font-bold ml-1 flex items-center gap-1 animate-fadeIn">
+                              ⚠️ Digite o número completo do celular com 8 ou 9 dígitos.
+                            </p>
+                          ) : (
+                            <p className="text-[10px] text-emerald-600 font-bold ml-1 flex items-center gap-1 animate-fadeIn">
+                              ✓ WhatsApp +55 ({dddVal}) {formattedNum} configurado com sucesso!
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Subtítulo / Mensagem do Catálogo</label>

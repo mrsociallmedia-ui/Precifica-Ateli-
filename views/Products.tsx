@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { generateContent } from '../lib/gemini';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
-import { calculateProjectBreakdown, getMLRange, compressImage } from '../utils';
+import { calculateProjectBreakdown, getMLRange, compressImage, buildWhatsAppLink } from '../utils';
 
 declare const html2canvas: any;
 
@@ -179,7 +179,10 @@ export const Products: React.FC<ProductsProps> = ({
       });
       message += `\n*TOTAL: R$ ${cartTotal.toFixed(2)}*`;
       
-      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+      const whatsappUrl = buildWhatsAppLink(companyData.phone, message);
+      if (whatsappUrl) {
+        window.open(whatsappUrl, '_blank');
+      }
       setCart([]);
       setIsCartOpen(false);
     } catch (err) {
@@ -1828,7 +1831,8 @@ export const Products: React.FC<ProductsProps> = ({
                               <button 
                                 onClick={() => {
                                   const message = `Olá! Tenho interesse no produto: *${p.name}* do seu catálogo.`;
-                                  window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
+                                  const url = buildWhatsAppLink(companyData.phone, message);
+                                  if (url) window.open(url, '_blank');
                                 }}
                                 className="bg-green-500 text-white p-3 rounded-2xl hover:bg-green-600 transition-all shadow-lg shadow-green-100"
                               >
@@ -1967,7 +1971,8 @@ export const Products: React.FC<ProductsProps> = ({
                         <button 
                           onClick={() => {
                             const message = `Olá! Tenho interesse no produto: *${selectedProductPreview.name}* do seu catálogo.`;
-                            window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
+                            const url = buildWhatsAppLink(companyData.phone, message);
+                            if (url) window.open(url, '_blank');
                           }}
                           className="py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-green-100 hover:bg-green-600 transition-all active:scale-95"
                         >
