@@ -406,6 +406,7 @@ ${deliveryDetails}
         celebrantAge: '',
         quoteNumber: orderNum,
         paymentMethod: 'A combinar',
+        paidAt: now.toISOString(),
         hoursToMake: cart.reduce((acc, i) => acc + (((i.product.minutesToMake || 60) / 60) * i.quantity), 0),
         materials: [],
         profitMargin: 30,
@@ -421,7 +422,7 @@ ${deliveryDetails}
         category: 'Compra pelo Catálogo',
         paymentMethod: 'A combinar',
         date: dateStr,
-        status: 'pending' as const,
+        status: 'paid' as const,
         projectId: projId,
         customerId: custId
       };
@@ -497,23 +498,30 @@ ${deliveryDetails}
       localStorage.setItem('my_online_orders', JSON.stringify(existingOrders.slice(0, 20)));
     } catch (e) {}
 
-    // Tentar gerar imagem de resumo para download em segundo plano
+    // Notificar aplicativo sobre o novo pedido do catálogo
     try {
-      if (orderSummaryRef.current && typeof html2canvas !== 'undefined') {
-        const canvas = await html2canvas(orderSummaryRef.current, {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          logging: false,
-          useCORS: true
-        });
-        const imageData = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.download = `comprovante-pedido-${orderNum.replace('#', '')}.png`;
-        link.href = imageData;
-        link.click();
+      const summaryText = cart.map(i => `${i.quantity}x ${i.product.name}`).join(', ');
+      const orderNotification = {
+        id: `proj_${Date.now()}`,
+        quoteNumber: orderNum,
+        customerName: customerName.trim(),
+        total: cartTotal,
+        itemsSummary: summaryText,
+        createdAt: now.toISOString(),
+        userEmail: userEmail.trim().toLowerCase()
+      };
+
+      if (typeof window !== 'undefined') {
+        if ('BroadcastChannel' in window) {
+          const channel = new BroadcastChannel('craft_catalog_orders');
+          channel.postMessage({ type: 'NEW_CATALOG_ORDER', data: orderNotification });
+          channel.close();
+        }
+        window.dispatchEvent(new CustomEvent('new_catalog_order', { detail: orderNotification }));
+        localStorage.setItem('last_catalog_order_alert', JSON.stringify(orderNotification));
       }
     } catch (e) {
-      console.warn("Não foi possível gerar a imagem automática:", e);
+      console.warn("Aviso ao disparar notificação local:", e);
     }
 
     // Disparar abertura do WhatsApp

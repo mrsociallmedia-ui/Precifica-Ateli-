@@ -30,7 +30,7 @@ interface LoginViewProps {
   onLogin: (userEmail: string) => void;
 }
 
-type AuthMode = 'access' | 'register' | 'identify' | 'verify_word' | 'new_password';
+type AuthMode = 'access' | 'identify' | 'verify_word' | 'new_password';
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [mode, setMode] = useState<AuthMode>('access');
@@ -85,31 +85,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         }
         if (data.user) onLogin(data.user.email!);
       } 
-      else if (mode === 'register') {
-        if (password !== confirmPassword) throw new Error("As senhas não coincidem.");
-        if (password.length < 6) throw new Error("A senha deve ter no mínimo 6 caracteres.");
-
-        const { data, error: signUpError } = await supabase.auth.signUp({ 
-          email, 
-          password,
-          options: {
-            data: {
-              full_name: email.split('@')[0], // Nome provisional
-            }
-          }
-        });
-
-        if (signUpError) throw signUpError;
-
-        if (data.user) {
-          if (data.session) {
-            onLogin(data.user.email!);
-          } else {
-            setMessage("Cadastro realizado! Verifique seu e-mail para confirmar a conta.");
-            setTimeout(() => setMode('access'), 3000);
-          }
-        }
-      }
       else if (mode === 'identify') {
         if (!email) throw new Error("Informe seu e-mail para continuar.");
         setMode('verify_word');
@@ -193,40 +168,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </p>
             </div>
 
-            {/* Aviso de Isolamento e Privacidade de Dados por Usuário */}
-            <div className="mb-6 px-4 py-3 bg-gradient-to-r from-pink-50/90 via-purple-50/60 to-pink-50/90 border border-pink-100/80 rounded-2xl flex items-center gap-3 shadow-xs">
-              <div className="w-8 h-8 rounded-xl bg-white shadow-xs text-pink-600 flex items-center justify-center shrink-0 border border-pink-100">
-                <ShieldCheck size={18} />
-              </div>
-              <div className="text-left">
-                <p className="text-[11px] font-black text-gray-800 leading-tight">Ambiente Privado por Usuário</p>
-                <p className="text-[10px] text-gray-500 font-semibold leading-tight">Cada ateliê tem seus clientes, estoque, orçamentos e financeiro 100% isolados.</p>
-              </div>
-            </div>
-
-            {(mode === 'access' || mode === 'register') && (
-              <div className="flex p-1 bg-gray-100/80 rounded-2xl mb-6">
-                <button
-                  type="button"
-                  onClick={() => { setMode('access'); resetStates(); }}
-                  className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
-                    mode === 'access' ? 'bg-white text-gray-800 shadow-xs' : 'text-gray-400 hover:text-gray-600'
-                  }`}
-                >
-                  Entrar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setMode('register'); resetStates(); }}
-                  className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
-                    mode === 'register' ? 'bg-white text-pink-600 shadow-xs' : 'text-gray-400 hover:text-gray-600'
-                  }`}
-                >
-                  Criar Conta
-                </button>
-              </div>
-            )}
-
             {error && (
               <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 animate-shake">
                 <AlertCircle size={18} className="shrink-0" />
@@ -285,64 +226,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Zap size={18} className="text-yellow-400" />}
                     {isSubmitting ? 'Acessando...' : 'Acessar Ateliê'}
                   </button>
-
-                  <div className="text-center pt-2">
-                    <button
-                      type="button"
-                      onClick={() => { setMode('register'); resetStates(); }}
-                      className="text-xs font-bold text-gray-500 hover:text-pink-600 transition-colors inline-flex items-center gap-1.5"
-                    >
-                      <span>Não tem conta ainda?</span>
-                      <span className="font-black text-pink-500 underline underline-offset-4">Criar conta para meu ateliê</span>
-                    </button>
-                  </div>
-
-
                 </>
-              )}
-
-              {mode === 'register' && (
-                <div className="space-y-6 animate-fadeIn">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                      <Mail size={12} className="text-blue-400" /> E-mail
-                    </label>
-                    <input type="email" required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-blue-50 transition-all" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                      <Lock size={12} className="text-pink-400" /> Criar Senha
-                    </label>
-                    <div className="relative">
-                      <input type={showPassword ? "text" : "password"} required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-blue-50 transition-all" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 6 dígitos" />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-pink-500">
-                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                      <ShieldCheck size={12} className="text-pink-400" /> Confirmar Senha
-                    </label>
-                    <div className="relative">
-                      <input type={showConfirmPassword ? "text" : "password"} required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 text-sm focus:ring-4 focus:ring-blue-50 transition-all" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repita a senha" />
-                      <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-pink-500">
-                        {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <button type="submit" disabled={isSubmitting} className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 hover:bg-blue-700">
-                    {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                    {isSubmitting ? 'Cadastrando...' : 'Criar Minha Conta'}
-                  </button>
-
-                  <button type="button" onClick={() => { setMode('access'); resetStates(); }} className="w-full text-center text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-center gap-2">
-                    <ArrowLeft size={12} /> Já tenho conta, voltar ao Login
-                  </button>
-                </div>
               )}
 
               {mode === 'identify' && (

@@ -46,6 +46,12 @@ import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
 import { supabase, isMock, clearStaleSupabaseAuth } from './supabaseClient';
 import { safeLocalStorageSet, compressImage } from './utils';
 import { PWAInstallBanner, PWAInstallButton } from './components/PWAInstallBanner';
+import { 
+  CatalogOrderNotification, 
+  CatalogOrderAlert, 
+  playCatalogOrderChime, 
+  triggerBrowserNotification 
+} from './components/CatalogOrderNotification';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
@@ -81,6 +87,101 @@ const App: React.FC = () => {
   const initializedRef = useRef(false);
   const syncTimeoutRef = useRef<any>(null);
   const lastSyncedStateRef = useRef<string>("");
+
+  // Notificações de novos pedidos do Catálogo Online
+  const [catalogNotifications, setCatalogNotifications] = useState<CatalogOrderAlert[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return JSON.parse(localStorage.getItem('catalog_order_notifications') || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+  const [activeCatalogToast, setActiveCatalogToast] = useState<CatalogOrderAlert | null>(null);
+  const knownCatalogOrderIdsRef = useRef<Set<string>>(new Set());
+
+  // Disparar notificação sonora e visual no aplicativo
+  const handleNewCatalogOrderAlert = useCallback((orderData: { id?: string; quoteNumber?: string; customerName: string; total: number; itemsSummary?: string; createdAt?: string }) => {
+    const alertItem: CatalogOrderAlert = {
+      id: orderData.id || `notif_${Date.now()}`,
+      quoteNumber: orderData.quoteNumber || '#PED-CATALOGO',
+      customerName: orderData.customerName || 'Cliente',
+      total: Number(orderData.total) || 0,
+      itemsSummary: orderData.itemsSummary || 'Itens do pedido online',
+      createdAt: orderData.createdAt || new Date().toISOString(),
+      read: false
+    };
+
+    setCatalogNotifications(prev => {
+      if (prev.some(n => (n.id && n.id === alertItem.id) || (n.quoteNumber && n.quoteNumber === alertItem.quoteNumber))) {
+        return prev;
+      }
+      const updated = [alertItem, ...prev].slice(0, 30);
+      try {
+        localStorage.setItem('catalog_order_notifications', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    setActiveCatalogToast(alertItem);
+    playCatalogOrderChime();
+    triggerBrowserNotification(
+      '🛍️ Novo Pedido no Catálogo Online!',
+      `${alertItem.quoteNumber}: ${alertItem.customerName} - Total: R$ ${alertItem.total.toFixed(2)}`
+    );
+  }, []);
+
+  // Fechar toast automaticamente após 12 segundos
+  useEffect(() => {
+    if (!activeCatalogToast) return;
+    const timer = setTimeout(() => {
+      setActiveCatalogToast(null);
+    }, 12000);
+    return () => clearTimeout(timer);
+  }, [activeCatalogToast]);
+
+  // Escutar eventos locais e entre abas (BroadcastChannel, storage, CustomEvent)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleCustomEvent = (e: any) => {
+      if (e.detail) {
+        handleNewCatalogOrderAlert(e.detail);
+      }
+    };
+
+    window.addEventListener('new_catalog_order', handleCustomEvent);
+
+    let bc: BroadcastChannel | null = null;
+    if ('BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('craft_catalog_orders');
+        bc.onmessage = (ev) => {
+          if (ev.data?.type === 'NEW_CATALOG_ORDER' && ev.data?.data) {
+            handleNewCatalogOrderAlert(ev.data.data);
+          }
+        };
+      } catch (e) {}
+    }
+
+    const handleStorage = (ev: StorageEvent) => {
+      if (ev.key === 'last_catalog_order_alert' && ev.newValue) {
+        try {
+          const parsed = JSON.parse(ev.newValue);
+          handleNewCatalogOrderAlert(parsed);
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('new_catalog_order', handleCustomEvent);
+      window.removeEventListener('storage', handleStorage);
+      if (bc) bc.close();
+    };
+  }, [handleNewCatalogOrderAlert]);
 
   // Estados principais da aplicação
   const [companyData, setCompanyData] = useState<CompanyData>(INITIAL_COMPANY_DATA);
@@ -123,6 +224,7 @@ const App: React.FC = () => {
       }
     }
   };
+
   const [materials, setMaterials] = useState<Material[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>(PLATFORMS_DEFAULT);
@@ -133,6 +235,45 @@ const App: React.FC = () => {
   const [productCategories, setProductCategories] = useState<string[]>(['Festas', 'Papelaria', 'Presentes', 'Geral']);
   const [transactionCategories, setTransactionCategories] = useState<string[]>(['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Permuta', 'Outros']);
   const [paymentMethods, setPaymentMethods] = useState<string[]>(['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']);
+
+  // Monitorar novos pedidos de catálogo inseridos via nuvem/banco em tempo real
+  useEffect(() => {
+    if (!isInitialLoadDone) {
+      projects.forEach(p => {
+        const isCatalog = (p.quoteNumber && p.quoteNumber.startsWith('#PED-')) ||
+                          (p.notes && p.notes.toLowerCase().includes('catálogo')) ||
+                          (p.name && p.name.toLowerCase().includes('catálogo'));
+        if (isCatalog) {
+          if (p.id) knownCatalogOrderIdsRef.current.add(p.id);
+          if (p.quoteNumber) knownCatalogOrderIdsRef.current.add(p.quoteNumber);
+        }
+      });
+      return;
+    }
+
+    projects.forEach(p => {
+      const isCatalog = (p.quoteNumber && p.quoteNumber.startsWith('#PED-')) ||
+                        (p.notes && p.notes.toLowerCase().includes('catálogo')) ||
+                        (p.name && p.name.toLowerCase().includes('catálogo'));
+      if (isCatalog) {
+        const isKnown = (p.id && knownCatalogOrderIdsRef.current.has(p.id)) ||
+                        (p.quoteNumber && knownCatalogOrderIdsRef.current.has(p.quoteNumber));
+        if (!isKnown) {
+          if (p.id) knownCatalogOrderIdsRef.current.add(p.id);
+          if (p.quoteNumber) knownCatalogOrderIdsRef.current.add(p.quoteNumber);
+
+          handleNewCatalogOrderAlert({
+            id: p.id,
+            quoteNumber: p.quoteNumber,
+            customerName: p.celebrantName || p.name.replace('Pedido Catálogo: ', '') || 'Cliente',
+            total: p.downPayment || 0,
+            itemsSummary: p.description,
+            createdAt: p.createdAt || new Date().toISOString()
+          });
+        }
+      }
+    });
+  }, [projects, isInitialLoadDone, handleNewCatalogOrderAlert]);
 
   // Monitorar Sessão Supabase (Única fonte de verdade para Auth)
   useEffect(() => {
@@ -287,13 +428,46 @@ const App: React.FC = () => {
       name: `Ateliê de ${email.split('@')[0]}`
     };
 
+    const rawProjects = read<Project[]>('craft_projects', []);
+    const rawTransactions = read<Transaction[]>('craft_transactions', []);
+
+    // Garante que pedidos e transações do Catálogo fiquem 100% como Pagos (e não pendentes a receber)
+    const sanitizedProjects = rawProjects.map(p => {
+      const isCatalog = Boolean(
+        (p.notes && p.notes.includes('Catálogo Online')) ||
+        (p.quoteNumber && p.quoteNumber.startsWith('#PED-'))
+      );
+      if (isCatalog && !p.paidAt) {
+        return { ...p, paidAt: p.createdAt || p.orderDate || new Date().toISOString() };
+      }
+      return p;
+    });
+
+    const catalogProjectIds = new Set(
+      sanitizedProjects
+        .filter(p => (p.notes && p.notes.includes('Catálogo Online')) || (p.quoteNumber && p.quoteNumber.startsWith('#PED-')))
+        .map(p => p.id)
+    );
+
+    const sanitizedTransactions = rawTransactions.map(t => {
+      const isCatalogTx = Boolean(
+        t.category === 'Compra pelo Catálogo' ||
+        (t.description && (t.description.includes('Catálogo') || t.description.includes('#PED-'))) ||
+        (t.projectId && catalogProjectIds.has(t.projectId))
+      );
+      if (isCatalogTx && t.status !== 'paid') {
+        return { ...t, status: 'paid' as const };
+      }
+      return t;
+    });
+
     setCompanyData(read('craft_company', initialCompanyForUser));
     setMaterials(read('craft_materials', []));
     setCustomers(read('craft_customers', []));
     setPlatforms(read('craft_platforms', PLATFORMS_DEFAULT));
-    setProjects(read('craft_projects', []));
+    setProjects(sanitizedProjects);
     setProducts(read('craft_products', []));
-    setTransactions(read('craft_transactions', []));
+    setTransactions(sanitizedTransactions);
     setClosures(read('craft_closures', []));
     setProductCategories(read('craft_prod_categories', ['Festas', 'Papelaria', 'Presentes', 'Geral']));
     setTransactionCategories(read('craft_trans_categories', ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Permuta', 'Outros']));
@@ -360,9 +534,38 @@ const App: React.FC = () => {
         const loadedMaterials = Array.isArray(s.craft_materials) ? s.craft_materials : [];
         const loadedCustomers = Array.isArray(s.craft_customers) ? s.craft_customers : [];
         const loadedPlatforms = Array.isArray(s.craft_platforms) ? s.craft_platforms : PLATFORMS_DEFAULT;
-        const loadedProjects = Array.isArray(s.craft_projects) ? s.craft_projects : [];
+        const rawProjects: Project[] = Array.isArray(s.craft_projects) ? s.craft_projects : [];
+        const rawTransactions: Transaction[] = Array.isArray(s.craft_transactions) ? s.craft_transactions : [];
         const loadedProducts = Array.isArray(s.craft_products) ? s.craft_products : [];
-        const loadedTransactions = Array.isArray(s.craft_transactions) ? s.craft_transactions : [];
+
+        const loadedProjects = rawProjects.map(p => {
+          const isCatalog = Boolean(
+            (p.notes && p.notes.includes('Catálogo Online')) ||
+            (p.quoteNumber && p.quoteNumber.startsWith('#PED-'))
+          );
+          if (isCatalog && !p.paidAt) {
+            return { ...p, paidAt: p.createdAt || p.orderDate || new Date().toISOString() };
+          }
+          return p;
+        });
+
+        const catalogProjectIds = new Set(
+          loadedProjects
+            .filter(p => (p.notes && p.notes.includes('Catálogo Online')) || (p.quoteNumber && p.quoteNumber.startsWith('#PED-')))
+            .map(p => p.id)
+        );
+
+        const loadedTransactions = rawTransactions.map(t => {
+          const isCatalogTx = Boolean(
+            t.category === 'Compra pelo Catálogo' ||
+            (t.description && (t.description.includes('Catálogo') || t.description.includes('#PED-'))) ||
+            (t.projectId && catalogProjectIds.has(t.projectId))
+          );
+          if (isCatalogTx && t.status !== 'paid') {
+            return { ...t, status: 'paid' as const };
+          }
+          return t;
+        });
         const loadedClosures = Array.isArray(s.craft_closures) ? s.craft_closures : [];
         const loadedProdCategories = Array.isArray(s.craft_prod_categories) ? s.craft_prod_categories : ['Festas', 'Papelaria', 'Presentes', 'Geral'];
         const loadedTransCategories = Array.isArray(s.craft_trans_categories) ? s.craft_trans_categories : ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Permuta', 'Outros'];
@@ -584,12 +787,20 @@ const App: React.FC = () => {
     }
   }, [syncStatus, isAuthenticated, currentUser, fetchCloudData]);
 
+  const unreadCatalogOrdersCount = catalogNotifications.filter(n => !n.read).length;
+
   const navItems = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard, color: 'text-pink-500' },
     { id: 'pricing', label: 'Orçamentos', icon: Calculator, color: 'text-blue-500' },
     { id: 'schedule', label: 'Cronograma', icon: Calendar, color: 'text-blue-500' },
     { id: 'order_history', label: 'Histórico Pedidos', icon: History, color: 'text-pink-500' },
-    { id: 'catalog', label: 'Catálogo Online', icon: ShoppingBag, color: 'text-pink-500', badge: 'Novo' },
+    { 
+      id: 'catalog', 
+      label: 'Catálogo Online', 
+      icon: ShoppingBag, 
+      color: 'text-pink-500', 
+      badge: unreadCatalogOrdersCount > 0 ? `${unreadCatalogOrdersCount} novo${unreadCatalogOrdersCount > 1 ? 's' : ''}` : 'Novo' 
+    },
     { id: 'finance', label: 'Financeiro', icon: Wallet2, color: 'text-green-500' },
     { id: 'products', label: 'Precificação', icon: Sparkles, color: 'text-yellow-600' },
     { id: 'inventory', label: 'Estoque', icon: Package, color: 'text-yellow-600' },
@@ -628,13 +839,31 @@ const App: React.FC = () => {
             return exists ? prev : [newCust, ...prev];
           });
           if (newProj) setProjects(prev => {
+            const projectWithPaid = {
+              ...newProj,
+              paidAt: newProj.paidAt || new Date().toISOString()
+            };
             const exists = prev.some(p => p.id === newProj.id || (p.quoteNumber && p.quoteNumber === newProj.quoteNumber));
-            return exists ? prev : [newProj, ...prev];
+            return exists ? prev.map(p => (p.id === newProj.id || (p.quoteNumber && p.quoteNumber === newProj.quoteNumber)) ? projectWithPaid : p) : [projectWithPaid, ...prev];
           });
           if (newTx) setTransactions(prev => {
+            const txWithPaid = {
+              ...newTx,
+              status: 'paid' as const
+            };
             const exists = prev.some(t => t.id === newTx.id);
-            return exists ? prev : [newTx, ...prev];
+            return exists ? prev.map(t => t.id === newTx.id ? txWithPaid : t) : [txWithPaid, ...prev];
           });
+          if (newProj) {
+            handleNewCatalogOrderAlert({
+              id: newProj.id,
+              quoteNumber: newProj.quoteNumber,
+              customerName: newProj.celebrantName || newProj.name.replace('Pedido Catálogo: ', '') || 'Cliente',
+              total: newProj.downPayment || 0,
+              itemsSummary: newProj.description,
+              createdAt: newProj.createdAt
+            });
+          }
         }}
       />
     );
@@ -817,6 +1046,30 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2 sm:gap-3">
+            <CatalogOrderNotification 
+              notifications={catalogNotifications}
+              activeToast={activeCatalogToast}
+              onDismissToast={() => setActiveCatalogToast(null)}
+              onMarkAllRead={() => {
+                setCatalogNotifications(prev => {
+                  const updated = prev.map(n => ({ ...n, read: true }));
+                  try {
+                    localStorage.setItem('catalog_order_notifications', JSON.stringify(updated));
+                  } catch (e) {}
+                  return updated;
+                });
+              }}
+              onSelectOrder={(orderAlert, targetTab) => {
+                setActiveTab(targetTab);
+                setCatalogNotifications(prev => {
+                  const updated = prev.map(n => n.id === orderAlert.id ? { ...n, read: true } : n);
+                  try {
+                    localStorage.setItem('catalog_order_notifications', JSON.stringify(updated));
+                  } catch (e) {}
+                  return updated;
+                });
+              }}
+            />
             <PWAInstallButton />
             <div className="hidden sm:flex flex-col items-end border-l border-gray-100 pl-4">
               <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Logado como</p>

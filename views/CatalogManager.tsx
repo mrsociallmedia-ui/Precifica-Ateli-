@@ -302,12 +302,15 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-xs font-black text-pink-600 bg-pink-50 px-2 py-0.5 rounded-md border border-pink-100">
                               {order.quoteNumber || order.id.slice(0, 8)}
                             </span>
                             <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${badge.className}`}>
                               {badge.label}
+                            </span>
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+                              <CheckCircle2 size={11} className="text-emerald-500" /> Pago
                             </span>
                             <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
                               <Clock size={11} /> {orderDateFormatted}
@@ -350,6 +353,9 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] uppercase tracking-wider text-gray-400">Pagamento:</span>
                           <span className="text-gray-700">{order.paymentMethod || 'Pix'}</span>
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                            Lançado no Caixa (Pago)
+                          </span>
                         </div>
 
                         <div className="flex items-center gap-2">

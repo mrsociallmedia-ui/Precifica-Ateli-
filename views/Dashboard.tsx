@@ -792,14 +792,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
               {currentGoal ? (
                 <div className="space-y-4">
                   <div>
-                    <p className="text-3xl font-black mt-1 text-gray-800">R$ {currentGoal.goal.toFixed(2)}</p>
-                    <div className="w-full bg-gray-100 rounded-full h-2 mt-3 overflow-hidden">
-                      <div className={`h-2 rounded-full ${goalProgress >= 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${goalProgress}%` }}></div>
+                    <div className="flex items-baseline justify-between gap-2 mt-1">
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Valor Alcançado</span>
+                        <p className="text-2xl sm:text-3xl font-black text-emerald-600">R$ {currentMonthIncome.toFixed(2)}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Meta</span>
+                        <p className="text-base sm:text-lg font-black text-gray-700">R$ {currentGoal.goal.toFixed(2)}</p>
+                      </div>
                     </div>
-                    <p className="text-[10px] font-bold mt-2 text-gray-400 flex justify-between">
-                      <span>{goalProgress.toFixed(1)}% alcançado</span>
-                      {goalProgress >= 100 && <span className="text-green-500 flex items-center gap-1"><CheckCircle2 size={10}/> Batida!</span>}
-                    </p>
+                    <div className="w-full bg-gray-100 rounded-full h-2 mt-3 overflow-hidden">
+                      <div className={`h-2 rounded-full transition-all duration-500 ${goalProgress >= 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${goalProgress}%` }}></div>
+                    </div>
+                    <div className="text-[10px] font-bold mt-2 text-gray-400 flex justify-between items-center">
+                      <span>
+                        <strong className="text-gray-700 font-black">{goalProgress.toFixed(1)}%</strong> alcançado
+                        <span className="text-gray-400 font-medium ml-1">({currentMonthIncome >= currentGoal.goal ? 'meta atingida' : `faltam R$ ${(currentGoal.goal - currentMonthIncome).toFixed(2)}`})</span>
+                      </span>
+                      {goalProgress >= 100 && (
+                        <span className="text-green-500 flex items-center gap-1 font-black bg-green-50 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 size={10}/> Batida!
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Metas por Plataforma */}
@@ -836,7 +852,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                   )}
                 </div>
               ) : (
-                <p className="text-sm font-bold mt-2 text-gray-400">Nenhuma meta definida para este mês.</p>
+                <div className="mt-2 space-y-2">
+                  <p className="text-sm font-bold text-gray-400">Nenhuma meta definida para este mês.</p>
+                  <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-2xl">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 block">Valor Alcançado até agora</span>
+                    <p className="text-xl font-black text-emerald-700">R$ {currentMonthIncome.toFixed(2)}</p>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -1160,17 +1182,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                                            ));
                                          }
                                          alert('Pagamento registrado com sucesso!');
-
-                                         // Enviar WhatsApp automaticamente ao dar baixa na venda
-                                         const cust = customers.find(c => c.id === project.customerId);
-                                         const rawPhone = cust?.phone || (project as any)?.celebrantPhone || '';
-                                         const cleanPhone = rawPhone.replace(/\D/g, '');
-                                         if (cleanPhone) {
-                                           const custName = cust?.name || project.celebrantName || 'Cliente';
-                                           const orderIdStr = project.quoteNumber || project.name;
-                                           const msg = encodeURIComponent(`Olá, ${custName}! Confirmamos o recebimento e demos baixa no pagamento do seu pedido (${orderIdStr}) no valor de R$ ${pendingAmount.toFixed(2)}. Seu pedido já está com pagamento confirmado! Muito obrigado(a) pela preferência! ✨🎨`);
-                                           window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank');
-                                         }
                                        }
                                      }}
                                      className="flex-1 py-2.5 bg-gray-900 hover:bg-orange-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-sm flex items-center justify-center gap-1.5"
@@ -1585,6 +1596,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
             <h3 className="text-2xl font-black text-gray-800 mb-2 tracking-tight">Meta do <span className="text-blue-500">Mês</span></h3>
             <p className="text-sm font-bold text-gray-400 mb-6">Defina seus objetivos para {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}.</p>
             
+            {/* Valor Alcançado até o momento */}
+            <div className="mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 block">Faturamento Alcançado Neste Mês</span>
+                <p className="text-xl font-black text-emerald-700">R$ {currentMonthIncome.toFixed(2)}</p>
+              </div>
+              {currentGoal && (
+                <span className="text-xs font-bold text-emerald-700 bg-white px-3 py-1.5 rounded-xl shadow-xs border border-emerald-100">
+                  {goalProgress.toFixed(0)}% da meta atual
+                </span>
+              )}
+            </div>
+
             <div className="space-y-6">
               {/* Meta Financeira */}
               <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100">

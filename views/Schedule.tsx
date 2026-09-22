@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3, ChevronDown, ChevronUp, MessageCircle, RefreshCw, LayoutGrid, List, ExternalLink, Printer, Cloud } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, MessageCircle, RefreshCw, LayoutGrid, List, ExternalLink, Printer } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -15,12 +15,10 @@ interface ScheduleProps {
   companyData: CompanyData;
   currentUser: string;
   onEditProject: (project: Project) => void;
-  onPullFromCloud?: () => void;
-  isSyncing?: boolean;
 }
 
 export const Schedule: React.FC<ScheduleProps> = ({ 
-  projects, setProjects, transactions, setTransactions, customers, materials, platforms, companyData, currentUser, onEditProject, onPullFromCloud, isSyncing = false
+  projects, setProjects, transactions, setTransactions, customers, materials, platforms, companyData, currentUser, onEditProject
 }) => {
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [showBirthdaysModal, setShowBirthdaysModal] = useState(false);
@@ -313,7 +311,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
       return `
         <tr>
           <td>
-            <span class="quote-num">${project.quoteNumber ? (project.quoteNumber.startsWith('#') ? project.quoteNumber : `#${project.quoteNumber}`) : '#S/N'}</span>
+            <span class="quote-num">#${project.quoteNumber || 'S/N'}</span>
           </td>
           <td>
             <div class="client-name">${customerName}</div>
@@ -431,26 +429,9 @@ export const Schedule: React.FC<ScheduleProps> = ({
     <div className="space-y-10 animate-fadeIn pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-4xl font-black text-gray-800 tracking-tight">Cronograma <span className="text-blue-500">& Produção</span></h2>
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-100 rounded-full text-blue-600 text-xs font-black">
-              <Cloud size={12} />
-              {projects.length} Pedidos na Nuvem
-            </span>
-          </div>
+          <h2 className="text-4xl font-black text-gray-800 tracking-tight">Cronograma <span className="text-blue-500">& Produção</span></h2>
           <div className="flex flex-wrap items-center gap-4 mt-2">
-            <p className="text-gray-400 font-medium">Acompanhe seus prazos, entregas e etapas sincronizadas com o Supabase.</p>
-            {onPullFromCloud && (
-              <button 
-                onClick={onPullFromCloud}
-                disabled={isSyncing}
-                className="bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 font-black px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs uppercase tracking-wider transition-all shadow-xs active:scale-95 disabled:opacity-50"
-                title="Puxar pedidos e cronograma da nuvem Supabase"
-              >
-                <RefreshCw size={13} className={isSyncing ? 'animate-spin text-blue-500' : ''} />
-                <span>{isSyncing ? 'Puxando...' : 'Puxar Nuvem'}</span>
-              </button>
-            )}
+            <p className="text-gray-400 font-medium">Acompanhe seus prazos e etapas do pedido.</p>
             <div className="flex items-center bg-gray-100 p-1 rounded-xl">
                <button 
                   onClick={() => setViewMode('kanban')}
@@ -639,7 +620,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
                         <div className="flex items-center gap-2">
                           {project.quoteNumber && (
                             <span className="flex items-center gap-0.5 text-[8px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md">
-                               <Hash size={8} /> {project.quoteNumber.replace(/^#/, '')}
+                               <Hash size={8} /> {project.quoteNumber}
                             </span>
                           )}
                         </div>
@@ -739,63 +720,111 @@ export const Schedule: React.FC<ScheduleProps> = ({
                          )}
                       </div>
   
-                      <div className="flex gap-2 mt-auto">
-                        <button 
-                          onClick={() => handleCopyTrackingLink(project)}
-                          className="p-3 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-2xl transition-all"
-                          title="Copiar Link"
-                        >
-                          <ExternalLink size={14} />
-                        </button>
-                        <button 
-                          onClick={() => handleShareWhatsApp(project)}
-                          className="p-3 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-2xl transition-all"
-                          title="Enviar via WhatsApp"
-                        >
-                          <MessageCircle size={14} />
-                        </button>
-                        <button 
-                          onClick={() => onEditProject(project)}
-                          className="p-3 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-2xl transition-all"
-                          title="Editar Pedido"
-                        >
-                          <Edit3 size={14} />
-                        </button>
-                        {remainingBalance > 0 && (
+                      {/* Botões de Ação do Pedido */}
+                      <div className="mt-auto pt-3 border-t border-gray-100 space-y-2">
+                        {/* Linha de Avanço / Retrocesso de Etapa */}
+                        <div className="flex items-center gap-1.5 w-full">
+                          {status !== 'pending' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const prev: Record<string, Project['status']> = {
+                                  approved: 'pending',
+                                  in_progress: 'approved',
+                                  pending_payment: 'in_progress',
+                                  completed: 'pending_payment'
+                                };
+                                updateStatus(project.id, prev[status]);
+                              }}
+                              className="py-2.5 px-3 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-600 rounded-xl transition-all flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider shrink-0 cursor-pointer"
+                              title="Voltar para etapa anterior"
+                            >
+                              <ChevronLeft size={14} />
+                              <span className="hidden sm:inline">Voltar</span>
+                            </button>
+                          )}
+
+                          {status !== 'completed' ? (
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const next: Record<string, Project['status']> = {
+                                  pending: 'approved',
+                                  approved: 'in_progress',
+                                  in_progress: 'pending_payment',
+                                  pending_payment: 'completed'
+                                };
+                                updateStatus(project.id, next[status]);
+                              }}
+                              className="flex-1 py-2.5 px-3 bg-blue-500 hover:bg-blue-600 active:scale-95 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-blue-200 cursor-pointer"
+                              title="Avançar para a próxima etapa"
+                            >
+                              <span>Avançar Etapa</span>
+                              <ChevronRight size={14} />
+                            </button>
+                          ) : (
+                            <div className="flex-1 py-2 px-3 bg-green-50 text-green-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border border-green-200">
+                              <CheckCircle2 size={13} />
+                              <span>Concluído</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Barra de Ferramentas / Ações Rápidas (Todos os Botões Visíveis) */}
+                        <div className="grid grid-cols-5 gap-1 p-1 bg-gray-50/90 rounded-2xl border border-gray-150/70">
                           <button 
+                            type="button"
+                            onClick={() => handleCopyTrackingLink(project)}
+                            className="h-9 w-full flex items-center justify-center text-gray-500 hover:text-blue-600 hover:bg-white rounded-xl transition-all cursor-pointer shadow-none hover:shadow-xs"
+                            title="Copiar Link de Acompanhamento"
+                          >
+                            <ExternalLink size={15} />
+                          </button>
+
+                          <button 
+                            type="button"
+                            onClick={() => handleShareWhatsApp(project)}
+                            className="h-9 w-full flex items-center justify-center text-gray-500 hover:text-emerald-600 hover:bg-white rounded-xl transition-all cursor-pointer shadow-none hover:shadow-xs"
+                            title="Enviar Mensagem via WhatsApp"
+                          >
+                            <MessageCircle size={15} />
+                          </button>
+
+                          <button 
+                            type="button"
+                            onClick={() => onEditProject(project)}
+                            className="h-9 w-full flex items-center justify-center text-gray-500 hover:text-blue-600 hover:bg-white rounded-xl transition-all cursor-pointer shadow-none hover:shadow-xs"
+                            title="Editar Pedido"
+                          >
+                            <Edit3 size={15} />
+                          </button>
+
+                          <button 
+                            type="button"
                             onClick={() => handleOpenPaymentModal(project)}
-                            className="p-3 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-2xl transition-all"
-                            title="Receber Pagamento"
+                            className={`h-9 w-full flex items-center justify-center rounded-xl transition-all cursor-pointer shadow-none hover:shadow-xs ${
+                              remainingBalance > 0
+                                ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100/60 bg-emerald-50/90 font-black'
+                                : 'text-gray-400 hover:text-emerald-600 hover:bg-white'
+                            }`}
+                            title={remainingBalance > 0 ? `Receber Pagamento (R$ ${remainingBalance.toFixed(2)})` : 'Registrar / Consultar Pagamentos'}
                           >
-                            <DollarSign size={14} />
+                            <DollarSign size={15} />
                           </button>
-                        )}
-                        {status !== 'completed' && (
+
                           <button 
+                            type="button"
                             onClick={() => {
-                              const next: Record<string, Project['status']> = {
-                                pending: 'approved',
-                                approved: 'in_progress',
-                                in_progress: 'pending_payment',
-                                pending_payment: 'completed'
-                              };
-                              updateStatus(project.id, next[status]);
+                              if(confirm('Excluir este pedido definitivamente?')) {
+                                setProjects(projects.filter(p => p.id !== project.id));
+                              }
                             }}
-                            className="flex-1 py-3 bg-blue-500 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all flex items-center justify-center gap-1"
+                            className="h-9 w-full flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer shadow-none hover:shadow-xs"
+                            title="Excluir Pedido"
                           >
-                            Avançar
+                            <Trash2 size={15} />
                           </button>
-                        )}
-                        <button 
-                          onClick={() => {
-                            if(confirm('Excluir este pedido?')) {
-                               setProjects(projects.filter(p => p.id !== project.id));
-                            }
-                          }}
-                          className="p-3 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -885,8 +914,20 @@ export const Schedule: React.FC<ScheduleProps> = ({
                                    <button 
                                       onClick={() => onEditProject(project)}
                                       className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
+                                      title="Editar Pedido"
                                    >
                                       <Edit3 size={14} />
+                                   </button>
+                                   <button 
+                                      onClick={() => handleOpenPaymentModal(project)}
+                                      className={`p-2 rounded-xl transition-all ${
+                                         remainingBalance > 0 
+                                           ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 font-bold' 
+                                           : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'
+                                      }`}
+                                      title={remainingBalance > 0 ? `Receber Pagamento (R$ ${remainingBalance.toFixed(2)})` : 'Registrar / Consultar Pagamentos'}
+                                   >
+                                      <DollarSign size={14} />
                                    </button>
                                    <button 
                                       onClick={() => {
