@@ -33,22 +33,16 @@ import {
   Instagram,
   AlertCircle,
   Share2,
-  QrCode,
-  User,
-  UserCheck,
-  UserPlus
+  QrCode
 } from 'lucide-react';
-import { supabase, executeSupabaseWithRetry } from '../supabaseClient';
-import { Product, CompanyData, Material, Platform, CatalogCustomerProfile } from '../types';
-import { CatalogCustomerModal } from './CatalogCustomerModal';
-import { CatalogTrackingModal } from './CatalogTrackingModal';
-import { calculateProjectBreakdown, buildWhatsAppLink, getCleanWhatsAppDigits } from '../utils';
+import { supabase } from '../supabaseClient';
+import { Product, CompanyData, Material, Platform } from '../types';
+import { calculateProjectBreakdown } from '../utils';
 
 declare const html2canvas: any;
 
 interface PublicCatalogProps {
   userEmail: string;
-  initialCompanyData?: CompanyData | null;
   onOrderCreated?: (newProject: any, newTransaction: any, newCustomer?: any) => void;
 }
 
@@ -58,10 +52,10 @@ interface CartItem {
   price: number;
 }
 
-export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, initialCompanyData, onOrderCreated }) => {
+export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrderCreated }) => {
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
-  const [companyData, setCompanyData] = useState<CompanyData | null>(initialCompanyData || null);
+  const [companyData, setCompanyData] = useState<CompanyData | null>(null);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,44 +65,6 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, initial
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [modalQty, setModalQty] = useState(1);
   const [addedItemFeedback, setAddedItemFeedback] = useState<string | null>(null);
-
-  // Sincronizar dados da empresa caso initialCompanyData mude ou seja atualizado
-  useEffect(() => {
-    if (initialCompanyData) {
-      setCompanyData(prev => {
-        if (!prev) return initialCompanyData;
-        return { ...prev, ...initialCompanyData };
-      });
-    }
-  }, [initialCompanyData]);
-
-  // Ouvir atualizações de perfil do ateliê em tempo real (mesma aba ou abas sincronizadas)
-  useEffect(() => {
-    const handleCompanyUpdate = (e: any) => {
-      const updated = e?.detail;
-      if (updated && (updated.phone || updated.name)) {
-        setCompanyData(prev => prev ? { ...prev, ...updated } : updated);
-      }
-    };
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key && (e.key.includes('craft_company') || e.key === 'craft_company')) {
-        try {
-          if (e.newValue) {
-            const parsed = JSON.parse(e.newValue);
-            if (parsed?.phone || parsed?.name) {
-              setCompanyData(prev => prev ? { ...prev, ...parsed } : parsed);
-            }
-          }
-        } catch {}
-      }
-    };
-    window.addEventListener('precifica:company_updated', handleCompanyUpdate);
-    window.addEventListener('storage', handleStorage);
-    return () => {
-      window.removeEventListener('precifica:company_updated', handleCompanyUpdate);
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, []);
   
   // Estados do Carrinho & Checkout Automatizado
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -119,7 +75,6 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, initial
   const [linkCopied, setLinkCopied] = useState(false);
   const [completedOrderNumber, setCompletedOrderNumber] = useState('');
   const [lastOrderMessage, setLastOrderMessage] = useState('');
-  const [existingProjects, setExistingProjects] = useState<any[]>([]);
 
   // Estados do Mercado Pago & Integração de Pagamento Online
   const [customerEmail, setCustomerEmail] = useState('');
@@ -129,8 +84,6 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, initial
   const [mpPaymentStatus, setMpPaymentStatus] = useState<string | null>(null);
   const [mpNotice, setMpNotice] = useState<string | null>(null);
   const [pixCopiaColaCopied, setPixCopiaColaCopied] = useState(false);
-  const [isGeneratingPayment, setIsGeneratingPayment] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
   
   // Dados do Formulário do Cliente
   const [customerName, setCustomerName] = useState('');
@@ -143,69 +96,11 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, initial
   const [orderObservations, setOrderObservations] = useState('');
   const [formErrors, setFormErrors] = useState<{ name?: string; phone?: string; address?: string }>({});
 
-  // Estados de Cadastro do Cliente & Acompanhamento de Pedidos
-  const [customerProfile, setCustomerProfile] = useState<CatalogCustomerProfile | null>(null);
-  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
-  const [trackingDefaultOrder, setTrackingDefaultOrder] = useState<string | undefined>(undefined);
-
-  // Carregar cadastro salvo do cliente neste navegador
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('catalog_customer_profile');
-      if (saved) {
-        const parsed: CatalogCustomerProfile = JSON.parse(saved);
-        if (parsed && parsed.name) {
-          setCustomerProfile(parsed);
-          setCustomerName(parsed.name || '');
-          setCustomerPhone(parsed.phone || '');
-          setCustomerEmail(parsed.email || '');
-          setDeliveryAddress(parsed.address || '');
-          setDeliveryNeighborhood(parsed.neighborhood || '');
-          setDeliveryCity(parsed.city || '');
-          if (parsed.deliveryType) setDeliveryType(parsed.deliveryType);
-        }
-      }
-    } catch (e) {}
-  }, []);
-
-  const handleSaveCustomerProfile = (profile: CatalogCustomerProfile) => {
-    setCustomerProfile(profile);
-    setCustomerName(profile.name);
-    setCustomerPhone(profile.phone);
-    if (profile.email) setCustomerEmail(profile.email);
-    if (profile.address) setDeliveryAddress(profile.address);
-    if (profile.neighborhood) setDeliveryNeighborhood(profile.neighborhood);
-    if (profile.city) setDeliveryCity(profile.city);
-    if (profile.deliveryType) setDeliveryType(profile.deliveryType);
-  };
-
-  const handleLogoutCustomerProfile = () => {
-    try {
-      localStorage.removeItem('catalog_customer_profile');
-    } catch (e) {}
-    setCustomerProfile(null);
-  };
-
   const orderSummaryRef = useRef<HTMLDivElement>(null);
-  const hasAutoSentWhatsAppRef = useRef(false);
 
   // Monitorar se a integração com Mercado Pago está ativa (pela conta do artesão ou secret do sistema)
   useEffect(() => {
-    let userToken = companyData?.mercadoPagoAccessToken?.trim();
-    if (!userToken && userEmail) {
-      try {
-        const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-        const localComp = localStorage.getItem(`craft_company_${userKey}`) || localStorage.getItem('craft_company');
-        if (localComp) {
-          const parsed = JSON.parse(localComp);
-          if (parsed?.mercadoPagoAccessToken) {
-            userToken = parsed.mercadoPagoAccessToken.trim();
-          }
-        }
-      } catch (e) {}
-    }
-
+    const userToken = companyData?.mercadoPagoAccessToken?.trim();
     if (userToken) {
       setIsMercadoPagoActive(true);
       return;
@@ -218,246 +113,57 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, initial
         }
       })
       .catch(() => {});
-  }, [companyData?.mercadoPagoAccessToken, userEmail]);
+  }, [companyData?.mercadoPagoAccessToken]);
 
-  // Detectar retorno de pagamento aprovado do Mercado Pago (via redirecionamento do Checkout Pro)
+  // Polling automático para atualizar status do Pix no Mercado Pago em tempo real
   useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const paymentStatus = params.get('collection_status') || params.get('status') || params.get('payment');
-      const orderParam = params.get('order') || params.get('external_reference');
+    if ((cartStep !== 'payment' && cartStep !== 'success') || !mpPixData?.id || mpPaymentStatus === 'approved') return;
 
-      if ((paymentStatus === 'approved' || paymentStatus === 'success') && orderParam) {
-        const saved = localStorage.getItem('pending_catalog_order');
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (parsed.orderNum && (parsed.orderNum === orderParam || orderParam.includes(parsed.orderNum.replace(/#/g, '')))) {
-              setCompletedOrderNumber(parsed.orderNum);
-              if (parsed.customerName) setCustomerName(parsed.customerName);
-              if (parsed.customerPhone) setCustomerPhone(parsed.customerPhone);
-              if (parsed.deliveryType) setDeliveryType(parsed.deliveryType);
-              if (parsed.deliveryAddress) setDeliveryAddress(parsed.deliveryAddress);
-              if (parsed.deliveryNeighborhood) setDeliveryNeighborhood(parsed.deliveryNeighborhood);
-              if (parsed.deliveryCity) setDeliveryCity(parsed.deliveryCity);
-              if (parsed.orderObservations) setOrderObservations(parsed.orderObservations);
-              if (parsed.cart && parsed.cart.length > 0) setCart(parsed.cart);
-              setPaymentMethod('credit');
-              setMpPaymentStatus('approved');
-              setCartStep('payment');
-              setIsCartOpen(true);
-            }
-          } catch (e) {}
-        } else {
-          setCompletedOrderNumber(orderParam);
-          setPaymentMethod('credit');
-          setMpPaymentStatus('approved');
-          setCartStep('payment');
-          setIsCartOpen(true);
-        }
-      }
-    } catch (e) {}
-  }, []);
-
-  // Polling automático para atualizar status do Pix e Cartão no Mercado Pago em tempo real e disparar baixa automática
-  useEffect(() => {
-    if ((cartStep !== 'payment' && cartStep !== 'success') || mpPaymentStatus === 'approved') return;
-
-    let userToken = companyData?.mercadoPagoAccessToken?.trim();
-    if (!userToken && userEmail) {
+    const interval = setInterval(async () => {
       try {
-        const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-        const localComp = localStorage.getItem(`craft_company_${userKey}`) || localStorage.getItem('craft_company');
-        if (localComp) {
-          const parsed = JSON.parse(localComp);
-          if (parsed?.mercadoPagoAccessToken) userToken = parsed.mercadoPagoAccessToken.trim();
+        const userToken = companyData?.mercadoPagoAccessToken?.trim();
+        const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';
+        const res = await fetch(`/api/mercadopago/check-payment/${mpPixData.id}${tokenQuery}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.status === 'approved') {
+            setMpPaymentStatus('approved');
+            clearInterval(interval);
+          }
         }
-      } catch (e) {}
-    }
+      } catch (err) {}
+    }, 4000);
 
-    // Caso 1: Pagamento via Pix com id gerado
-    if (paymentMethod === 'pix' && mpPixData?.id) {
-      const interval = setInterval(async () => {
-        try {
-          let approved = false;
-
-          // Tentativa 1: Endpoint local
-          try {
-            const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';
-            const res = await fetch(`/api/mercadopago/check-payment/${mpPixData.id}${tokenQuery}`, {
-              credentials: 'include'
-            });
-            if (res.ok) {
-              const contentType = res.headers.get('content-type') || '';
-              if (contentType.includes('application/json')) {
-                const data = await res.json();
-                if (data?.status === 'approved') approved = true;
-              }
-            }
-          } catch (e) {}
-
-          // Tentativa 2: Consulta direta ao Mercado Pago (caso o endpoint local receba 302 do proxy)
-          if (!approved && userToken) {
-            try {
-              const cleanToken = userToken.replace(/[\s\r\n"']/g, '');
-              const directRes = await fetch(`https://api.mercadopago.com/v1/payments/${mpPixData.id}?access_token=${encodeURIComponent(cleanToken)}`);
-              if (directRes.ok) {
-                const directData = await directRes.json();
-                if (directData?.status === 'approved') approved = true;
-              }
-            } catch (e) {}
-          }
-
-          if (approved) {
-            setMpPaymentStatus('approved');
-            clearInterval(interval);
-          }
-        } catch (err) {}
-      }, 2500);
-
-      return () => clearInterval(interval);
-    }
-
-    // Caso 2: Pagamento via Cartão de Crédito no Mercado Pago
-    if (paymentMethod === 'credit' && completedOrderNumber) {
-      const interval = setInterval(async () => {
-        try {
-          let approved = false;
-
-          // Tentativa 1: Endpoint local
-          try {
-            const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';
-            const res = await fetch(`/api/mercadopago/check-order-payment/${encodeURIComponent(completedOrderNumber)}${tokenQuery}`, {
-              credentials: 'include'
-            });
-            if (res.ok) {
-              const contentType = res.headers.get('content-type') || '';
-              if (contentType.includes('application/json')) {
-                const data = await res.json();
-                if (data?.status === 'approved') approved = true;
-              }
-            }
-          } catch (e) {}
-
-          // Tentativa 2: Consulta direta ao Mercado Pago por external_reference
-          if (!approved && userToken) {
-            try {
-              const cleanToken = userToken.replace(/[\s\r\n"']/g, '');
-              const directRes = await fetch(`https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(completedOrderNumber)}&access_token=${encodeURIComponent(cleanToken)}`);
-              if (directRes.ok) {
-                const directData = await directRes.json();
-                if (Array.isArray(directData?.results) && directData.results.some((p: any) => p.status === 'approved')) {
-                  approved = true;
-                }
-              }
-            } catch (e) {}
-          }
-
-          if (approved) {
-            setMpPaymentStatus('approved');
-            clearInterval(interval);
-          }
-        } catch (err) {}
-      }, 2500);
-
-      return () => clearInterval(interval);
-    }
-  }, [cartStep, paymentMethod, mpPixData?.id, completedOrderNumber, mpPaymentStatus, companyData?.mercadoPagoAccessToken, userEmail]);
-
-  // Auto-redirecionamento para o Checkout do Mercado Pago quando estiver na etapa de pagamento com cartão
-  useEffect(() => {
-    if (cartStep === 'payment' && paymentMethod === 'credit' && mpPreferenceData?.initPoint && mpPaymentStatus !== 'approved') {
-      const timer = setTimeout(() => {
-        window.location.href = mpPreferenceData.initPoint;
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [cartStep, paymentMethod, mpPreferenceData?.initPoint, mpPaymentStatus]);
+    return () => clearInterval(interval);
+  }, [cartStep, mpPixData?.id, mpPaymentStatus, companyData?.mercadoPagoAccessToken]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        let s: any = null;
+        // 1. Tentar buscar dados públicos no Supabase
+        const { data, error } = await supabase
+          .from('user_data')
+          .select('app_state')
+          .eq('user_email', userEmail.toLowerCase())
+          .maybeSingle();
 
-        // 1. Tentar buscar dados públicos pela API do servidor
-        try {
-          const apiRes = await fetch(`/api/catalog/data?userEmail=${encodeURIComponent(userEmail.toLowerCase())}`);
-          if (apiRes.ok) {
-            const apiData = await apiRes.json();
-            if (apiData?.company || (Array.isArray(apiData?.products) && apiData.products.length > 0)) {
-              s = {
-                craft_company: apiData.company,
-                craft_products: apiData.products,
-                craft_materials: apiData.materials,
-                craft_platforms: apiData.platforms,
-                craft_projects: apiData.projects
-              };
-            }
-          }
-        } catch (apiErr) {
-          console.warn("Aviso ao buscar dados via API do catálogo:", apiErr);
-        }
-
-        // 2. Tentar buscar dados públicos no Supabase caso a rota da API não tenha retornado
-        if (!s) {
-          const { data } = await executeSupabaseWithRetry(() =>
-            supabase
-              .from('user_data')
-              .select('app_state')
-              .eq('user_email', userEmail.toLowerCase())
-              .maybeSingle()
-          );
-          if (data?.app_state) {
-            s = data.app_state;
-          }
-        }
-
-        if (s) {
+        if (data?.app_state) {
+          const s = data.app_state;
           setProducts(s.craft_products || []);
-          if (s.craft_company) {
-            setCompanyData(prev => {
-              // Preservar telefone válido caso o objeto vindo da nuvem venha sem telefone
-              if (prev?.phone && prev.phone.replace(/\D/g, '').length >= 10 && (!s.craft_company.phone || s.craft_company.phone.replace(/\D/g, '').length < 10)) {
-                return { ...s.craft_company, phone: prev.phone };
-              }
-              return s.craft_company;
-            });
-          }
+          setCompanyData(s.craft_company || null);
           setMaterials(s.craft_materials || []);
           setPlatforms(s.craft_platforms || []);
-          if (Array.isArray(s.craft_projects)) {
-            setExistingProjects(s.craft_projects);
-          }
         } else {
-          // 3. Fallback de localStorage caso esteja rodando localmente ou no mesmo navegador
+          // 2. Fallback de localStorage caso esteja rodando localmente ou no mesmo navegador
           const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-          const localCompany = 
-            localStorage.getItem(`${userKey}_craft_company`) || 
-            localStorage.getItem(`craft_company_${userKey}`) || 
-            localStorage.getItem('craft_company');
-          const localProducts = 
-            localStorage.getItem(`${userKey}_craft_products`) || 
-            localStorage.getItem(`craft_products_${userKey}`) || 
-            localStorage.getItem('craft_products');
-          const localMaterials = 
-            localStorage.getItem(`${userKey}_craft_materials`) || 
-            localStorage.getItem(`craft_materials_${userKey}`) || 
-            localStorage.getItem('craft_materials');
-          const localPlatforms = 
-            localStorage.getItem(`${userKey}_craft_platforms`) || 
-            localStorage.getItem(`craft_platforms_${userKey}`) || 
-            localStorage.getItem('craft_platforms');
-          const localProjects = 
-            localStorage.getItem(`${userKey}_craft_projects`) || 
-            localStorage.getItem(`craft_projects_${userKey}`) || 
-            localStorage.getItem('craft_projects');
+          const localCompany = localStorage.getItem(`craft_company_${userKey}`) || localStorage.getItem('craft_company');
+          const localProducts = localStorage.getItem(`craft_products_${userKey}`) || localStorage.getItem('craft_products');
+          const localMaterials = localStorage.getItem(`craft_materials_${userKey}`) || localStorage.getItem('craft_materials');
+          const localPlatforms = localStorage.getItem(`craft_platforms_${userKey}`) || localStorage.getItem('craft_platforms');
 
           if (localCompany) {
-            try { 
-              const parsed = JSON.parse(localCompany);
-              setCompanyData(prev => prev ? { ...prev, ...parsed } : parsed); 
-            } catch (e) {}
+            try { setCompanyData(JSON.parse(localCompany)); } catch (e) {}
           }
           if (localProducts) {
             try { setProducts(JSON.parse(localProducts)); } catch (e) {}
@@ -468,37 +174,18 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, initial
           if (localPlatforms) {
             try { setPlatforms(JSON.parse(localPlatforms)); } catch (e) {}
           }
-          if (localProjects) {
-            try { setExistingProjects(JSON.parse(localProjects)); } catch (e) {}
-          }
         }
       } catch (err) {
         console.error("Erro ao carregar catálogo público:", err);
         // Fallback secundário de localStorage
         const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-        const localCompany = 
-          localStorage.getItem(`${userKey}_craft_company`) || 
-          localStorage.getItem(`craft_company_${userKey}`) || 
-          localStorage.getItem('craft_company');
-        const localProducts = 
-          localStorage.getItem(`${userKey}_craft_products`) || 
-          localStorage.getItem(`craft_products_${userKey}`) || 
-          localStorage.getItem('craft_products');
-        const localProjects = 
-          localStorage.getItem(`${userKey}_craft_projects`) || 
-          localStorage.getItem(`craft_projects_${userKey}`) || 
-          localStorage.getItem('craft_projects');
+        const localCompany = localStorage.getItem(`craft_company_${userKey}`) || localStorage.getItem('craft_company');
+        const localProducts = localStorage.getItem(`craft_products_${userKey}`) || localStorage.getItem('craft_products');
         if (localCompany) {
-          try { 
-            const parsed = JSON.parse(localCompany);
-            setCompanyData(prev => prev ? { ...prev, ...parsed } : parsed); 
-          } catch (e) {}
+          try { setCompanyData(JSON.parse(localCompany)); } catch (e) {}
         }
         if (localProducts) {
           try { setProducts(JSON.parse(localProducts)); } catch (e) {}
-        }
-        if (localProjects) {
-          try { setExistingProjects(JSON.parse(localProjects)); } catch (e) {}
         }
       } finally {
         setLoading(false);
@@ -570,45 +257,14 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, initial
     return matchesSearch && matchesCategory;
   });
 
-  // Obtém o número de WhatsApp de Contato (Recebimento de Pedidos) do ateliê com fallback ultra-robusto
-  const getAtelierWhatsAppPhone = (): string => {
-    let phone = companyData?.phone;
-    if (!phone || phone.replace(/\D/g, '').length < 10) {
-      if (initialCompanyData?.phone && initialCompanyData.phone.replace(/\D/g, '').length >= 10) {
-        phone = initialCompanyData.phone;
-      }
-    }
-    if (!phone || phone.replace(/\D/g, '').length < 10) {
-      try {
-        const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-        const saved = 
-          localStorage.getItem(`${userKey}_craft_company`) || 
-          localStorage.getItem(`craft_company_${userKey}`) || 
-          localStorage.getItem('craft_company');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed?.phone && parsed.phone.replace(/\D/g, '').length >= 10) {
-            phone = parsed.phone;
-          }
-        }
-      } catch (e) {}
-    }
-    return phone || '';
-  };
-
   const handleWhatsAppContact = (productName: string, price: number) => {
-    const targetPhone = getAtelierWhatsAppPhone();
-    if (!targetPhone) {
-      alert('O ateliê não possui número de WhatsApp de Contato (Recebimento de Pedidos) cadastrado no momento.');
+    const phone = companyData?.phone?.replace(/\D/g, '') || '';
+    if (!phone) {
+      alert('O ateliê não possui número de WhatsApp cadastrado no momento.');
       return;
     }
-    const message = `Olá! Vi o produto *${productName}* (R$ ${price.toFixed(2)}) no seu catálogo online da *${companyData?.name || 'loja'}* e gostaria de mais informações.`;
-    const whatsappUrl = buildWhatsAppLink(targetPhone, message);
-    if (!whatsappUrl) {
-      alert('Número de WhatsApp do ateliê inválido.');
-      return;
-    }
-    window.open(whatsappUrl, '_blank');
+    const message = encodeURIComponent(`Olá! Vi o produto *${productName}* (R$ ${price.toFixed(2)}) no seu catálogo online da *${companyData?.name || 'loja'}* e gostaria de mais informações.`);
+    window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
 
   const addToCart = (product: Product, price: number, qtyToAdd?: number) => {
@@ -669,109 +325,88 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, initial
     return Object.keys(errors).length === 0;
   };
 
-  // Gerador de número sequencial unificado para pedidos do catálogo (#283, #284, ...)
-  const generateNextCatalogOrderNumber = () => {
-    const nums: number[] = [];
-    
-    if (Array.isArray(existingProjects)) {
-      existingProjects.forEach((p: any) => {
-        const onlyNums = String(p.quoteNumber || '').replace(/\D/g, '') || '0';
-        const val = parseInt(onlyNums, 10);
-        if (!isNaN(val) && val > 0) nums.push(val);
-      });
-    }
-
-    try {
-      const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const localProjects = JSON.parse(localStorage.getItem(`${userKey}_craft_projects`) || localStorage.getItem(`craft_projects_${userKey}`) || localStorage.getItem('craft_projects') || '[]');
-      if (Array.isArray(localProjects)) {
-        localProjects.forEach((p: any) => {
-          const onlyNums = String(p.quoteNumber || '').replace(/\D/g, '') || '0';
-          const val = parseInt(onlyNums, 10);
-          if (!isNaN(val) && val > 0) nums.push(val);
-        });
-      }
-    } catch(e) {}
-
-    try {
-      const onlineOrders = JSON.parse(localStorage.getItem('my_online_orders') || '[]');
-      if (Array.isArray(onlineOrders)) {
-        onlineOrders.forEach((o: any) => {
-          const oNum = String(o.orderNum || '').replace(/\D/g, '');
-          const val = parseInt(oNum, 10);
-          if (!isNaN(val) && val > 0) nums.push(val);
-        });
-      }
-    } catch(e) {}
-
-    const max = nums.length > 0 ? Math.max(...nums) : 0;
-    const nextNum = max < 283 ? 283 : max + 1;
-    return `#${nextNum}`;
-  };
-
-  // Passo 2 -> Finalizar: Salva o pedido no sistema e envia diretamente para o WhatsApp do Ateliê
-  const handleSendOrderViaWhatsApp = async () => {
+  // Passo 2 -> Passo 3: Salva o pedido, prepara o Pix/Link e avança para a tela de pagamento (WhatsApp só é aberto após pagar)
+  const handleProceedToPayment = async () => {
     if (!validateForm()) return;
     if (cart.length === 0) return;
 
-    const targetPhone = getAtelierWhatsAppPhone();
-    const cleanPhone = getCleanWhatsAppDigits(targetPhone);
-    if (!cleanPhone) {
-      alert('Número de WhatsApp de Contato (Recebimento de Pedidos) do ateliê não encontrado. Por favor, cadastre o número nas configurações do ateliê.');
+    const phone = companyData?.phone?.replace(/\D/g, '') || '';
+    if (!phone) {
+      alert('Número de WhatsApp do ateliê não encontrado. Entre em contato diretamente.');
       return;
     }
 
     setIsProcessingOrder(true);
-    hasAutoSentWhatsAppRef.current = false;
 
-    const orderNum = completedOrderNumber || generateNextCatalogOrderNumber();
+    const orderNum = completedOrderNumber || `#PED-${Math.floor(1000 + Math.random() * 9000)}`;
     setCompletedOrderNumber(orderNum);
 
-    const now = new Date();
-    const dataStr = now.toLocaleDateString('pt-BR');
-    const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const safePayerEmail = (customerEmail?.trim() || "").includes("@")
+      ? customerEmail.trim()
+      : `${customerPhone.replace(/\D/g, '') || 'cliente.pedidos'}@gmail.com`;
 
-    let deliveryDetails = '';
-    if (deliveryType === 'pickup') {
-      deliveryDetails = '• *Modalidade:* 🏬 Retirada no Ateliê';
-    } else {
-      deliveryDetails = `• *Modalidade:* 🚚 Entrega / Envio\n• *Endereço:* ${deliveryAddress.trim()}${deliveryNeighborhood ? `, Bairro ${deliveryNeighborhood.trim()}` : ''}${deliveryCity ? ` - ${deliveryCity.trim()}` : ''}`;
+    // Se selecionou Pix ou Cartão, integrar com Mercado Pago (da conta do artesão ou padrão)
+    const userMpToken = companyData?.mercadoPagoAccessToken?.trim();
+    setMpNotice(null);
+    if (paymentMethod === 'pix') {
+      try {
+        const mpRes = await fetch('/api/mercadopago/create-pix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accessToken: userMpToken || undefined,
+            amount: cartTotal,
+            orderId: orderNum,
+            description: `Pedido ${orderNum} - ${companyData?.name || 'Ateliê'}`,
+            payer: {
+              name: customerName,
+              email: safePayerEmail,
+              phone: customerPhone
+            }
+          })
+        });
+        if (mpRes.ok) {
+          const data = await mpRes.json();
+          if (data?.qrCode) {
+            setMpPixData(data);
+            setMpPaymentStatus(data.status || 'pending');
+          } else if (data?.fallbackToPreference && data?.initPoint) {
+            setMpPreferenceData({ id: data.id, initPoint: data.initPoint });
+            if (data?.message) {
+              setMpNotice(data.message);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Mercado Pago Pix não disponível:", err);
+      }
+    } else if (paymentMethod === 'credit') {
+      try {
+        const mpRes = await fetch('/api/mercadopago/create-preference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accessToken: userMpToken || undefined,
+            items: cart.map(i => ({ name: i.product.name, quantity: i.quantity, price: i.price })),
+            orderId: orderNum,
+            payer: {
+              name: customerName,
+              email: safePayerEmail
+            }
+          })
+        });
+        if (mpRes.ok) {
+          const data = await mpRes.json();
+          if (data?.initPoint) {
+            setMpPreferenceData(data);
+          }
+        }
+      } catch (err) {
+        console.warn("Mercado Pago Checkout não disponível:", err);
+      }
     }
 
-    let itemsText = '';
-    cart.forEach((item, idx) => {
-      const sub = (item.price * item.quantity).toFixed(2);
-      itemsText += `${idx + 1}. *${item.product.name}*\n   ↳ ${item.quantity}x de R$ ${item.price.toFixed(2)} = *R$ ${sub}*\n`;
-    });
-
-    const message = 
-`🛍️ *NOVO PEDIDO ONLINE • ${orderNum}*
-━━━━━━━━━━━━━━━━━━━━━━━━
-🏪 *Ateliê:* ${companyData?.name || 'Ateliê'}
-📅 *Data:* ${dataStr} às ${horaStr}
-
-👤 *DADOS DO CLIENTE*
-• *Nome:* ${customerName.trim()}
-• *WhatsApp:* ${customerPhone.trim()}${customerEmail?.trim() ? `\n• *E-mail:* ${customerEmail.trim()}` : ''}
-
-📦 *ITENS DO PEDIDO*
-${itemsText}
-━━━━━━━━━━━━━━━━━━━━━━━━
-💰 *VALOR TOTAL: R$ ${cartTotal.toFixed(2)}*
-━━━━━━━━━━━━━━━━━━━━━━━━
-
-🚚 *ENTREGA / RETIRADA*
-${deliveryDetails}
-
-📝 *DETALHES / PERSONALIZAÇÃO*
-• ${orderObservations.trim() || 'Sem observações adicionais informadas no pedido.'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━
-✨ _Olá! Gostaria de fazer o pedido acima pelo catálogo online da loja! Como podemos combinar o pagamento e a entrega?_`;
-
-    setLastOrderMessage(message);
-
-    // AUTOMATIZAÇÃO: Inserir pedido no Cronograma e lançar no Financeiro (Compra pelo Catálogo)
+    // AUTOMATIZAÇÃO: Inserir pedido no Cronograma e lançar receita no Financeiro (Compra pelo Catálogo)
     try {
       const orderPayload = {
         userEmail,
@@ -783,7 +418,7 @@ ${deliveryDetails}
         deliveryAddress: deliveryAddress.trim() || undefined,
         deliveryNeighborhood: deliveryNeighborhood.trim() || undefined,
         deliveryCity: deliveryCity.trim() || undefined,
-        paymentMethod: 'whatsapp',
+        paymentMethod,
         cartTotal,
         items: cart.map(i => ({
           product: i.product,
@@ -804,8 +439,9 @@ ${deliveryDetails}
       });
 
       // 2. Criar objetos localmente para resposta instantânea e redundância offline
+      const now = new Date();
       const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const dateStrIso = now.toISOString().split('T')[0];
+      const dateStr = now.toISOString().split('T')[0];
       const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       const projId = `proj_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
       const txId = `tx_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
@@ -819,7 +455,7 @@ ${deliveryDetails}
         customerId: custId,
         description: itemsSummary,
         observations: orderObservations.trim() || '',
-        notes: `Origem: Catálogo Online • Pedido ${orderNum}\nModalidade: ${deliveryType === 'pickup' ? 'Retirada no Ateliê' : (deliveryAddress || 'Entrega')}\nPedido feito via WhatsApp`,
+        notes: `Origem: Catálogo Online • Pedido ${orderNum}\nModalidade: ${deliveryType === 'pickup' ? 'Retirada no Ateliê' : (deliveryAddress || 'Entrega')}\nPagamento: ${paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito'}`,
         items: cart.map(i => ({
           productId: i.product.id,
           name: i.product.name,
@@ -837,30 +473,30 @@ ${deliveryDetails}
         status: 'pending' as const,
         createdAt: now.toISOString(),
         dueDate: dueDate,
-        orderDate: dateStrIso,
+        orderDate: dateStr,
         deliveryDate: dueDate,
         theme: orderObservations.trim() ? orderObservations.trim().slice(0, 40) : 'Catálogo Online',
         celebrantName: customerName.trim(),
         celebrantAge: '',
-        quoteNumber: orderNum.replace(/^#/, ''),
-        paymentMethod: 'A Combinar (WhatsApp)',
-        paidAt: '',
+        quoteNumber: orderNum,
+        paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
+        paidAt: now.toISOString(),
         hoursToMake: cart.reduce((acc, i) => acc + (((i.product.minutesToMake || 60) / 60) * i.quantity), 0),
         materials: [],
         profitMargin: 30,
         quantity: cart.reduce((acc, i) => acc + i.quantity, 0),
-        downPayment: 0
+        downPayment: cartTotal
       };
 
       const localTransaction = {
         id: txId,
-        description: `Pedido Catálogo - ${customerName.trim()} (${orderNum})`,
+        description: `Compra pelo Catálogo - ${customerName.trim()} (${orderNum})`,
         amount: cartTotal,
         type: 'income' as const,
         category: 'Compra pelo Catálogo',
-        paymentMethod: 'A Combinar (WhatsApp)',
-        date: dateStrIso,
-        status: 'pending' as const,
+        paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
+        date: dateStr,
+        status: 'paid' as const,
         projectId: projId,
         customerId: custId
       };
@@ -907,37 +543,6 @@ ${deliveryDetails}
           localStorage.setItem(catKey, JSON.stringify(existingCats));
           localStorage.setItem('craft_trans_categories', JSON.stringify(existingCats));
         }
-
-        // Transmitir evento em tempo real via BroadcastChannel para abas abertas no mesmo navegador
-        try {
-          if (typeof BroadcastChannel !== 'undefined') {
-            const bc = new BroadcastChannel('precifica_atelie_sync');
-            bc.postMessage({
-              type: 'CATALOG_ORDER_CREATED',
-              userEmail: userEmail.trim().toLowerCase(),
-              project: localProject,
-              transaction: localTransaction,
-              customer: localCustomer,
-              timestamp: Date.now()
-            });
-            bc.close();
-          }
-        } catch (bcErr) {
-          console.warn("BroadcastChannel notice:", bcErr);
-        }
-
-        // Disparar evento de janela local
-        try {
-          window.dispatchEvent(new CustomEvent('precifica:catalog_order_created', {
-            detail: {
-              userEmail: userEmail.trim().toLowerCase(),
-              project: localProject,
-              transaction: localTransaction,
-              customer: localCustomer,
-              timestamp: Date.now()
-            }
-          }));
-        } catch (evErr) {}
       } catch (cacheErr) {
         console.warn("Aviso ao sincronizar cache local de pedido:", cacheErr);
       }
@@ -947,31 +552,15 @@ ${deliveryDetails}
       }
 
       apiPromise.then(res => {
-        if (res?.project) {
-          if (onOrderCreated) {
-            onOrderCreated(res.project, res.transaction, res.customerId ? { ...localCustomer, id: res.customerId } : undefined);
-          }
-          try {
-            if (typeof BroadcastChannel !== 'undefined') {
-              const bc = new BroadcastChannel('precifica_atelie_sync');
-              bc.postMessage({
-                type: 'CATALOG_ORDER_CREATED',
-                userEmail: userEmail.trim().toLowerCase(),
-                project: res.project,
-                transaction: res.transaction,
-                customer: res.customerId ? { ...localCustomer, id: res.customerId } : localCustomer,
-                timestamp: Date.now()
-              });
-              bc.close();
-            }
-          } catch (e) {}
+        if (res?.project && onOrderCreated) {
+          onOrderCreated(res.project, res.transaction, res.customerId ? { ...localCustomer, id: res.customerId } : undefined);
         }
       });
     } catch (autoErr) {
       console.warn("Aviso na automação do pedido:", autoErr);
     }
 
-    // Salvar pedido no histórico local do cliente
+    // Salvar pedido no histórico local
     try {
       const existingOrders = JSON.parse(localStorage.getItem('my_online_orders') || '[]');
       existingOrders.unshift({
@@ -980,50 +569,112 @@ ${deliveryDetails}
         customerName,
         customerPhone,
         total: cartTotal,
-        items: cart.map(i => ({ 
-          name: i.product.name, 
-          qty: i.quantity, 
-          quantity: i.quantity, 
-          price: Number(i.price) || 0,
-          unitPrice: Number(i.price) || 0 
-        })),
+        items: cart.map(i => ({ name: i.product.name, qty: i.quantity, price: i.price })),
         deliveryType,
-        paymentMethod: 'whatsapp'
+        paymentMethod
       });
       localStorage.setItem('my_online_orders', JSON.stringify(existingOrders.slice(0, 20)));
-
-      // Auto-salvar perfil do cliente se ainda não existir
-      if (!customerProfile && customerName.trim() && customerPhone.trim()) {
-        const autoProfile: CatalogCustomerProfile = {
-          name: customerName.trim(),
-          phone: customerPhone.trim(),
-          email: customerEmail.trim() || undefined,
-          address: deliveryAddress.trim() || undefined,
-          neighborhood: deliveryNeighborhood.trim() || undefined,
-          city: deliveryCity.trim() || undefined,
-          deliveryType
-        };
-        localStorage.setItem('catalog_customer_profile', JSON.stringify(autoProfile));
-        setCustomerProfile(autoProfile);
-      }
     } catch (e) {}
 
-    // Abrir WhatsApp diretamente com a mensagem do pedido pronta para o WhatsApp do ateliê
-    const whatsappUrl = buildWhatsAppLink(targetPhone, message);
+    setIsProcessingOrder(false);
+    setCartStep('payment');
+  };
+
+  // Passo 3: Disparado APÓS o pagamento para montar e enviar o pedido no WhatsApp do ateliê
+  const handleFinishAndSendWhatsApp = async () => {
+    const phone = companyData?.phone?.replace(/\D/g, '') || '';
+    if (!phone) {
+      alert('Número de WhatsApp do ateliê não encontrado. Entre em contato diretamente.');
+      return;
+    }
+
+    setIsProcessingOrder(true);
+    const orderNum = completedOrderNumber || `#PED-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const now = new Date();
+    const dataStr = now.toLocaleDateString('pt-BR');
+    const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    let deliveryDetails = '';
+    if (deliveryType === 'pickup') {
+      deliveryDetails = '• *Modalidade:* 🏬 Retirada no Ateliê';
+    } else {
+      deliveryDetails = `• *Modalidade:* 🚚 Entrega / Envio\n• *Endereço:* ${deliveryAddress}${deliveryNeighborhood ? `, Bairro ${deliveryNeighborhood}` : ''}${deliveryCity ? ` - ${deliveryCity}` : ''}`;
+    }
+
+    let itemsText = '';
+    cart.forEach((item, idx) => {
+      const sub = (item.price * item.quantity).toFixed(2);
+      itemsText += `${idx + 1}. *${item.product.name}*\n   ↳ ${item.quantity}x de R$ ${item.price.toFixed(2)} = *R$ ${sub}*\n`;
+    });
+
+    let paymentStatusSection = '';
+    if (mpPaymentStatus === 'approved') {
+      paymentStatusSection = `• *Forma:* ⚡ Pix Automático Mercado Pago\n• *Status:* ✅ PAGO E APROVADO PELO MERCADO PAGO`;
+    } else if (paymentMethod === 'pix') {
+      paymentStatusSection = `• *Forma:* ⚡ Pix (Transferência Realizada)\n• *Status:* 💸 Realizado pelo cliente (Comprovante em anexo nesta conversa)`;
+    } else {
+      paymentStatusSection = `• *Forma:* 💳 Cartão de Crédito Mercado Pago\n• *Status:* 💳 Finalizado / Processando`;
+    }
+
+    const message = 
+`🛍️ *NOVO PEDIDO ONLINE • ${orderNum}*
+━━━━━━━━━━━━━━━━━━━━━━━━
+🏪 *Ateliê:* ${companyData?.name || 'Ateliê'}
+📅 *Data:* ${dataStr} às ${horaStr}
+
+👤 *DADOS DO CLIENTE*
+• *Nome:* ${customerName.trim()}
+• *WhatsApp:* ${customerPhone.trim()}${customerEmail ? `\n• *E-mail:* ${customerEmail.trim()}` : ''}
+
+📦 *ITENS DO PEDIDO*
+${itemsText}
+━━━━━━━━━━━━━━━━━━━━━━━━
+💰 *VALOR TOTAL: R$ ${cartTotal.toFixed(2)}*
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚚 *ENTREGA / RETIRADA*
+${deliveryDetails}
+
+💳 *PAGAMENTO REALIZADO*
+${paymentStatusSection}
+
+📝 *DETALHES / PERSONALIZAÇÃO*
+• ${orderObservations.trim() || 'Sem observações adicionais informadas no pedido.'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+✨ _Olá! Realizei o pagamento do meu pedido pelo seu Catálogo Online. Segue o resumo para conferência e início da confecção!_`;
+
+    setLastOrderMessage(message);
+
+    // Tentar gerar imagem de resumo para download em segundo plano
     try {
-      const openedWin = window.open(whatsappUrl, '_blank');
-      if (!openedWin || openedWin.closed || typeof openedWin.closed === 'undefined') {
-        window.location.href = whatsappUrl;
+      if (orderSummaryRef.current && typeof html2canvas !== 'undefined') {
+        const canvas = await html2canvas(orderSummaryRef.current, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          logging: false,
+          useCORS: true
+        });
+        const imageData = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.download = `comprovante-pedido-${orderNum.replace('#', '')}.png`;
+        link.href = imageData;
+        link.click();
       }
     } catch (e) {
-      console.warn("Aviso ao abrir WhatsApp:", e);
+      console.warn("Não foi possível gerar a imagem automática:", e);
     }
+
+    // Disparar abertura do WhatsApp
+    const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
 
     setIsProcessingOrder(false);
     setCartStep('success');
   };
 
-  const handleProcessOrder = handleSendOrderViaWhatsApp;
+  const handleProcessOrder = handleProceedToPayment;
 
   const copyPixKey = () => {
     if (companyData?.pixKey) {
@@ -1049,7 +700,6 @@ ${deliveryDetails}
   };
 
   const resetCartAfterSuccess = () => {
-    hasAutoSentWhatsAppRef.current = false;
     setCart([]);
     setCartStep('items');
     setIsCartOpen(false);
@@ -1131,64 +781,26 @@ ${deliveryDetails}
           </div>
 
           {/* Ações da Barra Superior */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* Acompanhar Pedido */}
-            <button
-              onClick={() => {
-                setTrackingDefaultOrder(undefined);
-                setIsTrackingModalOpen(true);
-              }}
-              className="p-2 sm:px-3 sm:py-2.5 bg-pink-50 hover:bg-pink-100 text-pink-700 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold border border-pink-200/80 cursor-pointer shadow-2xs"
-              title="Acompanhar Meus Pedidos"
-            >
-              <Clock size={16} className="text-pink-600 shrink-0" />
-              <span className="hidden md:inline">Acompanhar Pedido</span>
-            </button>
-
-            {/* Cadastro / Meu Perfil */}
-            <button
-              onClick={() => setIsCustomerModalOpen(true)}
-              className="p-2 sm:px-3 sm:py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold border border-gray-200/80 cursor-pointer shadow-2xs"
-              title={customerProfile?.name ? `Meu Perfil: ${customerProfile.name}` : "Cadastre-se no Catálogo"}
-            >
-              {customerProfile?.name ? (
-                <>
-                  <UserCheck size={16} className="text-pink-600 shrink-0" />
-                  <span className="hidden sm:inline font-black text-gray-800">
-                    {customerProfile.name.split(' ')[0]}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <UserPlus size={16} className="text-gray-500 shrink-0" />
-                  <span className="hidden sm:inline">Cadastrar</span>
-                </>
-              )}
-            </button>
-
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Link Compartilhar */}
             <button
               onClick={copyCatalogLink}
-              className="hidden lg:flex p-2.5 px-3.5 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl transition-all items-center gap-1.5 text-xs font-bold border border-gray-100 cursor-pointer"
+              className="p-2.5 sm:px-3.5 sm:py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold border border-gray-100"
               title="Copiar Link do Catálogo"
             >
               {linkCopied ? <Check size={16} className="text-emerald-500" /> : <Share2 size={16} />}
-              <span className="hidden xl:inline">{linkCopied ? 'Copiado!' : 'Compartilhar'}</span>
+              <span className="hidden md:inline">{linkCopied ? 'Link Copiado!' : 'Compartilhar'}</span>
             </button>
 
             {/* Contato WhatsApp */}
-            {getAtelierWhatsAppPhone() && (
+            {companyData?.phone && (
               <button 
-                onClick={() => {
-                  const targetPhone = getAtelierWhatsAppPhone();
-                  const url = buildWhatsAppLink(targetPhone, `Olá! Estou visitando o catálogo da ${companyData?.name || 'loja'} e gostaria de tirar uma dúvida.`);
-                  if (url) window.open(url, '_blank');
-                }}
-                className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2 sm:px-3 sm:py-2.5 rounded-2xl transition-all flex items-center gap-1.5 font-black text-xs border border-emerald-200/60 shadow-2xs cursor-pointer"
+                onClick={() => window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}`, '_blank')}
+                className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2.5 sm:px-3.5 sm:py-2.5 rounded-2xl transition-all flex items-center gap-2 font-black text-xs border border-emerald-200/60 shadow-sm"
                 title="Falar no WhatsApp"
               >
-                <MessageCircle size={16} className="text-emerald-600 shrink-0" />
-                <span className="hidden lg:inline">WhatsApp</span>
+                <MessageCircle size={17} className="text-emerald-600" />
+                <span className="hidden sm:inline">WhatsApp</span>
               </button>
             )}
 
@@ -1198,7 +810,7 @@ ${deliveryDetails}
                 setCartStep('items');
                 setIsCartOpen(true);
               }}
-              className="bg-pink-500 hover:bg-pink-600 active:scale-95 text-white p-2.5 sm:px-4 sm:py-2.5 rounded-2xl transition-all shadow-lg shadow-pink-200/70 flex items-center gap-2 relative cursor-pointer"
+              className="bg-pink-500 hover:bg-pink-600 active:scale-95 text-white p-2.5 sm:px-4 sm:py-2.5 rounded-2xl transition-all shadow-lg shadow-pink-200/70 flex items-center gap-2.5 relative"
             >
               <div className="relative">
                 <ShoppingCart size={18} />
@@ -1271,30 +883,6 @@ ${deliveryDetails}
                 <span>{companyData.instagram.startsWith('@') ? companyData.instagram : `@${companyData.instagram}`}</span>
               </a>
             )}
-          </div>
-
-          {/* Atalhos Rápidos: Acompanhar Pedido e Cadastro do Cliente */}
-          <div className="flex flex-wrap items-center justify-center gap-2.5 mb-8">
-            <button
-              type="button"
-              onClick={() => {
-                setTrackingDefaultOrder(undefined);
-                setIsTrackingModalOpen(true);
-              }}
-              className="bg-white hover:bg-pink-50 text-pink-700 px-4 py-2 rounded-2xl border border-pink-200/80 shadow-xs text-xs font-black flex items-center gap-2 transition-all cursor-pointer hover:shadow-md"
-            >
-              <Clock size={15} className="text-pink-500" />
-              <span>Acompanhar Meus Pedidos</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsCustomerModalOpen(true)}
-              className="bg-white hover:bg-pink-50 text-gray-700 px-4 py-2 rounded-2xl border border-pink-100 shadow-xs text-xs font-black flex items-center gap-2 transition-all cursor-pointer hover:shadow-md"
-            >
-              <User size={15} className="text-pink-500" />
-              <span>{customerProfile?.name ? `Meu Cadastro (${customerProfile.name.split(' ')[0]})` : 'Cadastrar / Meu Perfil'}</span>
-            </button>
           </div>
 
           {/* BARRA DE PESQUISA REFINADA */}
@@ -1819,12 +1407,14 @@ ${deliveryDetails}
                 <div>
                   <h3 className="text-lg font-black text-gray-800 leading-none">
                     {cartStep === 'items' && 'Seu Carrinho de Compras'}
-                    {cartStep === 'checkout' && 'Finalizar Pedido'}
+                    {cartStep === 'checkout' && 'Dados de Entrega & Pagamento'}
+                    {cartStep === 'payment' && 'Realizar Pagamento'}
                     {cartStep === 'success' && 'Pedido Enviado com Sucesso!'}
                   </h3>
                   <p className="text-[10px] font-bold text-pink-500 uppercase tracking-wider mt-1">
                     {cartStep === 'items' && `${cartItemCount} itens adicionados`}
-                    {cartStep === 'checkout' && 'Passo 2 de 2 • Seus Dados & Envio ao WhatsApp'}
+                    {cartStep === 'checkout' && 'Passo 2 de 3 • Seus Dados'}
+                    {cartStep === 'payment' && 'Passo 3 de 3 • Pagamento & WhatsApp'}
                     {cartStep === 'success' && 'Tudo pronto!'}
                   </p>
                 </div>
@@ -1945,59 +1535,10 @@ ${deliveryDetails}
                 {/* Botão Voltar */}
                 <button 
                   onClick={() => setCartStep('items')}
-                  className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-pink-600 transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-pink-600 transition-colors"
                 >
                   <ChevronLeft size={16} /> Voltar aos itens
                 </button>
-
-                {/* Banner de Perfil / Cadastro do Cliente */}
-                {customerProfile ? (
-                  <div className="p-3.5 bg-pink-50 border border-pink-200 rounded-2xl flex items-center justify-between shadow-2xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-pink-500 text-white flex items-center justify-center shrink-0">
-                        <UserCheck size={16} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-black text-gray-800">
-                          Olá, {customerProfile.name.split(' ')[0]}!
-                        </p>
-                        <p className="text-[10px] text-pink-700 font-bold">
-                          Dados de entrega e contato preenchidos do seu perfil.
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsCustomerModalOpen(true)}
-                      className="text-[11px] font-black text-pink-600 hover:text-pink-700 underline cursor-pointer"
-                    >
-                      Editar Perfil
-                    </button>
-                  </div>
-                ) : (
-                  <div className="p-3.5 bg-gray-50 border border-gray-200/80 rounded-2xl flex items-center justify-between shadow-2xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-gray-200 text-gray-600 flex items-center justify-center shrink-0">
-                        <UserPlus size={16} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-gray-800">
-                          Quer salvar seus dados para próximas compras?
-                        </p>
-                        <p className="text-[10px] text-gray-400 font-medium">
-                          Cadastre-se com facilidade e acompanhe seus pedidos
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsCustomerModalOpen(true)}
-                      className="px-3 py-1.5 bg-white border border-gray-200 hover:border-pink-300 text-pink-600 font-black text-[11px] rounded-xl shadow-2xs transition-all cursor-pointer"
-                    >
-                      Cadastrar
-                    </button>
-                  </div>
-                )}
 
                 {/* Dados do Cliente */}
                 <div className="space-y-4">
@@ -2150,41 +1691,272 @@ ${deliveryDetails}
                   />
                 </div>
 
-                {/* Resumo e Botão para Fazer Pedido via WhatsApp */}
-                <div className="p-5 bg-gradient-to-br from-emerald-50/80 to-teal-50/40 rounded-3xl border border-emerald-100 space-y-4">
+                {/* Forma de Pagamento */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">4</span>
+                    Forma de Pagamento Preferida
+                  </h4>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {[
+                      { id: 'pix', label: 'Pix', icon: Sparkles, badge: isMercadoPagoActive ? 'Baixa Automática' : 'Mais rápido' },
+                      { id: 'credit', label: 'Cartão de Crédito', icon: CreditCard, badge: isMercadoPagoActive ? 'Mercado Pago' : undefined }
+                    ].map(pm => {
+                      const Icon = pm.icon;
+                      const isSelected = paymentMethod === pm.id;
+                      return (
+                        <button
+                          key={pm.id}
+                          type="button"
+                          onClick={() => setPaymentMethod(pm.id as any)}
+                          className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                            isSelected 
+                              ? 'border-pink-500 bg-pink-50/60 shadow-sm' 
+                              : 'border-gray-200 bg-gray-50 hover:bg-gray-100/70'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Icon size={16} className={isSelected ? 'text-pink-600' : 'text-gray-400'} />
+                            <span className="text-xs font-bold text-gray-800">{pm.label}</span>
+                          </div>
+                          {pm.badge && (
+                            <span className="text-[8px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                              {pm.badge}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {isMercadoPagoActive && (
+                    <div className="p-3 bg-blue-50/60 rounded-2xl border border-blue-100 flex items-center gap-2.5 text-blue-800">
+                      <ShieldCheck size={16} className="text-blue-600 shrink-0" />
+                      <p className="text-[10px] font-medium leading-tight">
+                        <strong>Checkout Mercado Pago Integrado:</strong> Recebimento instantâneo por Pix com QR Code oficial ou Cartão em até 12x.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Resumo e Botão para Avançar ao Pagamento */}
+                <div className="p-5 bg-gradient-to-br from-pink-50 to-pink-100/40 rounded-3xl border border-pink-100 space-y-4">
                   <div className="flex justify-between items-center text-xs font-bold text-gray-600">
                     <span>Quantidade Total:</span>
                     <span>{cartItemCount} itens</span>
                   </div>
                   <div className="flex justify-between items-center text-sm font-black text-gray-800">
                     <span>Total do Pedido:</span>
-                    <span className="text-2xl text-emerald-700 font-black">R$ {cartTotal.toFixed(2)}</span>
+                    <span className="text-2xl text-pink-600">R$ {cartTotal.toFixed(2)}</span>
                   </div>
 
-                  {/* BOTÃO PARA FAZER PEDIDO VIA WHATSAPP */}
+                  {/* BOTÃO PARA AVANÇAR AO PAGAMENTO */}
                   <button 
-                    type="button"
-                    onClick={handleSendOrderViaWhatsApp}
+                    onClick={handleProceedToPayment}
                     disabled={isProcessingOrder}
-                    className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-200 transition-all disabled:opacity-50 cursor-pointer"
+                    className="w-full py-4 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 shadow-xl shadow-pink-200 transition-all disabled:opacity-50 cursor-pointer"
                   >
                     {isProcessingOrder ? (
                       <>
                         <RefreshCw className="animate-spin" size={18} />
-                        <span>Enviando Pedido ao WhatsApp...</span>
+                        <span>Preparando Pagamento...</span>
                       </>
                     ) : (
                       <>
-                        <MessageCircle size={20} />
-                        <span>Fazer Pedido via WhatsApp</span>
+                        <span>Avançar para Pagamento</span>
                         <ArrowRight size={18} />
                       </>
                     )}
                   </button>
 
-                  <div className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-800 font-medium text-center leading-relaxed">
-                    <span>💬 Ao clicar, seu pedido é registrado e enviado diretamente para o WhatsApp do ateliê com todos os detalhes!</span>
+                  <p className="text-[10px] text-gray-400 text-center font-medium">
+                    🔒 Prossiga para ver o QR Code Pix ou link de pagamento. O envio ao WhatsApp será feito após o pagamento.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* PASSO 3: REALIZAR PAGAMENTO & ENVIAR AO WHATSAPP APÓS O PAGAMENTO */}
+            {cartStep === 'payment' && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar animate-fadeIn">
+                {/* Botão Voltar */}
+                <button 
+                  onClick={() => setCartStep('checkout')}
+                  className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-pink-600 transition-colors cursor-pointer"
+                >
+                  <ChevronLeft size={16} /> Voltar e alterar dados de entrega
+                </button>
+
+                {/* Resumo do Pedido */}
+                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-pink-600 bg-pink-50 px-2.5 py-0.5 rounded-full uppercase">
+                      Pedido {completedOrderNumber}
+                    </span>
+                    <p className="text-xs font-bold text-gray-800 mt-1">{customerName}</p>
+                    <p className="text-[10px] text-gray-400 font-medium">
+                      {deliveryType === 'pickup' ? '🏬 Retirada no Ateliê' : '🚚 Entrega'}
+                    </p>
                   </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">Total a Pagar</span>
+                    <p className="text-lg font-black text-pink-600">R$ {cartTotal.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                {/* Bloco de Pagamento Conforme Método Selecionado */}
+                {/* CASO PIX MERCADO PAGO AUTOMÁTICO GERADO */}
+                {mpPixData && (
+                  <div className="p-5 bg-gradient-to-b from-blue-50/70 to-blue-50/30 rounded-3xl border border-blue-200 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full ${
+                        mpPaymentStatus === 'approved' 
+                          ? 'bg-emerald-500 text-white shadow-sm' 
+                          : 'bg-blue-600 text-white'
+                      }`}>
+                        {mpPaymentStatus === 'approved' ? '✓ Pagamento Aprovado' : '⚡ Pix Oficial Mercado Pago'}
+                      </span>
+                    </div>
+
+                    {mpPaymentStatus === 'approved' ? (
+                      <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-emerald-800 text-xs font-bold space-y-1 mb-2">
+                        <p className="text-sm">🎉 Pagamento Confirmado com Sucesso!</p>
+                        <p className="text-[11px] font-medium text-emerald-700">Seu pagamento foi identificado pelo sistema! Agora clique abaixo para enviar o pedido confirmado ao WhatsApp do ateliê.</p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs font-bold text-gray-700 mb-3">
+                          Escaneie o QR Code abaixo no app do seu banco para pagar:
+                        </p>
+
+                        {mpPixData.qrCodeBase64 && (
+                          <div className="p-3 bg-white rounded-2xl border-2 border-dashed border-blue-200 inline-block shadow-xs mb-3">
+                            <img 
+                              src={`data:image/png;base64,${mpPixData.qrCodeBase64}`} 
+                              alt="QR Code Pix Mercado Pago" 
+                              className="w-48 h-48 object-contain mx-auto"
+                            />
+                          </div>
+                        )}
+
+                        {mpPixData.qrCode && (
+                          <div className="space-y-2">
+                            <button 
+                              type="button"
+                              onClick={() => copyPixCopiaECola(mpPixData.qrCode)}
+                              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-blue-200 transition-all cursor-pointer"
+                            >
+                              {pixCopiaColaCopied ? <Check size={16} /> : <Copy size={16} />}
+                              <span>{pixCopiaColaCopied ? 'Código Pix Copiado!' : 'Copiar Código Pix Copia e Cola'}</span>
+                            </button>
+                            <div className="flex items-center justify-center gap-1.5 text-[10px] text-blue-700 font-bold">
+                              <Clock size={12} className="animate-spin text-blue-500" />
+                              <span>Aguardando transferência bancária (baixa automática)</span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* CASO LINK DE CHECKOUT MERCADO PAGO GERADO (CARTÃO OU FALLBACK PIX) */}
+                {mpPreferenceData?.initPoint && (
+                  <div className="p-5 bg-gradient-to-b from-blue-50/70 to-blue-50/30 rounded-3xl border border-blue-200 text-center space-y-3">
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white px-3 py-1 rounded-full inline-block">
+                      {paymentMethod === 'pix' ? '⚡ Pagamento Mercado Pago (Pix & Cartão)' : '💳 Cartão de Crédito ou Débito'}
+                    </span>
+                    <p className="text-xs font-bold text-gray-700">
+                      {paymentMethod === 'pix' 
+                        ? 'Clique abaixo para concluir seu pagamento oficial com Pix ou Cartão no Mercado Pago:'
+                        : 'Finalize o pagamento com segurança no ambiente do Mercado Pago (parcele em até 12x):'
+                      }
+                    </p>
+                    <button 
+                      type="button"
+                      onClick={() => window.open(mpPreferenceData.initPoint, '_blank')}
+                      className="w-full py-4 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-all cursor-pointer"
+                    >
+                      <CreditCard size={18} />
+                      <span>{paymentMethod === 'pix' ? 'Pagar com Pix / Cartão no Mercado Pago' : 'Pagar Agora no Mercado Pago'}</span>
+                      <ExternalLink size={14} />
+                    </button>
+
+                    {mpNotice && (
+                      <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-left text-xs text-amber-900 space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                          <Info size={13} className="text-amber-600 shrink-0" />
+                          <span className="text-[11px]">Dica para o Ateliê:</span>
+                        </div>
+                        <p className="text-[10px] leading-relaxed text-amber-800">
+                          {mpNotice}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* CASO PIX MANUAL (CHAVE PIX DIRETA DO ATELIÊ) */}
+                {!mpPixData && paymentMethod === 'pix' && companyData?.pixKey && (
+                  <div className="p-5 bg-pink-50/70 rounded-3xl border border-pink-100 text-left space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider text-pink-600 flex items-center gap-1">
+                        <Sparkles size={14} /> Chave Pix do Ateliê
+                      </span>
+                      <button 
+                        type="button"
+                        onClick={copyPixKey}
+                        className="text-xs font-bold text-gray-600 hover:text-pink-600 flex items-center gap-1 bg-white px-3 py-1 rounded-xl shadow-xs border border-pink-100 cursor-pointer"
+                      >
+                        {pixCopied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                        <span>{pixCopied ? 'Copiada!' : 'Copiar Chave'}</span>
+                      </button>
+                    </div>
+
+                    <div className="bg-white p-3.5 rounded-2xl border border-pink-100">
+                      <p className="text-xs font-mono font-bold text-gray-800 break-all select-all">
+                        {companyData.pixKey}
+                      </p>
+                    </div>
+
+                    <div className="text-[11px] text-gray-500 space-y-1">
+                      <p><strong>1.</strong> Copie a chave Pix acima e realize a transferência de <strong>R$ {cartTotal.toFixed(2)}</strong> no app do seu banco.</p>
+                      <p><strong>2.</strong> Em seguida, clique no botão abaixo para enviar o pedido com seu comprovante para o WhatsApp do ateliê.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* BOTÃO FINALIZAR & ENVIAR PEDIDO NO WHATSAPP (ENVIADO APÓS O PAGAMENTO) */}
+                <div className="p-5 bg-gradient-to-br from-pink-50 to-pink-100/40 rounded-3xl border border-pink-100 space-y-3">
+                  <button 
+                    type="button"
+                    onClick={handleFinishAndSendWhatsApp}
+                    disabled={isProcessingOrder}
+                    className={`w-full py-4 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 shadow-xl transition-all cursor-pointer ${
+                      mpPaymentStatus === 'approved'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200 ring-4 ring-emerald-200'
+                        : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200 active:scale-95'
+                    }`}
+                  >
+                    {isProcessingOrder ? (
+                      <>
+                        <RefreshCw className="animate-spin" size={18} />
+                        <span>Montando e Enviando ao WhatsApp...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={18} />
+                        <span>{mpPaymentStatus === 'approved' ? 'Enviar Pedido Confirmado no WhatsApp' : 'Finalizar & Enviar Pedido no WhatsApp'}</span>
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-[10px] text-gray-500 text-center font-medium">
+                    {mpPaymentStatus === 'approved' 
+                      ? '🎉 Pagamento identificado! Ao clicar, seu pedido será montado e enviado com a confirmação para o WhatsApp do ateliê.'
+                      : '⚡ Ao clicar, seu pedido será montado e enviado automaticamente para o WhatsApp do ateliê após o pagamento.'}
+                  </p>
                 </div>
               </div>
             )}
@@ -2209,29 +1981,16 @@ ${deliveryDetails}
                 </p>
 
                 {/* Botões de Ação e Reabertura do WhatsApp */}
-                <div className="w-full space-y-3 mb-8">
+                <div className="w-full space-y-4 mb-8">
                   <button 
                     onClick={() => {
-                      const targetPhone = getAtelierWhatsAppPhone();
-                      const url = buildWhatsAppLink(targetPhone, lastOrderMessage);
-                      if (url) window.open(url, '_blank');
+                      const phone = companyData?.phone?.replace(/\D/g, '') || '';
+                      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lastOrderMessage)}`, '_blank');
                     }}
                     className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 transition-all cursor-pointer"
                   >
                     <MessageCircle size={18} />
                     <span>Abrir WhatsApp com o Pedido</span>
-                  </button>
-
-                  <button 
-                    onClick={() => {
-                      setIsCartOpen(false);
-                      setTrackingDefaultOrder(completedOrderNumber || undefined);
-                      setIsTrackingModalOpen(true);
-                    }}
-                    className="w-full py-3.5 bg-pink-50 hover:bg-pink-100 active:scale-95 text-pink-700 border border-pink-200 font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
-                  >
-                    <Clock size={16} className="text-pink-600" />
-                    <span>Acompanhar Status deste Pedido</span>
                   </button>
                 </div>
 
@@ -2247,25 +2006,65 @@ ${deliveryDetails}
         </div>
       )}
 
-      {/* MODAL DE CADASTRO / PERFIL DO CLIENTE NO CATÁLOGO */}
-      <CatalogCustomerModal
-        isOpen={isCustomerModalOpen}
-        onClose={() => setIsCustomerModalOpen(false)}
-        userEmail={userEmail}
-        initialProfile={customerProfile}
-        onSaveProfile={handleSaveCustomerProfile}
-        onLogout={handleLogoutCustomerProfile}
-      />
+      {/* TEMPLATE OCULTO PARA GERAÇÃO DO RESUMO DO PEDIDO EM IMAGEM */}
+      <div className="fixed left-[-9999px] top-[-9999px]">
+        <div ref={orderSummaryRef} className="w-[620px] bg-white p-10 font-['Quicksand'] border-8 border-pink-100">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b-2 border-pink-200 pb-6 mb-8">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-white rounded-2xl border-2 border-pink-200 flex items-center justify-center p-1 overflow-hidden">
+                <img src={companyLogo} alt="Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-gray-800 leading-none">{companyData?.name || 'Ateliê'}</h3>
+                <p className="text-[11px] font-black text-pink-500 uppercase tracking-widest mt-1">Comprovante de Pedido Online</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-black text-pink-600 bg-pink-50 px-3 py-1 rounded-full">{completedOrderNumber || '#PED-ONLINE'}</p>
+              <p className="text-[10px] font-bold text-gray-400 mt-1">{new Date().toLocaleDateString('pt-BR')}</p>
+            </div>
+          </div>
 
-      {/* MODAL DE ACOMPANHAMENTO DE PEDIDOS EM TEMPO REAL */}
-      <CatalogTrackingModal
-        isOpen={isTrackingModalOpen}
-        onClose={() => setIsTrackingModalOpen(false)}
-        userEmail={userEmail}
-        companyData={companyData}
-        defaultPhone={customerProfile?.phone || customerPhone}
-        defaultOrderNumber={trackingDefaultOrder || completedOrderNumber || undefined}
-      />
+          {/* Dados do Cliente */}
+          {customerName && (
+            <div className="bg-gray-50 p-4 rounded-2xl mb-6 border border-gray-100 text-xs">
+              <p className="font-bold text-gray-700"><strong>Cliente:</strong> {customerName}</p>
+              <p className="font-bold text-gray-700 mt-0.5"><strong>WhatsApp:</strong> {customerPhone}</p>
+              <p className="font-bold text-gray-700 mt-0.5">
+                <strong>Entrega:</strong> {deliveryType === 'pickup' ? 'Retirada no Ateliê' : `Entrega: ${deliveryAddress}`}
+              </p>
+            </div>
+          )}
+
+          {/* Itens */}
+          <div className="space-y-3 mb-8">
+            {cart.map(item => (
+              <div key={item.product.id} className="flex items-center justify-between py-2 border-b border-gray-100 text-sm">
+                <div className="flex items-center gap-3">
+                  <span className="w-7 h-7 bg-pink-50 text-pink-600 rounded-lg flex items-center justify-center text-xs font-black">
+                    {item.quantity}x
+                  </span>
+                  <span className="font-bold text-gray-800">{item.product.name}</span>
+                </div>
+                <span className="font-black text-gray-800">R$ {(item.price * item.quantity).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Total */}
+          <div className="bg-pink-50 p-6 rounded-2xl flex justify-between items-center border border-pink-200">
+            <span className="text-xs font-black uppercase tracking-wider text-pink-700">Total do Pedido</span>
+            <span className="text-3xl font-black text-pink-600">R$ {cartTotal.toFixed(2)}</span>
+          </div>
+
+          <div className="mt-8 text-center">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              Obrigado pela preferência! • Produzido com amor
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

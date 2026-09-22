@@ -1160,17 +1160,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
                                            ));
                                          }
                                          alert('Pagamento registrado com sucesso!');
-
-                                         // Enviar WhatsApp automaticamente ao dar baixa na venda
-                                         const cust = customers.find(c => c.id === project.customerId);
-                                         const rawPhone = cust?.phone || (project as any)?.celebrantPhone || '';
-                                         const cleanPhone = rawPhone.replace(/\D/g, '');
-                                         if (cleanPhone) {
-                                           const custName = cust?.name || project.celebrantName || 'Cliente';
-                                           const orderIdStr = project.quoteNumber || project.name;
-                                           const msg = encodeURIComponent(`Olá, ${custName}! Confirmamos o recebimento e demos baixa no pagamento do seu pedido (${orderIdStr}) no valor de R$ ${pendingAmount.toFixed(2)}. Seu pedido já está com pagamento confirmado! Muito obrigado(a) pela preferência! ✨🎨`);
-                                           window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank');
-                                         }
                                        }
                                      }}
                                      className="flex-1 py-2.5 bg-gray-900 hover:bg-orange-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-sm flex items-center justify-center gap-1.5"

@@ -8,21 +8,6 @@ interface InventoryProps {
   setMaterials: React.Dispatch<React.SetStateAction<Material[]>>;
 }
 
-const DEFAULT_UNITS = [
-  { value: 'unidade', label: 'Unidade (un)' },
-  { value: 'metro', label: 'Metro (m)' },
-  { value: 'cm', label: 'Centímetro (cm)' },
-  { value: 'folha', label: 'Folha' },
-  { value: 'rolo', label: 'Rolo / Carretel' },
-  { value: 'pacote', label: 'Pacote' },
-  { value: 'kg', label: 'Quilo (kg)' },
-  { value: 'g', label: 'Grama (g)' },
-  { value: 'litro', label: 'Litro (L)' },
-  { value: 'ml', label: 'Mililitro (ml)' },
-  { value: 'par', label: 'Par' },
-  { value: 'caixa', label: 'Caixa' }
-];
-
 export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
@@ -38,61 +23,35 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
     name: '', unit: 'unidade', price: 0, quantity: 1, supplier: '', defaultPiecesPerUnit: 1
   });
 
-  const [units, setUnits] = useState(() => {
-    try {
-      const lastUser = localStorage.getItem('last_user_email') || '';
-      const userKey = lastUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const key = userKey ? `${userKey}_craft_material_units` : 'craft_material_units';
-      const saved = localStorage.getItem(key) || localStorage.getItem('craft_material_units');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const existingValues = new Set(DEFAULT_UNITS.map(u => u.value));
-          const custom = parsed.filter((u: { value: string; label: string }) => u && u.value && !existingValues.has(u.value));
-          return [...DEFAULT_UNITS, ...custom];
-        }
+  const [units, setUnits] = useState([
+    { value: 'unidade', label: 'Unidade (un)' },
+    { value: 'metro', label: 'Metro (m)' },
+    { value: 'cm', label: 'Centímetro (cm)' },
+    { value: 'folha', label: 'Folha' },
+    { value: 'rolo', label: 'Rolo / Carretel' },
+    { value: 'pacote', label: 'Pacote' }
+  ]);
+
+  const handleAddUnit = () => {
+    const customUnit = prompt("Digite o nome da nova unidade (ex: Litro, Par, Caixa):");
+    if (customUnit) {
+      const value = customUnit.toLowerCase().trim();
+      if (!units.find(u => u.value === value)) {
+        setUnits([...units, { value, label: customUnit }]);
+        setNewMaterial({...newMaterial, unit: value});
       }
-    } catch {}
-    return DEFAULT_UNITS;
-  });
-
-  const [showNewUnitInput, setShowNewUnitInput] = useState(false);
-  const [newUnitInput, setNewUnitInput] = useState('');
-
-  const handleSaveNewUnit = () => {
-    const trimmed = newUnitInput.trim();
-    if (!trimmed) return;
-    const value = trimmed.toLowerCase();
-    const label = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-    
-    if (!units.find(u => u.value === value)) {
-      const updated = [...units, { value, label }];
-      setUnits(updated);
-      try {
-        const lastUser = localStorage.getItem('last_user_email') || '';
-        const userKey = lastUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-        if (userKey) localStorage.setItem(`${userKey}_craft_material_units`, JSON.stringify(updated));
-        localStorage.setItem('craft_material_units', JSON.stringify(updated));
-      } catch {}
     }
-    setNewMaterial(prev => ({ ...prev, unit: value }));
-    setNewUnitInput('');
-    setShowNewUnitInput(false);
   };
 
   const handleOpenAdd = () => {
     setEditingMaterialId(null);
     setNewMaterial({ name: '', unit: 'unidade', price: 0, quantity: 1, supplier: '', defaultPiecesPerUnit: 1 });
-    setShowNewUnitInput(false);
-    setNewUnitInput('');
     setShowForm(true);
   };
 
   const handleOpenEdit = (material: Material) => {
     setEditingMaterialId(material.id);
     setNewMaterial({ ...material });
-    setShowNewUnitInput(false);
-    setNewUnitInput('');
     setShowForm(true);
   };
 
@@ -335,65 +294,27 @@ export const Inventory: React.FC<InventoryProps> = ({ materials, setMaterials })
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <div className="space-y-2 col-span-2 md:col-span-1">
-                  <div className="flex items-center justify-between ml-1">
-                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Unidade</label>
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Unidade</label>
+                  <div className="flex gap-2">
+                    <select 
+                      className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700"
+                      value={newMaterial.unit}
+                      onChange={e => setNewMaterial({...newMaterial, unit: e.target.value})}
+                    >
+                      {units.map(u => (
+                        <option key={u.value} value={u.value}>{u.label}</option>
+                      ))}
+                    </select>
                     <button 
                       type="button"
-                      onClick={() => setShowNewUnitInput(prev => !prev)}
-                      className="text-yellow-700 hover:text-yellow-800 font-black text-[10px] uppercase tracking-wider flex items-center gap-1 transition-colors px-2 py-0.5 rounded-lg bg-yellow-100 hover:bg-yellow-200 cursor-pointer"
+                      onClick={handleAddUnit}
+                      className="p-4 bg-yellow-100 text-yellow-600 rounded-2xl hover:bg-yellow-200 transition-colors"
+                      title="Adicionar nova unidade"
                     >
-                      <Plus size={12} />
-                      <span>Nova</span>
+                      <Plus size={20} />
                     </button>
                   </div>
-
-                  {showNewUnitInput && (
-                    <div className="flex items-center gap-2 p-2 bg-yellow-50 border border-yellow-200 rounded-2xl animate-fadeIn">
-                      <input
-                        type="text"
-                        autoFocus
-                        placeholder="Ex: Litro, Par, Caixa..."
-                        value={newUnitInput}
-                        onChange={e => setNewUnitInput(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleSaveNewUnit();
-                          }
-                        }}
-                        className="flex-1 px-3 py-2 bg-white border border-yellow-300 rounded-xl outline-none font-bold text-xs text-gray-800 shadow-inner focus:ring-2 focus:ring-yellow-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveNewUnit}
-                        className="px-3 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-xl font-black text-[10px] uppercase tracking-wider shadow-sm transition-all cursor-pointer"
-                      >
-                        Salvar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowNewUnitInput(false);
-                          setNewUnitInput('');
-                        }}
-                        className="p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-white transition-all cursor-pointer"
-                        title="Cancelar"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-
-                  <select 
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 focus:ring-2 focus:ring-yellow-400 transition-all"
-                    value={newMaterial.unit}
-                    onChange={e => setNewMaterial({...newMaterial, unit: e.target.value})}
-                  >
-                    {units.map(u => (
-                      <option key={u.value} value={u.value}>{u.label}</option>
-                    ))}
-                  </select>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Qtd Comprada</label>

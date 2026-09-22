@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 import { supabase } from '../supabaseClient';
-import { compressImage, formatBrazilianPhone, buildWhatsAppLink } from '../utils';
+import { compressImage } from '../utils';
 import { PWAInstallButton } from '../components/PWAInstallBanner';
 
 interface SettingsViewProps {
@@ -65,6 +65,62 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showNewPass, setShowNewPass] = useState(false);
   const [isUpdatingPass, setIsUpdatingPass] = useState(false);
   const [passMessage, setPassMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  // Estados para Integração com Mercado Pago (para cada usuário/artesão)
+  const [showMpToken, setShowMpToken] = useState(false);
+  const [isTestingMp, setIsTestingMp] = useState(false);
+  const [mpTestResult, setMpTestResult] = useState<{
+    success: boolean;
+    message: string;
+    account?: { email?: string; nickname?: string; isSandbox?: boolean };
+  } | null>(null);
+
+  const handleTestMercadoPago = async () => {
+    const token = companyData.mercadoPagoAccessToken?.trim();
+    if (!token) {
+      setMpTestResult({
+        success: false,
+        message: 'Por favor, insira o seu Access Token antes de testar a conexão.'
+      });
+      return;
+    }
+
+    setIsTestingMp(true);
+    setMpTestResult(null);
+
+    try {
+      const res = await fetch('/api/mercadopago/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+
+      const data = await res.json();
+      if (res.ok && data?.success) {
+        setMpTestResult({
+          success: true,
+          message: 'Conexão estabelecida com sucesso com sua conta Mercado Pago!',
+          account: {
+            email: data.email,
+            nickname: data.nickname,
+            isSandbox: data.isSandbox
+          }
+        });
+      } else {
+        setMpTestResult({
+          success: false,
+          message: data?.error || 'Não foi possível validar o token. Verifique se copiou o token de produção correto.'
+        });
+      }
+    } catch (err: any) {
+      setMpTestResult({
+        success: false,
+        message: 'Erro de rede ou servidor ao testar token.'
+      });
+    } finally {
+      setIsTestingMp(false);
+    }
+  };
 
   // Verificação de chaves suspeitas
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -263,143 +319,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
-                        <MessageCircle size={12} className="text-emerald-500" />
-                        WhatsApp de Contato (Recebimento de Pedidos)
-                      </label>
-                      {companyData.phone && (companyData.phone.replace(/\D/g, '').length >= 10) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const link = buildWhatsAppLink(companyData.phone, 'Olá! Teste de recebimento de pedidos no WhatsApp do ateliê.');
-                            if (link) window.open(link, '_blank');
-                          }}
-                          className="text-[9px] font-black uppercase tracking-wider text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-                          title="Abrir no WhatsApp para testar recebimento"
-                        >
-                          <ExternalLink size={10} /> Testar Link
-                        </button>
-                      )}
-                    </div>
-                    
-                    {(() => {
-                      const phoneDigits = (companyData.phone || '').replace(/\D/g, '');
-                      const cleanDigits = (phoneDigits.startsWith('55') && phoneDigits.length > 11) 
-                        ? phoneDigits.slice(2) 
-                        : phoneDigits;
-
-                      // Extrair DDD (até 2 dígitos) e número do celular (até 9 dígitos)
-                      const dddVal = cleanDigits.slice(0, 2);
-                      const numDigits = cleanDigits.slice(2, 11);
-                      const formattedNum = numDigits.length > 5 
-                        ? `${numDigits.slice(0, numDigits.length - 4)}-${numDigits.slice(numDigits.length - 4)}` 
-                        : numDigits;
-
-                      const updatePhone = (newDdd: string, newNumDigits: string) => {
-                        const cleanDdd = newDdd.replace(/\D/g, '').slice(0, 2);
-                        const cleanNum = newNumDigits.replace(/\D/g, '').slice(0, 9);
-                        const formatted = cleanNum.length > 5 
-                          ? `${cleanNum.slice(0, cleanNum.length - 4)}-${cleanNum.slice(cleanNum.length - 4)}` 
-                          : cleanNum;
-
-                        let fullPhone = '';
-                        if (cleanDdd && formatted) {
-                          fullPhone = `(${cleanDdd}) ${formatted}`;
-                        } else if (cleanDdd) {
-                          fullPhone = `(${cleanDdd})`;
-                        } else if (formatted) {
-                          fullPhone = formatted;
-                        }
-                        setCompanyData(prev => ({ ...prev, phone: fullPhone }));
-                      };
-
-                      const handleDddInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-                        const val = e.target.value.replace(/\D/g, '');
-                        // Se o usuário digitou ou colou um número longo no campo de DDD (ex: 66992442924)
-                        if (val.length > 2) {
-                          let p = val;
-                          if (p.startsWith('55') && p.length > 11) p = p.slice(2);
-                          updatePhone(p.slice(0, 2), p.slice(2, 11));
-                          return;
-                        }
-                        updatePhone(val, numDigits);
-                      };
-
-                      const handleNumInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-                        const val = e.target.value.replace(/\D/g, '');
-                        // Se o usuário digitou ou colou o número completo com DDD (ex: 10 ou 11 dígitos)
-                        if (val.length >= 10) {
-                          let p = val;
-                          if (p.startsWith('55') && p.length > 11) p = p.slice(2);
-                          updatePhone(p.slice(0, 2), p.slice(2, 11));
-                          return;
-                        }
-                        updatePhone(dddVal, val);
-                      };
-
-                      return (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            {/* DDI Brasil */}
-                            <div className="flex items-center gap-1 text-xs font-black text-gray-500 bg-gray-100 border border-gray-200 px-3 py-3.5 rounded-2xl select-none shrink-0" title="Código do Brasil (+55)">
-                              <span>🇧🇷</span>
-                              <span>+55</span>
-                            </div>
-
-                            {/* Campo DDD dedicado */}
-                            <div className="w-24 shrink-0 relative">
-                              <input 
-                                type="tel" 
-                                placeholder="DDD" 
-                                maxLength={2}
-                                className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-center text-gray-800 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all text-sm md:text-base" 
-                                value={dddVal} 
-                                onChange={handleDddInput}
-                                title="Código DDD da sua região (ex: 11, 21, 66)"
-                              />
-                              <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black uppercase tracking-wider text-gray-400 rounded pointer-events-none">
-                                DDD
-                              </span>
-                            </div>
-
-                            {/* Campo Número Celular */}
-                            <div className="flex-1 relative">
-                              <input 
-                                type="tel" 
-                                placeholder="99999-9999" 
-                                maxLength={10}
-                                className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all text-sm md:text-base" 
-                                value={formattedNum} 
-                                onChange={handleNumInput}
-                              />
-                              <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black uppercase tracking-wider text-gray-400 rounded pointer-events-none">
-                                Celular / WhatsApp
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Feedback de Validação */}
-                          {!cleanDigits ? (
-                            <p className="text-[10px] text-gray-400 font-semibold ml-1">
-                              Informe o DDD (ex: 66) e o número do celular para receber os pedidos pelo WhatsApp.
-                            </p>
-                          ) : dddVal.length < 2 ? (
-                            <p className="text-[10px] text-amber-600 font-bold ml-1 flex items-center gap-1 animate-fadeIn">
-                              ⚠️ Digite os 2 dígitos do DDD da sua região (ex: 11, 21, 66...).
-                            </p>
-                          ) : numDigits.length < 8 ? (
-                            <p className="text-[10px] text-amber-600 font-bold ml-1 flex items-center gap-1 animate-fadeIn">
-                              ⚠️ Digite o número completo do celular com 8 ou 9 dígitos.
-                            </p>
-                          ) : (
-                            <p className="text-[10px] text-emerald-600 font-bold ml-1 flex items-center gap-1 animate-fadeIn">
-                              ✓ WhatsApp +55 ({dddVal}) {formattedNum} configurado com sucesso!
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">WhatsApp de Contato (Recebimento de Pedidos)</label>
+                    <input type="text" placeholder="(99) 99999-9999" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800" value={companyData.phone} onChange={e => setCompanyData({...companyData, phone: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Subtítulo / Mensagem do Catálogo</label>
@@ -419,6 +340,212 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Cidade / Estado</label>
                     <input type="text" placeholder="Ex: São Paulo" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800" value={companyData.city || ''} onChange={e => setCompanyData({...companyData, city: e.target.value})} />
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pagamentos & Chave Pix do Catálogo */}
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-emerald-50 space-y-6">
+              <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+                <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest">
+                  <QrCode size={16} className="text-emerald-500" /> Pagamentos & Chave Pix do Catálogo
+                </h4>
+                <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
+                  Recebimento Direto
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tipo de Chave Pix</label>
+                  <select 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800 text-sm"
+                    value={companyData.pixKeyType || 'cpf'}
+                    onChange={e => setCompanyData({...companyData, pixKeyType: e.target.value as any})}
+                  >
+                    <option value="cpf">CPF</option>
+                    <option value="cnpj">CNPJ</option>
+                    <option value="phone">Telefone / Celular</option>
+                    <option value="email">E-mail</option>
+                    <option value="random">Chave Aleatória</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Chave Pix do Ateliê</label>
+                  <input 
+                    type="text" 
+                    placeholder="Digite sua chave Pix (ex: 11999999999 ou email@exemplo.com)" 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800 text-sm"
+                    value={companyData.pixKey || ''} 
+                    onChange={e => setCompanyData({...companyData, pixKey: e.target.value})} 
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100/70 text-xs text-emerald-900 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-emerald-800">
+                  <CreditCard size={14} className="text-emerald-600 shrink-0" />
+                  <span className="text-[11px] uppercase tracking-wider">Chave Pix Manual (Fallback)</span>
+                </div>
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  Caso seu cliente prefira pagar por Pix manual ou caso você ainda não tenha configurado o Mercado Pago abaixo, esta chave Pix será exibida para o cliente fazer a transferência direta.
+                </p>
+              </div>
+            </div>
+
+            {/* Integração Oficial com o Mercado Pago (Para cada usuário receber diretamente em sua conta) */}
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-blue-100 space-y-6">
+              <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center font-black">
+                    <CreditCard size={20} />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-gray-800 uppercase text-xs tracking-widest flex items-center gap-2">
+                      Integração Mercado Pago
+                      <span className="text-[9px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full lowercase">
+                        oficial
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-gray-400 font-medium">
+                      Receba pagamentos com baixa automática via Pix e Cartão de Crédito
+                    </p>
+                  </div>
+                </div>
+
+                <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full ${
+                  companyData.mercadoPagoAccessToken?.trim()
+                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}>
+                  {companyData.mercadoPagoAccessToken?.trim() ? '✓ Configurado' : 'Aguardando Configuração'}
+                </span>
+              </div>
+
+              <p className="text-xs text-gray-600 leading-relaxed">
+                Configure sua própria conta do Mercado Pago para que <strong>todos os pagamentos do seu Catálogo Online entrem diretamente na sua conta bancária</strong>. Quando o cliente pagar via Pix, o status do pedido é atualizado automaticamente!
+              </p>
+
+              <div className="space-y-4">
+                {/* Access Token Input */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-1">
+                      <span>Access Token do Mercado Pago</span>
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowMpToken(!showMpToken)}
+                      className="text-[11px] font-bold text-gray-400 hover:text-blue-600 flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      {showMpToken ? <EyeOff size={13} /> : <Eye size={13} />}
+                      <span>{showMpToken ? 'Ocultar' : 'Visualizar'}</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type={showMpToken ? "text" : "password"}
+                      placeholder="Cole aqui seu Access Token (inicia com APP_USR-...)" 
+                      className="w-full p-4 pr-12 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-mono font-bold text-gray-800 text-xs focus:border-blue-400 focus:bg-white transition-all"
+                      value={companyData.mercadoPagoAccessToken || ''} 
+                      onChange={e => {
+                        setCompanyData({ ...companyData, mercadoPagoAccessToken: e.target.value.trim() });
+                        setMpTestResult(null);
+                      }} 
+                    />
+                  </div>
+                  <p className="text-[10px] text-gray-400 ml-1">
+                    Use o <strong>Access Token de Produção</strong> da sua conta Mercado Pago para receber pagamentos reais.
+                  </p>
+                </div>
+
+                {/* Public Key (Opcional) */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">
+                    Chave Pública / Public Key (Opcional)
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="APP_USR-... ou TEST-..." 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-mono font-bold text-gray-800 text-xs focus:border-blue-400 focus:bg-white transition-all"
+                    value={companyData.mercadoPagoPublicKey || ''} 
+                    onChange={e => setCompanyData({ ...companyData, mercadoPagoPublicKey: e.target.value.trim() })} 
+                  />
+                </div>
+
+                {/* Botões de Ação */}
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <button 
+                    type="button"
+                    onClick={handleTestMercadoPago}
+                    disabled={isTestingMp || !companyData.mercadoPagoAccessToken?.trim()}
+                    className="py-3.5 px-6 bg-blue-600 hover:bg-blue-700 active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-blue-200 transition-all cursor-pointer"
+                  >
+                    {isTestingMp ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />
+                        <span>Validando Token...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck size={16} />
+                        <span>Testar Conexão com Mercado Pago</span>
+                      </>
+                    )}
+                  </button>
+
+                  <a 
+                    href="https://www.mercadopago.com.br/developers/panel/app" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="py-3.5 px-5 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-700 font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <span>Abrir Painel Mercado Pago Developers</span>
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
+
+                {/* Mensagem de Feedback do Teste */}
+                {mpTestResult && (
+                  <div className={`p-4 rounded-2xl border text-xs animate-fadeIn ${
+                    mpTestResult.success 
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                      : 'bg-red-50 border-red-200 text-red-900'
+                  }`}>
+                    <div className="flex items-start gap-2.5">
+                      {mpTestResult.success ? (
+                        <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle size={18} className="text-red-600 shrink-0 mt-0.5" />
+                      )}
+                      <div className="space-y-1">
+                        <p className="font-black text-xs">{mpTestResult.message}</p>
+                        {mpTestResult.account && (
+                          <div className="text-[11px] space-y-0.5 pt-1 text-emerald-800">
+                            <p><strong>Usuário:</strong> {mpTestResult.account.nickname || mpTestResult.account.email}</p>
+                            <p><strong>E-mail Mercado Pago:</strong> {mpTestResult.account.email}</p>
+                            <p><strong>Ambiente:</strong> {mpTestResult.account.isSandbox ? '🧪 Sandbox (Ambiente de Teste)' : '⚡ Produção (Valores Reais)'}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Guia Rápido Passo a Passo */}
+                <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100/70 text-xs text-blue-950 space-y-2">
+                  <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                    <Info size={14} className="text-blue-600 shrink-0" />
+                    <span className="text-[11px] uppercase tracking-wider">Como obter seu Access Token:</span>
+                  </div>
+                  <ol className="list-decimal list-inside text-[11px] text-blue-900/90 space-y-1 pl-1 leading-relaxed">
+                    <li>Acesse o <a href="https://www.mercadopago.com.br/developers/panel/app" target="_blank" rel="noopener noreferrer" className="underline font-bold text-blue-700 hover:text-blue-900">Painel do Mercado Pago Developers ↗</a>.</li>
+                    <li>Crie uma nova aplicação ou selecione sua aplicação existente.</li>
+                    <li>No menu lateral, clique em <strong>Credenciais de Produção</strong>.</li>
+                    <li>Copie o campo <strong>Access Token</strong> (que inicia com <code className="bg-white/80 px-1 py-0.5 rounded font-mono font-bold text-[10px]">APP_USR-...</code>) e cole no campo acima.</li>
+                    <li>Clique em <strong>Testar Conexão</strong> para confirmar que está tudo certo. O sistema salva automaticamente!</li>
+                  </ol>
                 </div>
               </div>
             </div>

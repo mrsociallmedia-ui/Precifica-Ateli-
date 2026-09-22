@@ -39,17 +39,6 @@ async function startServer() {
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
 
-    // Enable CORS for all API routes so mobile devices, Capacitor, and proxies communicate freely
-    app.use("/api", (req: Request, res: Response, next) => {
-      res.header("Access-Control-Allow-Origin", "*");
-      res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-      res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-mp-token");
-      if (req.method === "OPTIONS") {
-        return res.sendStatus(204);
-      }
-      next();
-    });
-
     // Log all requests with timestamp and details
     app.use((req, res, next) => {
       const start = Date.now();
@@ -73,22 +62,14 @@ async function startServer() {
       });
     });
 
-    // Helper to sanitize tokens removing quotes, Bearer prefix, and invisible zero-width unicode chars
-    const sanitizeToken = (raw?: string | null): string | null => {
-      if (!raw || typeof raw !== 'string') return null;
-      const clean = raw
-        .replace(/^Bearer\s+/i, '')
-        .replace(/["'`]/g, '')
-        .replace(/[\u200B-\u200D\uFEFF\u00A0\r\n\t]/g, '')
-        .trim();
-      return clean.length > 10 ? clean : null;
-    };
-
     // Helper to get sanitized Mercado Pago token (supports user-level custom token or system env fallback)
     const getMercadoPagoToken = (customToken?: string | null) => {
-      const cleanCustom = sanitizeToken(customToken);
-      if (cleanCustom) return cleanCustom;
-      return sanitizeToken(process.env.MERCADO_PAGO_ACCESS_TOKEN);
+      if (customToken && typeof customToken === 'string') {
+        const trimmed = customToken.trim();
+        if (trimmed.length > 10) return trimmed;
+      }
+      const token = process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim();
+      return token && token.length > 10 ? token : null;
     };
 
     // Mercado Pago Status Endpoint (allows checking specific user's token or global env)
@@ -113,85 +94,28 @@ async function startServer() {
           });
         }
 
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 12000);
+        const mpRes = await fetch("https://api.mercadopago.com/users/me", {
+          headers: { "Authorization": `Bearer ${finalToken}` }
+        });
 
-        try {
-          const mpRes = await fetch("https://api.mercadopago.com/users/me", {
-            headers: { 
-              "Authorization": `Bearer ${finalToken}`,
-              "User-Agent": "PrecificaAtelie/1.0",
-              "Accept": "application/json"
-            },
-            signal: controller.signal
+        const data: any = await mpRes.json();
+        if (!mpRes.ok) {
+          return res.status(400).json({ 
+            success: false, 
+            error: data.message || "Access Token inválido ou sem permissão. Verifique suas credenciais no Mercado Pago." 
           });
-          clearTimeout(timeout);
-
-          const text = await mpRes.text();
-          let data: any = {};
-          try {
-            data = JSON.parse(text);
-          } catch (e) {
-            console.warn("Mercado Pago response not JSON:", text.substring(0, 200));
-          }
-
-          if (!mpRes.ok) {
-            // Se users/me falhar por restrição de escopo ou política, tenta validar via payment_methods
-            try {
-              const pmRes = await fetch(`https://api.mercadopago.com/v1/payment_methods?access_token=${encodeURIComponent(finalToken)}`);
-              if (pmRes.ok) {
-                const methods = await pmRes.json();
-                if (Array.isArray(methods) && methods.length > 0) {
-                  return res.json({
-                    success: true,
-                    nickname: "Conta Ativa",
-                    email: "Credencial Válida",
-                    siteId: "MLB",
-                    isSandbox: finalToken.startsWith("TEST-")
-                  });
-                }
-              }
-            } catch (pmErr) {
-              console.warn("Fallback payment_methods falhou:", pmErr);
-            }
-
-            const rawMsg = data.message || (Array.isArray(data.cause) && data.cause[0]?.description) || data.error;
-            let friendlyError = "Access Token inválido ou não autorizado pelo Mercado Pago.";
-            if (rawMsg) {
-              if (rawMsg.includes("UNAUTHORIZED") || rawMsg.includes("unauthorized") || mpRes.status === 401 || mpRes.status === 403) {
-                friendlyError = "Token não autorizado ou expirado. Acesse 'Credenciais de Produção' no painel do Mercado Pago e copie o campo 'Access Token'.";
-              } else {
-                friendlyError = `Mercado Pago: ${rawMsg}`;
-              }
-            }
-            return res.status(400).json({ 
-              success: false, 
-              error: friendlyError,
-              status: mpRes.status
-            });
-          }
-
-          return res.json({
-            success: true,
-            id: data.id,
-            nickname: data.nickname,
-            email: data.email,
-            siteId: data.site_id,
-            isSandbox: finalToken.startsWith("TEST-")
-          });
-        } catch (fetchErr: any) {
-          clearTimeout(timeout);
-          if (fetchErr.name === 'AbortError') {
-            return res.status(504).json({
-              success: false,
-              error: "Tempo limite esgotado ao conectar aos servidores do Mercado Pago. Tente novamente."
-            });
-          }
-          throw fetchErr;
         }
+
+        res.json({
+          success: true,
+          id: data.id,
+          nickname: data.nickname,
+          email: data.email,
+          siteId: data.site_id,
+          isSandbox: finalToken.startsWith("TEST-")
+        });
       } catch (err: any) {
-        console.error("Erro no endpoint test-connection:", err);
-        return res.status(500).json({ 
+        res.status(500).json({ 
           success: false, 
           error: err.message || "Erro ao conectar com a API do Mercado Pago." 
         });
@@ -347,15 +271,13 @@ async function startServer() {
           });
         }
 
-        const { items, orderId, payer, returnUrl, catalogEmail } = req.body;
+        const { items, orderId, payer, returnUrl } = req.body;
         if (!items || !Array.isArray(items) || items.length === 0) {
           return res.status(400).json({ error: "Itens do pedido não fornecidos." });
         }
 
         const origin = req.headers.origin || req.headers.referer || "";
         const cleanOrigin = origin.startsWith("http") ? origin.replace(/\/$/, "") : "";
-        const safeOrderId = encodeURIComponent(String(orderId || ""));
-        const catalogParam = catalogEmail ? `&catalog=${encodeURIComponent(catalogEmail)}` : "";
 
         const prefPayload: any = {
           items: items.map((it: any) => ({
@@ -369,14 +291,14 @@ async function startServer() {
             email: (payer?.email?.trim() || "").includes("@") ? payer.email.trim() : "cliente.pedidos@gmail.com"
           },
           external_reference: String(orderId || ""),
-          statement_descriptor: "ATELIE"
+          statement_descriptor: "ATELIE PAPELARIA"
         };
 
-        if (cleanOrigin && cleanOrigin.startsWith("http")) {
+        if (cleanOrigin && cleanOrigin.startsWith("https")) {
           prefPayload.back_urls = {
-            success: `${cleanOrigin}/?order=${safeOrderId}${catalogParam}&payment=approved&status=approved`,
-            failure: `${cleanOrigin}/?order=${safeOrderId}${catalogParam}&payment=failure&status=rejected`,
-            pending: `${cleanOrigin}/?order=${safeOrderId}${catalogParam}&payment=pending&status=pending`
+            success: `${cleanOrigin}/?order=${orderId}&payment=success`,
+            failure: `${cleanOrigin}/?order=${orderId}&payment=failure`,
+            pending: `${cleanOrigin}/?order=${orderId}&payment=pending`
           };
           prefPayload.auto_return = "approved";
         }
@@ -408,60 +330,6 @@ async function startServer() {
       } catch (error: any) {
         console.warn("Aviso interno ao criar preferência do Mercado Pago:", error?.message || error);
         res.status(500).json({ error: error.message || "Erro interno ao processar link de pagamento." });
-      }
-    });
-
-    // Mercado Pago Check Payment Status by Order ID (external_reference)
-    app.get("/api/mercadopago/check-order-payment/:orderId", async (req: Request, res: Response) => {
-      try {
-        const customToken = (req.query.token as string) || (req.headers['x-mp-token'] as string);
-        const token = getMercadoPagoToken(customToken);
-        if (!token) {
-          return res.status(400).json({ error: "Mercado Pago não configurado." });
-        }
-
-        const rawOrderId = String(req.params.orderId || "");
-        const cleanOrderId = rawOrderId.replace(/#/g, '');
-
-        const searchUrl = `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(rawOrderId)}&sort=date_created&criteria=desc&limit=5`;
-        const mpResponse = await fetch(searchUrl, {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
-
-        const mpData: any = await mpResponse.json();
-        let results = mpData?.results || [];
-
-        if (results.length === 0 && cleanOrderId !== rawOrderId) {
-          const secondSearch = await fetch(`https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(cleanOrderId)}&sort=date_created&criteria=desc&limit=5`, {
-            headers: {
-              "Authorization": `Bearer ${token}`
-            }
-          });
-          const secondData: any = await secondSearch.json();
-          results = secondData?.results || [];
-        }
-
-        const approvedPayment = results.find((p: any) => p.status === "approved");
-        const latestPayment = approvedPayment || results[0];
-
-        if (!latestPayment) {
-          return res.json({ found: false, status: "pending" });
-        }
-
-        res.json({
-          found: true,
-          id: latestPayment.id,
-          status: latestPayment.status,
-          statusDetail: latestPayment.status_detail,
-          paymentType: latestPayment.payment_type_id,
-          transactionAmount: latestPayment.transaction_amount,
-          dateApproved: latestPayment.date_approved
-        });
-      } catch (error: any) {
-        console.warn("Aviso ao buscar pagamento por pedido no Mercado Pago:", error?.message || error);
-        res.status(500).json({ error: error.message || "Erro interno ao consultar pagamento do pedido." });
       }
     });
 
@@ -506,43 +374,6 @@ async function startServer() {
     app.post("/api/mercadopago/webhook", (req: Request, res: Response) => {
       console.log("Mercado Pago Webhook Event received:", req.query, req.body);
       res.status(200).send("OK");
-    });
-
-    // API Route: Buscar Dados Públicos do Catálogo Online (Empresa, Telefone WhatsApp, Produtos, etc.)
-    app.get("/api/catalog/data", async (req: Request, res: Response) => {
-      try {
-        const userEmail = req.query.userEmail;
-        if (!userEmail) {
-          return res.status(400).json({ error: "E-mail do ateliê é obrigatório." });
-        }
-        const normalizedEmail = String(userEmail).toLowerCase().trim();
-        const primarySupabaseUrl = process.env.VITE_SUPABASE_URL || 'https://scnjxuzapasdfgevegds.supabase.co';
-        const primarySupabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjbmp4dXphcGFzZGZnZXZlZ2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MDMzMzQsImV4cCI6MjA4NjQ3OTMzNH0.syp0Raq5x9q3zz8zNkhsKvcui62lNqEWZ95uKPsXwow';
-
-        const fetchRes = await fetch(`${primarySupabaseUrl}/rest/v1/user_data?user_email=eq.${encodeURIComponent(normalizedEmail)}&select=app_state`, {
-          headers: {
-            'apikey': primarySupabaseKey,
-            'Authorization': `Bearer ${primarySupabaseKey}`
-          }
-        });
-        if (fetchRes.ok) {
-          const data = await fetchRes.json();
-          if (Array.isArray(data) && data.length > 0 && data[0]?.app_state) {
-            const s = data[0].app_state;
-            return res.json({
-              company: s.craft_company || null,
-              products: s.craft_products || [],
-              materials: s.craft_materials || [],
-              platforms: s.craft_platforms || [],
-              projects: s.craft_projects || []
-            });
-          }
-        }
-        return res.json({ company: null, products: [] });
-      } catch (err: any) {
-        console.warn("Aviso ao buscar catálogo no servidor:", err);
-        return res.status(500).json({ error: err?.message || "Erro ao consultar catálogo." });
-      }
     });
 
     // API Route: Submeter Pedido do Catálogo Online (Automação de Cronograma + Financeiro)
@@ -627,28 +458,13 @@ async function startServer() {
 
         const itemsSummary = orderItems.map((i: any) => `${i.quantity || 1}x ${i.product?.name || i.name || 'Produto'}`).join(', ');
 
-        // Gerar ou validar número sequencial (#283, #284, ...)
-        let finalQuoteNumber = '';
-        if (orderNum && String(orderNum).match(/\d+/)) {
-          finalQuoteNumber = String(orderNum).replace(/\D/g, '');
-        } else {
-          const nums = craftProjects.map((p: any) => {
-            const onlyNums = String(p.quoteNumber || '').replace(/\D/g, '') || '0';
-            return parseInt(onlyNums, 10);
-          }).filter((n: number) => !isNaN(n) && n > 0);
-          const max = nums.length > 0 ? Math.max(...nums) : 0;
-          const nextNum = max < 283 ? 283 : max + 1;
-          finalQuoteNumber = nextNum.toString();
-        }
-        const formattedOrderNum = `#${finalQuoteNumber}`;
-
         const newProject = {
           id: projectId,
           name: `Pedido Catálogo: ${customerName.trim()}`,
           customerId: customerId,
           description: itemsSummary || 'Pedido realizado pelo Catálogo Online',
           observations: orderObservations ? String(orderObservations).trim() : '',
-          notes: `Origem: Catálogo Online • Pedido ${formattedOrderNum}\nModalidade: ${deliveryType === 'pickup' ? 'Retirada no Ateliê' : `Entrega: ${deliveryAddress || ''} ${deliveryNeighborhood ? `- ${deliveryNeighborhood}` : ''} ${deliveryCity ? `- ${deliveryCity}` : ''}`}\nPedido feito via WhatsApp (Pagamento a combinar)`,
+          notes: `Origem: Catálogo Online • Pedido ${orderNum || ''}\nModalidade: ${deliveryType === 'pickup' ? 'Retirada no Ateliê' : `Entrega: ${deliveryAddress || ''} ${deliveryNeighborhood ? `- ${deliveryNeighborhood}` : ''} ${deliveryCity ? `- ${deliveryCity}` : ''}`}\nPagamento: ${paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito'}`,
           items: orderItems.map((i: any) => ({
             productId: i.product?.id || i.productId,
             name: i.product?.name || i.name || 'Produto',
@@ -671,27 +487,27 @@ async function startServer() {
           theme: orderObservations ? String(orderObservations).trim().slice(0, 40) : 'Catálogo Online',
           celebrantName: customerName.trim(),
           celebrantAge: '',
-          quoteNumber: finalQuoteNumber,
-          paymentMethod: 'A Combinar (WhatsApp)',
-          paidAt: '',
+          quoteNumber: orderNum || `#PED-${Math.floor(1000 + Math.random() * 9000)}`,
+          paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
+          paidAt: now.toISOString(),
           hoursToMake: orderItems.reduce((acc: number, i: any) => acc + (((Number(i.product?.minutesToMake) || 60) / 60) * (Number(i.quantity) || 1)), 0),
           materials: [],
           profitMargin: 30,
           quantity: orderItems.reduce((acc: number, i: any) => acc + (Number(i.quantity) || 1), 0),
-          downPayment: 0
+          downPayment: Number(cartTotal) || 0
         };
 
-        // Criar Transação (Financeiro) - entra como PENDENTE (A Receber)
+        // Criar Transação (Financeiro)
         const transactionId = `tx_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
         const newTransaction = {
           id: transactionId,
-          description: `Pedido Catálogo - ${customerName.trim()} (${formattedOrderNum})`,
+          description: `Compra pelo Catálogo - ${customerName.trim()} (${orderNum || newProject.quoteNumber})`,
           amount: Number(cartTotal) || 0,
           type: 'income',
           category: 'Compra pelo Catálogo',
-          paymentMethod: 'A Combinar (WhatsApp)',
+          paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
           date: dateStr,
-          status: 'pending',
+          status: 'paid',
           projectId: projectId,
           customerId: customerId
         };
@@ -870,7 +686,6 @@ async function startServer() {
 
         const craftProjects = Array.isArray(appState.craft_projects) ? appState.craft_projects : [];
         const craftCustomers = Array.isArray(appState.craft_customers) ? appState.craft_customers : [];
-        const craftTransactions = Array.isArray(appState.craft_transactions) ? appState.craft_transactions : [];
 
         const cleanSearch = search.toLowerCase().replace(/[^a-z0-9]/g, '');
         const cleanPhoneSearch = search.replace(/\D/g, '');
@@ -920,27 +735,9 @@ async function startServer() {
         // Mapear para objeto de acompanhamento claro para o cliente
         const orders = matchedProjects.map((p: any) => {
           const cust = craftCustomers.find((c: any) => c.id === p.customerId);
-          const matchedTx = craftTransactions.find((t: any) => t.projectId === p.id);
-          
-          const mappedItems = Array.isArray(p.items) ? p.items.map((it: any) => {
-            const qty = Number(it.quantity) || Number(it.qty) || 1;
-            const unitPrice = Number(it.unitPrice) || Number(it.price) || Number(it.product?.marketPrice) || 0;
-            return {
-              name: it.name || it.product?.name || 'Produto',
-              quantity: qty,
-              price: unitPrice
-            };
-          }) : [];
-
-          const calculatedItemsSum = mappedItems.reduce((acc: number, it: any) => acc + (it.price * it.quantity), 0);
-          const finalTotal = Number(matchedTx?.amount) || calculatedItemsSum || Number(p.downPayment) || 0;
-
-          const rawQuote = p.quoteNumber || p.id;
-          const formattedQuote = rawQuote ? (String(rawQuote).startsWith('#') ? rawQuote : `#${rawQuote}`) : '#Pedido';
-
           return {
             id: p.id,
-            orderNum: formattedQuote,
+            orderNum: p.quoteNumber || p.id,
             date: p.orderDate || p.createdAt || new Date().toISOString(),
             createdAt: p.createdAt || p.orderDate,
             dueDate: p.dueDate || p.deliveryDate,
@@ -951,9 +748,13 @@ async function startServer() {
             description: p.description || '',
             notes: p.notes || '',
             observations: p.observations || '',
-            items: mappedItems,
-            total: finalTotal,
-            paymentMethod: matchedTx?.paymentMethod || p.paymentMethod || 'A Combinar',
+            items: Array.isArray(p.items) ? p.items.map((it: any) => ({
+              name: it.name || 'Produto',
+              quantity: it.quantity || 1,
+              price: it.unitPrice || 0
+            })) : [],
+            total: Number(p.downPayment) || 0,
+            paymentMethod: p.paymentMethod || 'Pix',
             paidAt: p.paidAt,
             customer: cust ? {
               name: cust.name,

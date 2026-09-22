@@ -140,64 +140,6 @@ export const clearStaleSupabaseAuth = () => {
   }
 };
 
-// Renovação ou reset seguro quando o token JWT expira (PGRST303)
-export const handleSupabaseExpiredJwt = async (): Promise<boolean> => {
-  if (!supabaseInstance || isMock) return false;
-  try {
-    console.log("🔄 Renovando sessão Supabase após detecção de JWT expirado...");
-    if (supabaseInstance.auth && typeof supabaseInstance.auth.refreshSession === 'function') {
-      const { data, error } = await supabaseInstance.auth.refreshSession();
-      if (!error && data?.session) {
-        console.log("✅ Sessão Supabase renovada com sucesso!");
-        return true;
-      }
-    }
-  } catch (e) {
-    console.warn("Aviso ao tentar refreshSession no Supabase:", e);
-  }
-
-  console.warn("⚠️ Não foi possível renovar sessão expirada via refresh. Limpando tokens obsoletos.");
-  clearStaleSupabaseAuth();
-  try {
-    if (supabaseInstance?.auth?.signOut) {
-      await supabaseInstance.auth.signOut({ scope: 'local' });
-    }
-  } catch {}
-  return false;
-};
-
-// Executor resiliente para consultas Supabase com auto-recuperação de JWT expirado (PGRST303)
-export const executeSupabaseWithRetry = async (
-  operation: () => Promise<any>
-): Promise<any> => {
-  if (!supabaseInstance || isMock) {
-    return operation();
-  }
-
-  let result = await operation();
-
-  const isJwtExpired = 
-    result && result.error && (
-      result.error.code === 'PGRST303' ||
-      result.error.message?.includes('JWT expired') ||
-      result.error.message?.includes('jwt expired') ||
-      String(result.error).includes('PGRST303')
-    );
-
-  if (isJwtExpired) {
-    console.warn("⚠️ JWT Supabase expirado (PGRST303) interceptado. Executando auto-recuperação...");
-    await handleSupabaseExpiredJwt();
-    // Reexecuta a operação com a sessão renovada ou no modo anon limpo
-    try {
-      result = await operation();
-    } catch (retryErr) {
-      result = { error: retryErr };
-    }
-  }
-
-  return result;
-};
-
 // Inicialização prioritária com as chaves reais fornecidas
 export let isMock = false;
 let supabaseInstance: any;
@@ -222,21 +164,6 @@ try {
         detectSessionInUrl: true,
       }
     });
-
-    // Tratar erro de refresh token expirado/revogado automaticamente
-    if (typeof window !== 'undefined') {
-      window.addEventListener('unhandledrejection', (event) => {
-        const reasonStr = String(event.reason?.message || event.reason || '');
-        if (reasonStr.includes('Refresh Token Not Found') || reasonStr.includes('Invalid Refresh Token')) {
-          console.warn("⚠️ Sessão Supabase expirada/inválida detectada. Limpando tokens obsoletos.");
-          clearStaleSupabaseAuth();
-          if (typeof event.preventDefault === 'function') {
-            event.preventDefault();
-          }
-        }
-      });
-    }
-
     isMock = false;
     console.log("🚀 Supabase: Conexão REAL ativa.", connectionDiagnostics);
   } else {

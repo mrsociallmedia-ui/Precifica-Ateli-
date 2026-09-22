@@ -97,62 +97,6 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
   const [installmentAmount, setInstallmentAmount] = useState<number | ''>('');
   const [frequency, setFrequency] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
 
-  const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
-  const [newCategoryInput, setNewCategoryInput] = useState('');
-  const [showNewMethodModal, setShowNewMethodModal] = useState(false);
-  const [newMethodInput, setNewMethodInput] = useState('');
-
-  const handleSaveNewCategory = (customName?: string) => {
-    const raw = (customName !== undefined ? customName : newCategoryInput).trim();
-    if (!raw) return;
-    const clean = raw.charAt(0).toUpperCase() + raw.slice(1);
-    if (!categories.includes(clean)) {
-      const updated = [...categories, clean];
-      setCategories(updated);
-      try {
-        const lastUser = localStorage.getItem('last_user_email') || '';
-        const userKey = lastUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-        if (userKey) {
-          localStorage.setItem(`${userKey}_craft_trans_categories`, JSON.stringify(updated));
-        }
-        localStorage.setItem('craft_trans_categories', JSON.stringify(updated));
-      } catch {}
-    }
-    setNewTransaction(prev => ({
-      ...prev,
-      category: clean,
-      isExchange: clean === 'Permuta',
-      type: clean === 'Permuta' ? 'income' : prev.type,
-      paymentMethod: clean === 'Permuta' ? 'Permuta' : prev.paymentMethod
-    }));
-    setNewCategoryInput('');
-    setShowNewCategoryModal(false);
-  };
-
-  const handleSaveNewMethod = (customName?: string) => {
-    const raw = (customName !== undefined ? customName : newMethodInput).trim();
-    if (!raw) return;
-    const clean = raw.charAt(0).toUpperCase() + raw.slice(1);
-    if (!paymentMethods.includes(clean)) {
-      const updated = [...paymentMethods, clean];
-      setPaymentMethods(updated);
-      try {
-        const lastUser = localStorage.getItem('last_user_email') || '';
-        const userKey = lastUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-        if (userKey) {
-          localStorage.setItem(`${userKey}_craft_pay_methods`, JSON.stringify(updated));
-        }
-        localStorage.setItem('craft_pay_methods', JSON.stringify(updated));
-      } catch {}
-    }
-    setNewTransaction(prev => ({
-      ...prev,
-      paymentMethod: clean
-    }));
-    setNewMethodInput('');
-    setShowNewMethodModal(false);
-  };
-
   const handlePartialPayment = (t: Transaction) => {
     setSelectedTransaction(t);
     setPartialAmount('');
@@ -1803,141 +1747,51 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                   </div>
                </div>
 
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between ml-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                        Categoria
-                      </label>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          setShowNewCategoryModal(prev => !prev);
-                          setShowNewMethodModal(false);
-                        }}
-                        className="text-blue-600 hover:text-blue-700 font-black text-[10px] uppercase tracking-wider flex items-center gap-1 transition-colors px-2 py-0.5 rounded-lg hover:bg-blue-50 cursor-pointer"
-                      >
-                        <PlusCircle size={12} />
-                        <span>Nova</span>
-                      </button>
-                    </div>
-
-                    {showNewCategoryModal && (
-                      <div className="flex items-center gap-2 p-2 bg-blue-50/80 border border-blue-200 rounded-2xl animate-fadeIn">
-                        <input
-                          type="text"
-                          autoFocus
-                          placeholder="Nome da categoria..."
-                          value={newCategoryInput}
-                          onChange={e => setNewCategoryInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleSaveNewCategory();
-                            }
-                          }}
-                          className="flex-1 px-3 py-2 bg-white border border-blue-300 rounded-xl outline-none font-bold text-xs text-gray-800 shadow-inner focus:ring-2 focus:ring-blue-400"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaveNewCategory()}
-                          className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider shadow-sm transition-all cursor-pointer"
-                        >
-                          Salvar
-                        </button>
-                        <button
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center justify-between">
+                       Categoria
+                       <button 
                           type="button"
                           onClick={() => {
-                            setShowNewCategoryModal(false);
-                            setNewCategoryInput('');
+                             const newCat = prompt('Digite o nome da nova categoria:');
+                             if (newCat && newCat.trim()) {
+                                const trimmed = newCat.trim();
+                                if (!categories.includes(trimmed)) {
+                                   setCategories([...categories, trimmed]);
+                                }
+                                setNewTransaction({
+                                   ...newTransaction, 
+                                   category: trimmed,
+                                   isExchange: trimmed === 'Permuta',
+                                   type: trimmed === 'Permuta' ? 'income' : newTransaction.type,
+                                   paymentMethod: trimmed === 'Permuta' ? 'Permuta' : newTransaction.paymentMethod
+                                });
+                             }
                           }}
-                          className="p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-white transition-all cursor-pointer"
-                          title="Cancelar"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    )}
-
-                    <select 
-                      className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 focus:ring-2 focus:ring-blue-400 transition-all" 
-                      value={newTransaction.category} 
-                      onChange={e => {
-                        const category = e.target.value;
-                        const isEx = category === 'Permuta';
-                        setNewTransaction({
-                          ...newTransaction, 
-                          category,
-                          isExchange: isEx ? true : newTransaction.isExchange,
-                          type: isEx ? 'income' : newTransaction.type,
-                          paymentMethod: isEx ? 'Permuta' : newTransaction.paymentMethod
-                        });
-                      }}
-                    >
+                          className="text-blue-500 hover:text-blue-600 flex items-center gap-1 transition-colors"
+                       >
+                          <PlusCircle size={10} />
+                          <span className="text-[8px]">Nova</span>
+                       </button>
+                    </label>
+                    <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700" value={newTransaction.category} onChange={e => {
+                      const category = e.target.value;
+                      const isEx = category === 'Permuta';
+                      setNewTransaction({
+                        ...newTransaction, 
+                        category,
+                        isExchange: isEx ? true : newTransaction.isExchange,
+                        type: isEx ? 'income' : newTransaction.type,
+                        paymentMethod: isEx ? 'Permuta' : newTransaction.paymentMethod
+                      });
+                    }}>
                        {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                   </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between ml-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                        Método
-                      </label>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          setShowNewMethodModal(prev => !prev);
-                          setShowNewCategoryModal(false);
-                        }}
-                        className="text-blue-600 hover:text-blue-700 font-black text-[10px] uppercase tracking-wider flex items-center gap-1 transition-colors px-2 py-0.5 rounded-lg hover:bg-blue-50 cursor-pointer"
-                      >
-                        <PlusCircle size={12} />
-                        <span>Novo</span>
-                      </button>
-                    </div>
-
-                    {showNewMethodModal && (
-                      <div className="flex items-center gap-2 p-2 bg-blue-50/80 border border-blue-200 rounded-2xl animate-fadeIn">
-                        <input
-                          type="text"
-                          autoFocus
-                          placeholder="Nome do método..."
-                          value={newMethodInput}
-                          onChange={e => setNewMethodInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleSaveNewMethod();
-                            }
-                          }}
-                          className="flex-1 px-3 py-2 bg-white border border-blue-300 rounded-xl outline-none font-bold text-xs text-gray-800 shadow-inner focus:ring-2 focus:ring-blue-400"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaveNewMethod()}
-                          className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider shadow-sm transition-all cursor-pointer"
-                        >
-                          Salvar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowNewMethodModal(false);
-                            setNewMethodInput('');
-                          }}
-                          className="p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-white transition-all cursor-pointer"
-                          title="Cancelar"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    )}
-
-                    <select 
-                      className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700 focus:ring-2 focus:ring-blue-400 transition-all" 
-                      value={newTransaction.paymentMethod} 
-                      onChange={e => setNewTransaction({...newTransaction, paymentMethod: e.target.value})}
-                    >
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Método</label>
+                    <select className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-700" value={newTransaction.paymentMethod} onChange={e => setNewTransaction({...newTransaction, paymentMethod: e.target.value})}>
                        {paymentMethods.map(pm => <option key={pm} value={pm}>{pm}</option>)}
                     </select>
                   </div>

@@ -106,19 +106,19 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   projectToEdit,
   onClearEditProject
 }) => {
-  // Lógica para gerar número sequencial do orçamento (iniciando em #283: #283, #284, #285...)
+  // Lógica para gerar número sequencial simples (1, 2, 3, 4...)
   const generateAutoQuoteNumber = () => {
-    const nums: number[] = [];
-    if (projects && projects.length > 0) {
-      projects.forEach(p => {
-        const onlyNums = String(p.quoteNumber || '').replace(/\D/g, '') || '0';
-        const parsed = parseInt(onlyNums, 10);
-        if (!isNaN(parsed) && parsed > 0) nums.push(parsed);
-      });
-    }
+    if (!projects || projects.length === 0) return '1';
+    
+    const nums = projects
+      .map(p => {
+        const onlyNums = p.quoteNumber?.replace(/\D/g, '') || '0';
+        return parseInt(onlyNums);
+      })
+      .filter(n => !isNaN(n));
+      
     const max = nums.length > 0 ? Math.max(...nums) : 0;
-    const nextNum = max < 283 ? 283 : max + 1;
-    return `#${nextNum}`;
+    return (max + 1).toString();
   };
 
   const getLocalDate = () => {
@@ -173,7 +173,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     theme: '',
     celebrantName: '',
     celebrantAge: '',
-    quoteNumber: generateAutoQuoteNumber(),
+    quoteNumber: '',
     orderDate: getLocalDate(),
     deliveryDate: '',
     deliveryTime: '',
@@ -204,10 +204,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     isExchange: false,
   };
 
-  const [currentProject, setCurrentProject] = useState<Partial<Project>>(() => ({
-    ...initialProjectState,
-    quoteNumber: generateAutoQuoteNumber()
-  }));
+  const [currentProject, setCurrentProject] = useState<Partial<Project>>(initialProjectState);
   const [showCatalog, setShowCatalog] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -654,19 +651,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       }
     }
     
-    setSearchTerm('');
-    if (newProj.status === 'completed') {
-      setStatusFilter('completed');
-    } else {
-      setStatusFilter('ongoing');
-    }
-
     resetForm();
-
-    setTimeout(() => {
-      const historyEl = document.getElementById('quotes-history');
-      if (historyEl) historyEl.scrollIntoView({ behavior: 'smooth' });
-    }, 150);
   };
 
   const formatDisplayDate = (dateStr?: string, timeStr?: string) => {
@@ -687,7 +672,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     const dateFormatted = formatDisplayDate(currentProject.deliveryDate, currentProject.deliveryTime);
 
     let message = `*Olá! Segue o Orçamento: ${companyData.name}*\n\n`;
-    if (currentProject.quoteNumber) message += `🔖 *Nº Orçamento:* #${String(currentProject.quoteNumber).replace(/^#/, '')}\n`;
+    if (currentProject.quoteNumber) message += `🔖 *Nº Orçamento:* #${currentProject.quoteNumber}\n`;
     message += `📝 *Pedido:* ${currentProject.theme}\n`;
     
     message += `\n*Itens:*\n`;
@@ -1038,28 +1023,13 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
   const filteredHistory = useMemo(() => {
     return projects.filter(p => {
-      const term = (searchTerm || '').trim().toLowerCase();
-      const themeStr = String(p.theme || p.name || '').toLowerCase();
-      const celebStr = String(p.celebrantName || '').toLowerCase();
-      const quoteStr = String(p.quoteNumber || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const cleanSearch = term.replace(/[^a-z0-9]/g, '');
-
-      const matchesSearch = !term || 
-        themeStr.includes(term) || 
-        celebStr.includes(term) || 
-        (cleanSearch && quoteStr.includes(cleanSearch));
-
+      const matchesSearch = p.theme?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          p.celebrantName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          p.quoteNumber?.toLowerCase().includes(searchTerm.toLowerCase());
       if (statusFilter === 'ongoing') return matchesSearch && p.status !== 'completed';
       if (statusFilter === 'completed') return matchesSearch && p.status === 'completed';
       return matchesSearch;
-    }).sort((a, b) => {
-      const dateA = new Date(a.createdAt || a.orderDate || 0).getTime();
-      const dateB = new Date(b.createdAt || b.orderDate || 0).getTime();
-      if (dateB !== dateA) return dateB - dateA;
-      const numA = parseInt(String(a.quoteNumber || '').replace(/\D/g, '') || '0', 10);
-      const numB = parseInt(String(b.quoteNumber || '').replace(/\D/g, '') || '0', 10);
-      return numB - numA;
-    });
+    }).sort((a, b) => parseInt(b.quoteNumber || '0') - parseInt(a.quoteNumber || '0'));
   }, [projects, searchTerm, statusFilter]);
 
   const statusLabels: Record<string, string> = {
@@ -1084,13 +1054,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       {!isFormOpen && !currentProject.id && (
         <div className="flex justify-center py-10 animate-fadeIn">
           <button 
-            onClick={() => {
-              setCurrentProject(prev => ({
-                ...prev,
-                quoteNumber: prev.quoteNumber ? (prev.quoteNumber.startsWith('#') ? prev.quoteNumber : `#${prev.quoteNumber}`) : generateAutoQuoteNumber()
-              }));
-              setIsFormOpen(true);
-            }}
+            onClick={() => setIsFormOpen(true)}
             className="bg-pink-500 hover:bg-pink-600 text-white font-black px-12 py-8 rounded-[3rem] flex items-center gap-6 transition-all shadow-2xl hover:scale-105 active:scale-95 group border-4 border-pink-400/20"
           >
             <div className="p-4 bg-white/20 rounded-[1.5rem] group-hover:rotate-90 transition-transform">
@@ -1114,7 +1078,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 <div>
                   <h2 className="text-3xl font-black text-gray-800 tracking-tight">
                     {currentProject.id ? 'Editando Orçamento' : 'Novo Orçamento'} 
-                    {currentProject.quoteNumber && <span className="text-pink-500 ml-2">#{String(currentProject.quoteNumber).replace(/^#/, '')}</span>}
+                    {currentProject.quoteNumber && <span className="text-pink-500 ml-2">#{currentProject.quoteNumber}</span>}
                   </h2>
                   <p className="text-gray-400 font-medium text-sm">Monte o pedido e visualize os lucros em tempo real.</p>
                 </div>
@@ -1934,7 +1898,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       )}
 
       {/* HISTÓRICO DE ORÇAMENTOS - MOVIDO PARA BAIXO DO FORMULÁRIO */}
-      <div id="quotes-history" className="space-y-8 animate-fadeIn border-t border-gray-100 pt-16">
+      <div className="space-y-8 animate-fadeIn border-t border-gray-100 pt-16">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
           <div className="flex flex-col gap-1">
              <h2 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-2">
@@ -1968,7 +1932,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                    </span>
                    {proj.quoteNumber && (
                       <span className="bg-pink-50 text-pink-500 px-3 py-1 rounded-xl text-[9px] font-black uppercase text-center flex-1 md:flex-none">
-                         #{String(proj.quoteNumber).replace(/^#/, '')}
+                         #{proj.quoteNumber}
                       </span>
                    )}
                 </div>

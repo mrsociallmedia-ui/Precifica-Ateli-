@@ -18,7 +18,6 @@ import {
   FileText
 } from 'lucide-react';
 import { CompanyData } from '../types';
-import { buildWhatsAppLink } from '../utils';
 
 interface OrderTrackItem {
   id: string;
@@ -81,27 +80,17 @@ export const CatalogTrackingModal: React.FC<CatalogTrackingModalProps> = ({
         try {
           const localOrders = JSON.parse(localStorage.getItem('my_online_orders') || '[]');
           if (localOrders.length > 0) {
-            setOrders(localOrders.map((o: any) => {
-              const mappedItems = (o.items || []).map((it: any) => ({
-                name: it.name || it.product?.name || 'Produto',
-                quantity: Number(it.quantity) || Number(it.qty) || 1,
-                price: Number(it.price) || Number(it.unitPrice) || 0
-              }));
-              const itemsTotal = mappedItems.reduce((acc: number, it: any) => acc + (it.price * it.quantity), 0);
-              const finalTotal = Number(o.total) || itemsTotal || 0;
-
-              return {
-                id: o.orderNum,
-                orderNum: o.orderNum,
-                date: o.date,
-                status: 'pending',
-                celebrantName: o.customerName,
-                items: mappedItems,
-                total: finalTotal,
-                paymentMethod: o.paymentMethod || 'A Combinar',
-                notes: o.deliveryType === 'pickup' ? 'Retirada no Ateliê' : 'Entrega no Endereço'
-              };
-            }));
+            setOrders(localOrders.map((o: any) => ({
+              id: o.orderNum,
+              orderNum: o.orderNum,
+              date: o.date,
+              status: 'pending',
+              celebrantName: o.customerName,
+              items: o.items || [],
+              total: o.total,
+              paymentMethod: o.paymentMethod,
+              notes: o.deliveryType === 'pickup' ? 'Retirada no Ateliê' : 'Entrega no Endereço'
+            })));
             setSearched(true);
           }
         } catch (e) {}
@@ -146,27 +135,17 @@ export const CatalogTrackingModal: React.FC<CatalogTrackingModalProps> = ({
       });
 
       if (matched.length > 0) {
-        setOrders(matched.map((o: any) => {
-          const mappedItems = (o.items || []).map((it: any) => ({
-            name: it.name || it.product?.name || 'Produto',
-            quantity: Number(it.quantity) || Number(it.qty) || 1,
-            price: Number(it.price) || Number(it.unitPrice) || 0
-          }));
-          const itemsTotal = mappedItems.reduce((acc: number, it: any) => acc + (it.price * it.quantity), 0);
-          const finalTotal = Number(o.total) || itemsTotal || 0;
-
-          return {
-            id: o.orderNum,
-            orderNum: o.orderNum,
-            date: o.date,
-            status: 'pending',
-            celebrantName: o.customerName,
-            items: mappedItems,
-            total: finalTotal,
-            paymentMethod: o.paymentMethod || 'A Combinar',
-            notes: o.deliveryType === 'pickup' ? 'Retirada no Ateliê' : 'Entrega no Endereço'
-          };
-        }));
+        setOrders(matched.map((o: any) => ({
+          id: o.orderNum,
+          orderNum: o.orderNum,
+          date: o.date,
+          status: 'pending',
+          celebrantName: o.customerName,
+          items: o.items || [],
+          total: o.total,
+          paymentMethod: o.paymentMethod,
+          notes: o.deliveryType === 'pickup' ? 'Retirada no Ateliê' : 'Entrega no Endereço'
+        })));
         setLoading(false);
         return;
       }
@@ -221,16 +200,16 @@ export const CatalogTrackingModal: React.FC<CatalogTrackingModalProps> = ({
   };
 
   const openWhatsAppForOrder = (order: OrderTrackItem) => {
-    if (!companyData?.phone) {
+    const ateliePhone = companyData?.phone?.replace(/\D/g, '') || '';
+    if (!ateliePhone) {
       alert("Número de WhatsApp do ateliê não encontrado.");
       return;
     }
 
-    const text = `Olá ${companyData?.name || 'Ateliê'}! Gostaria de acompanhar o andamento do meu pedido *${order.orderNum}* (Cliente: ${order.celebrantName || order.customerName || 'Cliente'}). Como está a confecção?`;
-    const url = buildWhatsAppLink(companyData.phone, text);
-    if (url) {
-      window.open(url, '_blank');
-    }
+    const text = encodeURIComponent(
+      `Olá ${companyData?.name || 'Ateliê'}! Gostaria de acompanhar o andamento do meu pedido *${order.orderNum}* (Cliente: ${order.celebrantName || order.customerName || 'Cliente'}). Como está a confecção?`
+    );
+    window.open(`https://wa.me/${ateliePhone}?text=${text}`, '_blank');
   };
 
   return (
@@ -430,53 +409,22 @@ export const CatalogTrackingModal: React.FC<CatalogTrackingModalProps> = ({
                     {/* Itens do Pedido */}
                     {order.items && order.items.length > 0 && (
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                            Itens do Pedido ({order.items.length})
-                          </span>
-                          {order.total && order.total > 0 ? (
-                            <span className="text-xs font-black text-pink-600">
-                              Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total)}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden text-xs bg-gray-50/50">
-                          {order.items.map((item, itIdx) => {
-                            const qty = Number(item.quantity) || Number((item as any).qty) || 1;
-                            const unitPrice = Number(item.price) || Number((item as any).unitPrice) || 0;
-                            const itemTotal = unitPrice > 0 ? unitPrice * qty : (order.items?.length === 1 && order.total ? order.total : 0);
-
-                            return (
-                              <div key={itIdx} className="p-3 px-3.5 flex justify-between items-center bg-white hover:bg-pink-50/30 transition-colors">
-                                <div className="flex items-center gap-2.5">
-                                  <span className="inline-flex items-center justify-center px-2 py-0.5 bg-pink-100/80 text-pink-700 rounded-lg font-black text-xs">
-                                    {qty}x
-                                  </span>
-                                  <span className="font-bold text-gray-800 text-xs">
-                                    {item.name}
-                                  </span>
-                                </div>
-                                <div className="text-right">
-                                  {itemTotal > 0 ? (
-                                    <div className="flex flex-col items-end">
-                                      <span className="font-black text-gray-800 text-xs">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(itemTotal)}
-                                      </span>
-                                      {qty > 1 && unitPrice > 0 && (
-                                        <span className="text-[10px] text-gray-400 font-medium">
-                                          ({new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(unitPrice)} un.)
-                                        </span>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-[11px] font-bold text-gray-400">
-                                      R$ 0,00
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                          Itens do Pedido ({order.items.length})
+                        </span>
+                        <div className="divide-y divide-gray-50 border border-gray-100 rounded-2xl overflow-hidden text-xs">
+                          {order.items.map((item, itIdx) => (
+                            <div key={itIdx} className="p-2.5 px-3 flex justify-between items-center bg-white">
+                              <span className="font-bold text-gray-800">
+                                {item.quantity}x {item.name}
+                              </span>
+                              {item.price ? (
+                                <span className="font-black text-gray-600">
+                                  R$ {(item.price * item.quantity).toFixed(2)}
+                                </span>
+                              ) : null}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}

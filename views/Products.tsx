@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { generateContent } from '../lib/gemini';
 import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
-import { calculateProjectBreakdown, getMLRange, compressImage, buildWhatsAppLink } from '../utils';
+import { calculateProjectBreakdown, getMLRange, compressImage } from '../utils';
 
 declare const html2canvas: any;
 
@@ -179,10 +179,7 @@ export const Products: React.FC<ProductsProps> = ({
       });
       message += `\n*TOTAL: R$ ${cartTotal.toFixed(2)}*`;
       
-      const whatsappUrl = buildWhatsAppLink(companyData.phone, message);
-      if (whatsappUrl) {
-        window.open(whatsappUrl, '_blank');
-      }
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
       setCart([]);
       setIsCartOpen(false);
     } catch (err) {
@@ -466,81 +463,45 @@ export const Products: React.FC<ProductsProps> = ({
     setKitPackagingCost(0);
   };
 
-  const [showCatInput, setShowCatInput] = useState(false);
-  const [catInputName, setCatInputName] = useState('');
-  const [editingCatOldName, setEditingCatOldName] = useState<string | null>(null);
-
-  const handleOpenAddCategory = () => {
-    setEditingCatOldName(null);
-    setCatInputName('');
-    setShowCatInput(true);
-  };
-
-  const handleOpenEditCategory = (oldName: string) => {
-    if (oldName === 'Geral') return;
-    setEditingCatOldName(oldName);
-    setCatInputName(oldName);
-    setShowCatInput(true);
-  };
-
-  const handleSaveCategoryForm = () => {
-    const trimmedName = catInputName.trim();
-    if (!trimmedName) return;
-
-    if (editingCatOldName) {
-      if (trimmedName !== editingCatOldName && productCategories.includes(trimmedName)) {
-        return;
-      }
-      setProductCategories(prev => {
-        const updated = prev.map(c => c === editingCatOldName ? trimmedName : c);
-        try {
-          const lastUser = localStorage.getItem('last_user_email') || '';
-          const userKey = lastUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-          if (userKey) localStorage.setItem(`${userKey}_craft_prod_categories`, JSON.stringify(updated));
-          localStorage.setItem('craft_prod_categories', JSON.stringify(updated));
-        } catch {}
-        return updated;
-      });
-      setProducts(prev => prev.map(p => p.category === editingCatOldName ? { ...p, category: trimmedName } : p));
-      if (newProduct.category === editingCatOldName) {
+  const handleAddCategory = () => {
+    const name = prompt("Digite o nome da nova categoria:");
+    if (name) {
+      const trimmedName = name.trim();
+      if (trimmedName && !productCategories.includes(trimmedName)) {
+        setProductCategories(prev => [...prev, trimmedName]);
         setNewProduct(prev => ({ ...prev, category: trimmedName }));
+      } else if (productCategories.includes(trimmedName)) {
+        alert("Esta categoria já existe.");
       }
-    } else {
-      if (!productCategories.includes(trimmedName)) {
-        setProductCategories(prev => {
-          const updated = [...prev, trimmedName];
-          try {
-            const lastUser = localStorage.getItem('last_user_email') || '';
-            const userKey = lastUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-            if (userKey) localStorage.setItem(`${userKey}_craft_prod_categories`, JSON.stringify(updated));
-            localStorage.setItem('craft_prod_categories', JSON.stringify(updated));
-          } catch {}
-          return updated;
-        });
-      }
-      setNewProduct(prev => ({ ...prev, category: trimmedName }));
     }
+  };
 
-    setShowCatInput(false);
-    setCatInputName('');
-    setEditingCatOldName(null);
+  const handleEditCategory = (oldName: string) => {
+    if (oldName === 'Geral') return alert("A categoria 'Geral' não pode ser editada.");
+    const newName = prompt("Digite o novo nome para a categoria:", oldName);
+    if (newName) {
+      const trimmedName = newName.trim();
+      if (trimmedName && trimmedName !== oldName) {
+        if (productCategories.includes(trimmedName)) {
+          return alert("Já existe uma categoria com este nome.");
+        }
+        setProductCategories(prev => prev.map(c => c === oldName ? trimmedName : c));
+        setProducts(prev => prev.map(p => p.category === oldName ? { ...p, category: trimmedName } : p));
+        if (newProduct.category === oldName) {
+          setNewProduct(prev => ({ ...prev, category: trimmedName }));
+        }
+      }
+    }
   };
 
   const handleDeleteCategory = (name: string) => {
-    if (name === 'Geral') return;
-    setProductCategories(prev => {
-      const updated = prev.filter(c => c !== name);
-      try {
-        const lastUser = localStorage.getItem('last_user_email') || '';
-        const userKey = lastUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-        if (userKey) localStorage.setItem(`${userKey}_craft_prod_categories`, JSON.stringify(updated));
-        localStorage.setItem('craft_prod_categories', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-    setProducts(prev => prev.map(p => p.category === name ? { ...p, category: 'Geral' } : p));
-    if (newProduct.category === name) {
-      setNewProduct(prev => ({ ...prev, category: 'Geral' }));
+    if (name === 'Geral') return alert("A categoria 'Geral' não pode ser excluída.");
+    if (confirm(`Deseja excluir a categoria "${name}"? Os produtos desta categoria serão movidos para "Geral".`)) {
+      setProductCategories(prev => prev.filter(c => c !== name));
+      setProducts(prev => prev.map(p => p.category === name ? { ...p, category: 'Geral' } : p));
+      if (newProduct.category === name) {
+        setNewProduct(prev => ({ ...prev, category: 'Geral' }));
+      }
     }
   };
 
@@ -844,8 +805,8 @@ export const Products: React.FC<ProductsProps> = ({
                                 <div className="flex gap-2">
                                   <button 
                                     type="button"
-                                    onClick={handleOpenAddCategory}
-                                    className="text-[9px] font-black text-pink-500 uppercase tracking-widest hover:text-pink-600 flex items-center gap-1 cursor-pointer"
+                                    onClick={handleAddCategory}
+                                    className="text-[9px] font-black text-pink-500 uppercase tracking-widest hover:text-pink-600 flex items-center gap-1"
                                   >
                                     <Plus size={10} /> Nova
                                   </button>
@@ -853,15 +814,15 @@ export const Products: React.FC<ProductsProps> = ({
                                     <>
                                       <button 
                                         type="button"
-                                        onClick={() => handleOpenEditCategory(newProduct.category!)}
-                                        className="text-[9px] font-black text-blue-500 uppercase tracking-widest hover:text-blue-600 flex items-center gap-1 cursor-pointer"
+                                        onClick={() => handleEditCategory(newProduct.category!)}
+                                        className="text-[9px] font-black text-blue-500 uppercase tracking-widest hover:text-blue-600 flex items-center gap-1"
                                       >
                                         <Edit3 size={10} /> Editar
                                       </button>
                                       <button 
                                         type="button"
                                         onClick={() => handleDeleteCategory(newProduct.category!)}
-                                        className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:text-red-600 flex items-center gap-1 cursor-pointer"
+                                        className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:text-red-600 flex items-center gap-1"
                                       >
                                         <Trash2 size={10} /> Excluir
                                       </button>
@@ -869,44 +830,7 @@ export const Products: React.FC<ProductsProps> = ({
                                   )}
                                 </div>
                               </div>
-                              {showCatInput && (
-                                <div className="flex items-center gap-2 p-2 bg-pink-50/80 border border-pink-200 rounded-2xl animate-fadeIn">
-                                  <input
-                                    type="text"
-                                    autoFocus
-                                    placeholder={editingCatOldName ? "Novo nome da categoria..." : "Nome da nova categoria..."}
-                                    value={catInputName}
-                                    onChange={e => setCatInputName(e.target.value)}
-                                    onKeyDown={e => {
-                                      if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        handleSaveCategoryForm();
-                                      }
-                                    }}
-                                    className="flex-1 px-3 py-2 bg-white border border-pink-300 rounded-xl outline-none font-bold text-xs text-gray-800 shadow-inner focus:ring-2 focus:ring-pink-400"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={handleSaveCategoryForm}
-                                    className="px-3 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider shadow-sm transition-all cursor-pointer"
-                                  >
-                                    Salvar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setShowCatInput(false);
-                                      setCatInputName('');
-                                      setEditingCatOldName(null);
-                                    }}
-                                    className="p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-white transition-all cursor-pointer"
-                                    title="Cancelar"
-                                  >
-                                    <X size={14} />
-                                  </button>
-                                </div>
-                              )}
-                              <select className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 focus:ring-2 focus:ring-pink-400 transition-all" value={newProduct.category} onChange={e => setNewProduct({...newProduct, category: e.target.value})}>
+                              <select className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" value={newProduct.category} onChange={e => setNewProduct({...newProduct, category: e.target.value})}>
                                 {productCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                               </select>
                            </div>
@@ -1831,8 +1755,7 @@ export const Products: React.FC<ProductsProps> = ({
                               <button 
                                 onClick={() => {
                                   const message = `Olá! Tenho interesse no produto: *${p.name}* do seu catálogo.`;
-                                  const url = buildWhatsAppLink(companyData.phone, message);
-                                  if (url) window.open(url, '_blank');
+                                  window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
                                 }}
                                 className="bg-green-500 text-white p-3 rounded-2xl hover:bg-green-600 transition-all shadow-lg shadow-green-100"
                               >
@@ -1971,8 +1894,7 @@ export const Products: React.FC<ProductsProps> = ({
                         <button 
                           onClick={() => {
                             const message = `Olá! Tenho interesse no produto: *${selectedProductPreview.name}* do seu catálogo.`;
-                            const url = buildWhatsAppLink(companyData.phone, message);
-                            if (url) window.open(url, '_blank');
+                            window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
                           }}
                           className="py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-green-100 hover:bg-green-600 transition-all active:scale-95"
                         >
