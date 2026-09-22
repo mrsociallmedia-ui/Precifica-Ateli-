@@ -22,7 +22,6 @@ export interface Customer {
   cpf?: string;
   city?: string;
   complement?: string;
-  observations?: string;
 }
 
 export interface CatalogCustomerProfile {
@@ -85,17 +84,6 @@ export interface CompanyData {
   defaultExcedente: number;
   shopeeSellerType?: 'cnpj' | 'cpf_no_fee' | 'cpf_with_fee';
   monthlyGoals?: MonthlyGoal[];
-  pixKey?: string;
-  pixKeyType?: 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
-  pixBeneficiaryName?: string;
-  bankName?: string;
-  bankAgency?: string;
-  bankAccount?: string;
-  bankAccountType?: 'corrente' | 'poupanca';
-  paymentLink?: string; // Link Mercado Pago / InfinitePay / PagSeguro / Nubank
-  mercadoPagoAccessToken?: string; // Access Token de Produção ou Teste (APP_USR-... ou TEST-...)
-  mercadoPagoPublicKey?: string; // Chave Pública do Mercado Pago
-  mercadoPagoEnabled?: boolean; // Se pagamentos automáticos do MP estão ativados
   instagram?: string;
   city?: string;
   catalogSubtitle?: string;

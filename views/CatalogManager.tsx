@@ -18,17 +18,13 @@ import {
   MessageCircle,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  CreditCard
+  AlertCircle
 } from 'lucide-react';
-import { Project, Product, Transaction, CompanyData, Customer, Material, Platform } from '../types';
-import { calculateProjectBreakdown } from '../utils';
+import { Project, Product, Transaction, CompanyData, Customer } from '../types';
 
 interface CatalogManagerProps {
   currentUser: string;
   companyData: CompanyData;
-  materials?: Material[];
-  platforms?: Platform[];
   products: Product[];
   projects: Project[];
   transactions: Transaction[];
@@ -40,8 +36,6 @@ interface CatalogManagerProps {
 export const CatalogManager: React.FC<CatalogManagerProps> = ({
   currentUser,
   companyData,
-  materials = [],
-  platforms = [],
   products,
   projects,
   transactions,
@@ -58,45 +52,11 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
   const baseUrl = typeof window !== 'undefined' ? (window.location.origin + window.location.pathname) : '';
   const catalogUrl = `${baseUrl}?catalog=${encodeURIComponent(currentUser || '')}`;
 
-  // Helper para calcular o valor total real do pedido do catálogo
-  const getOrderTotal = (order: Project) => {
-    // 1. Calcular decomposição completa de preço do projeto
-    try {
-      const breakdown = calculateProjectBreakdown(order, materials, platforms, companyData, transactions);
-      if (breakdown && breakdown.finalPrice > 0) {
-        return breakdown.finalPrice;
-      }
-    } catch {}
-
-    // 2. Somatório direto dos itens do pedido (preço unitário * quantidade)
-    if (order.items && order.items.length > 0) {
-      const itemsTotal = order.items.reduce((acc, it) => {
-        const unit = Number(it.unitPrice || 0);
-        const qty = Number(it.quantity || 1);
-        return acc + (unit * qty);
-      }, 0);
-      if (itemsTotal > 0) return itemsTotal;
-    }
-
-    // 3. Buscar na lista de transações financeiras vinculadas ao projeto
-    const tx = transactions.find(t => 
-      t.projectId === order.id || 
-      (order.quoteNumber && t.description && t.description.includes(String(order.quoteNumber)))
-    );
-    if (tx && tx.amount > 0) return tx.amount;
-
-    // 4. Se houver valor cadastrado em downPayment
-    if (order.downPayment && order.downPayment > 0) return order.downPayment;
-
-    return 0;
-  };
-
   // Filtrar pedidos que vieram do catálogo online
   const catalogOrders = projects.filter(p => 
-    (p.quoteNumber && String(p.quoteNumber).startsWith('#PED-')) ||
+    (p.quoteNumber && p.quoteNumber.startsWith('#PED-')) ||
     (p.notes && p.notes.toLowerCase().includes('catálogo')) ||
-    (p.name && p.name.toLowerCase().includes('catálogo')) ||
-    (p.theme && p.theme.toLowerCase().includes('catálogo'))
+    (p.name && p.name.toLowerCase().includes('catálogo'))
   ).sort((a, b) => new Date(b.createdAt || b.orderDate).getTime() - new Date(a.createdAt || a.orderDate).getTime());
 
   // Filtrar transações financeiras do catálogo
@@ -107,8 +67,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
 
   const totalCatalogRevenue = catalogTransactions
     .filter(t => t.type === 'income')
-    .reduce((acc, t) => acc + t.amount, 0) ||
-    catalogOrders.reduce((acc, o) => acc + getOrderTotal(o), 0);
+    .reduce((acc, t) => acc + t.amount, 0);
 
   const catalogProducts = products.filter(p => p.showInCatalog !== false);
 
@@ -345,7 +304,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-xs font-black text-pink-600 bg-pink-50 px-2 py-0.5 rounded-md border border-pink-100">
-                              {order.quoteNumber ? `#${String(order.quoteNumber).replace(/^#/, '')}` : order.id.slice(0, 8)}
+                              {order.quoteNumber || order.id.slice(0, 8)}
                             </span>
                             <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${badge.className}`}>
                               {badge.label}
@@ -368,7 +327,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                         <div className="text-right">
                           <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">Total</span>
                           <span className="text-base font-black text-emerald-600">
-                            R$ {getOrderTotal(order).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {(order.downPayment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
                       </div>
@@ -447,52 +406,10 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 <span className="text-gray-400 font-bold">WhatsApp p/ Pedidos:</span>
                 <span className="font-black text-gray-800">{companyData?.phone || 'Não configurado'}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-gray-50">
-                <span className="text-gray-400 font-bold">Chave Pix:</span>
-                <span className="font-black text-emerald-600 truncate max-w-[200px]">{companyData?.pixKey || 'Não cadastrada'}</span>
-              </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
-                <span className="text-gray-400 font-bold">Mercado Pago:</span>
-                {companyData?.mercadoPagoAccessToken?.trim() ? (
-                  <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
-                    ✓ Conectado
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => onNavigate('settings')}
-                    className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-0.5 rounded-full border border-blue-200 cursor-pointer transition-colors"
-                  >
-                    + Conectar
-                  </button>
-                )}
-              </div>
               <div className="flex justify-between py-1.5">
                 <span className="text-gray-400 font-bold">Itens Visíveis:</span>
                 <span className="font-black text-pink-600">{catalogProducts.length} produtos</span>
               </div>
-            </div>
-
-            {/* Banner Mercado Pago */}
-            <div className="p-4 bg-gradient-to-r from-blue-50/70 to-indigo-50/40 rounded-2xl border border-blue-100 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <CreditCard size={16} />
-                </div>
-                <div>
-                  <p className="text-xs font-black text-blue-900">Mercado Pago no Catálogo</p>
-                  <p className="text-[10px] text-blue-700 leading-tight">
-                    {companyData?.mercadoPagoAccessToken?.trim()
-                      ? 'Recebimento com baixa automática ativo na sua conta.'
-                      : 'Receba Pix e Cartão com baixa automática no seu catálogo.'}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => onNavigate('settings')}
-                className="px-3 py-2 bg-white hover:bg-blue-50 text-blue-700 font-black text-[10px] uppercase tracking-wider rounded-xl border border-blue-200 shrink-0 cursor-pointer transition-colors shadow-xs"
-              >
-                {companyData?.mercadoPagoAccessToken?.trim() ? 'Configurar' : 'Integrar'}
-              </button>
             </div>
 
             <button 
@@ -539,7 +456,6 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 </div>
                 {/* Iframe carregando o catálogo em tempo real */}
                 <iframe 
-                  key={`${companyData?.phone || ''}_${companyData?.name || ''}`}
                   src={catalogUrl}
                   title="Pré-visualização do Catálogo"
                   className="w-full flex-1 border-0"

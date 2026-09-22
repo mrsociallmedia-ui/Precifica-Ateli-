@@ -24,7 +24,6 @@ import {
   Copy,
   Check,
   Clock,
-  CreditCard,
   Home,
   Truck,
   ChevronLeft,
@@ -32,8 +31,7 @@ import {
   Phone,
   Instagram,
   AlertCircle,
-  Share2,
-  QrCode
+  Share2
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Product, CompanyData, Material, Platform } from '../types';
@@ -69,73 +67,24 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
   // Estados do Carrinho & Checkout Automatizado
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [cartStep, setCartStep] = useState<'items' | 'checkout' | 'payment' | 'success'>('items');
+  const [cartStep, setCartStep] = useState<'items' | 'checkout' | 'success'>('items');
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
-  const [pixCopied, setPixCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [completedOrderNumber, setCompletedOrderNumber] = useState('');
   const [lastOrderMessage, setLastOrderMessage] = useState('');
 
-  // Estados do Mercado Pago & Integração de Pagamento Online
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [isMercadoPagoActive, setIsMercadoPagoActive] = useState(false);
-  const [mpPixData, setMpPixData] = useState<{ id: number; qrCode: string; qrCodeBase64: string; ticketUrl?: string; status: string } | null>(null);
-  const [mpPreferenceData, setMpPreferenceData] = useState<{ id: string; initPoint: string } | null>(null);
-  const [mpPaymentStatus, setMpPaymentStatus] = useState<string | null>(null);
-  const [mpNotice, setMpNotice] = useState<string | null>(null);
-  const [pixCopiaColaCopied, setPixCopiaColaCopied] = useState(false);
-  
   // Dados do Formulário do Cliente
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>('pickup');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryNeighborhood, setDeliveryNeighborhood] = useState('');
   const [deliveryCity, setDeliveryCity] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit'>('pix');
   const [orderObservations, setOrderObservations] = useState('');
   const [formErrors, setFormErrors] = useState<{ name?: string; phone?: string; address?: string }>({});
 
   const orderSummaryRef = useRef<HTMLDivElement>(null);
-
-  // Monitorar se a integração com Mercado Pago está ativa (pela conta do artesão ou secret do sistema)
-  useEffect(() => {
-    const userToken = companyData?.mercadoPagoAccessToken?.trim();
-    if (userToken) {
-      setIsMercadoPagoActive(true);
-      return;
-    }
-    fetch('/api/mercadopago/status')
-      .then(res => res.json())
-      .then(data => {
-        if (data?.configured) {
-          setIsMercadoPagoActive(true);
-        }
-      })
-      .catch(() => {});
-  }, [companyData?.mercadoPagoAccessToken]);
-
-  // Polling automático para atualizar status do Pix no Mercado Pago em tempo real
-  useEffect(() => {
-    if ((cartStep !== 'payment' && cartStep !== 'success') || !mpPixData?.id || mpPaymentStatus === 'approved') return;
-
-    const interval = setInterval(async () => {
-      try {
-        const userToken = companyData?.mercadoPagoAccessToken?.trim();
-        const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';
-        const res = await fetch(`/api/mercadopago/check-payment/${mpPixData.id}${tokenQuery}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.status === 'approved') {
-            setMpPaymentStatus('approved');
-            clearInterval(interval);
-          }
-        }
-      } catch (err) {}
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [cartStep, mpPixData?.id, mpPaymentStatus, companyData?.mercadoPagoAccessToken]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -325,8 +274,8 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     return Object.keys(errors).length === 0;
   };
 
-  // Passo 2 -> Passo 3: Salva o pedido, prepara o Pix/Link e avança para a tela de pagamento (WhatsApp só é aberto após pagar)
-  const handleProceedToPayment = async () => {
+  // Passo 2: Envia o pedido via WhatsApp, salva no Cronograma & Financeiro e finaliza com sucesso
+  const handleFinishAndSendOrder = async () => {
     if (!validateForm()) return;
     if (cart.length === 0) return;
 
@@ -337,74 +286,52 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     }
 
     setIsProcessingOrder(true);
-
     const orderNum = completedOrderNumber || `#PED-${Math.floor(1000 + Math.random() * 9000)}`;
     setCompletedOrderNumber(orderNum);
 
-    const safePayerEmail = (customerEmail?.trim() || "").includes("@")
-      ? customerEmail.trim()
-      : `${customerPhone.replace(/\D/g, '') || 'cliente.pedidos'}@gmail.com`;
+    const now = new Date();
+    const dataStr = now.toLocaleDateString('pt-BR');
+    const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-    // Se selecionou Pix ou Cartão, integrar com Mercado Pago (da conta do artesão ou padrão)
-    const userMpToken = companyData?.mercadoPagoAccessToken?.trim();
-    setMpNotice(null);
-    if (paymentMethod === 'pix') {
-      try {
-        const mpRes = await fetch('/api/mercadopago/create-pix', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accessToken: userMpToken || undefined,
-            amount: cartTotal,
-            orderId: orderNum,
-            description: `Pedido ${orderNum} - ${companyData?.name || 'Ateliê'}`,
-            payer: {
-              name: customerName,
-              email: safePayerEmail,
-              phone: customerPhone
-            }
-          })
-        });
-        if (mpRes.ok) {
-          const data = await mpRes.json();
-          if (data?.qrCode) {
-            setMpPixData(data);
-            setMpPaymentStatus(data.status || 'pending');
-          } else if (data?.fallbackToPreference && data?.initPoint) {
-            setMpPreferenceData({ id: data.id, initPoint: data.initPoint });
-            if (data?.message) {
-              setMpNotice(data.message);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("Mercado Pago Pix não disponível:", err);
-      }
-    } else if (paymentMethod === 'credit') {
-      try {
-        const mpRes = await fetch('/api/mercadopago/create-preference', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accessToken: userMpToken || undefined,
-            items: cart.map(i => ({ name: i.product.name, quantity: i.quantity, price: i.price })),
-            orderId: orderNum,
-            payer: {
-              name: customerName,
-              email: safePayerEmail
-            }
-          })
-        });
-        if (mpRes.ok) {
-          const data = await mpRes.json();
-          if (data?.initPoint) {
-            setMpPreferenceData(data);
-          }
-        }
-      } catch (err) {
-        console.warn("Mercado Pago Checkout não disponível:", err);
-      }
+    let deliveryDetails = '';
+    if (deliveryType === 'pickup') {
+      deliveryDetails = '• *Modalidade:* 🏬 Retirada no Ateliê';
+    } else {
+      deliveryDetails = `• *Modalidade:* 🚚 Entrega / Envio\n• *Endereço:* ${deliveryAddress}${deliveryNeighborhood ? `, Bairro ${deliveryNeighborhood}` : ''}${deliveryCity ? ` - ${deliveryCity}` : ''}`;
     }
+
+    let itemsText = '';
+    cart.forEach((item, idx) => {
+      const sub = (item.price * item.quantity).toFixed(2);
+      itemsText += `${idx + 1}. *${item.product.name}*\n   ↳ ${item.quantity}x de R$ ${item.price.toFixed(2)} = *R$ ${sub}*\n`;
+    });
+
+    const message = 
+`🛍️ *NOVO PEDIDO ONLINE • ${orderNum}*
+━━━━━━━━━━━━━━━━━━━━━━━━
+🏪 *Ateliê:* ${companyData?.name || 'Ateliê'}
+📅 *Data:* ${dataStr} às ${horaStr}
+
+👤 *DADOS DO CLIENTE*
+• *Nome:* ${customerName.trim()}
+• *WhatsApp:* ${customerPhone.trim()}${customerEmail ? `\n• *E-mail:* ${customerEmail.trim()}` : ''}
+
+📦 *ITENS DO PEDIDO*
+${itemsText}
+━━━━━━━━━━━━━━━━━━━━━━━━
+💰 *VALOR TOTAL: R$ ${cartTotal.toFixed(2)}*
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚚 *ENTREGA / RETIRADA*
+${deliveryDetails}
+
+📝 *DETALHES / PERSONALIZAÇÃO*
+• ${orderObservations.trim() || 'Sem observações adicionais informadas no pedido.'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+✨ _Olá! Gostaria de confirmar meu pedido feito pelo seu Catálogo Online. Segue o resumo acima para combinarmos os detalhes e pagamento!_`;
+
+    setLastOrderMessage(message);
 
     // AUTOMATIZAÇÃO: Inserir pedido no Cronograma e lançar receita no Financeiro (Compra pelo Catálogo)
     try {
@@ -418,7 +345,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         deliveryAddress: deliveryAddress.trim() || undefined,
         deliveryNeighborhood: deliveryNeighborhood.trim() || undefined,
         deliveryCity: deliveryCity.trim() || undefined,
-        paymentMethod,
+        paymentMethod: 'A combinar',
         cartTotal,
         items: cart.map(i => ({
           product: i.product,
@@ -439,7 +366,6 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
       });
 
       // 2. Criar objetos localmente para resposta instantânea e redundância offline
-      const now = new Date();
       const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
       const dateStr = now.toISOString().split('T')[0];
       const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -455,7 +381,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         customerId: custId,
         description: itemsSummary,
         observations: orderObservations.trim() || '',
-        notes: `Origem: Catálogo Online • Pedido ${orderNum}\nModalidade: ${deliveryType === 'pickup' ? 'Retirada no Ateliê' : (deliveryAddress || 'Entrega')}\nPagamento: ${paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito'}`,
+        notes: `Origem: Catálogo Online • Pedido ${orderNum}\nModalidade: ${deliveryType === 'pickup' ? 'Retirada no Ateliê' : (deliveryAddress || 'Entrega')}\nPagamento: A combinar via WhatsApp`,
         items: cart.map(i => ({
           productId: i.product.id,
           name: i.product.name,
@@ -479,8 +405,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         celebrantName: customerName.trim(),
         celebrantAge: '',
         quoteNumber: orderNum,
-        paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
-        paidAt: now.toISOString(),
+        paymentMethod: 'A combinar',
         hoursToMake: cart.reduce((acc, i) => acc + (((i.product.minutesToMake || 60) / 60) * i.quantity), 0),
         materials: [],
         profitMargin: 30,
@@ -494,9 +419,9 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         amount: cartTotal,
         type: 'income' as const,
         category: 'Compra pelo Catálogo',
-        paymentMethod: paymentMethod === 'pix' ? 'Pix' : 'Cartão de Crédito',
+        paymentMethod: 'A combinar',
         date: dateStr,
-        status: 'paid' as const,
+        status: 'pending' as const,
         projectId: projId,
         customerId: custId
       };
@@ -567,81 +492,10 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         total: cartTotal,
         items: cart.map(i => ({ name: i.product.name, qty: i.quantity, price: i.price })),
         deliveryType,
-        paymentMethod
+        paymentMethod: 'A combinar'
       });
       localStorage.setItem('my_online_orders', JSON.stringify(existingOrders.slice(0, 20)));
     } catch (e) {}
-
-    setIsProcessingOrder(false);
-    setCartStep('payment');
-  };
-
-  // Passo 3: Disparado APÓS o pagamento para montar e enviar o pedido no WhatsApp do ateliê
-  const handleFinishAndSendWhatsApp = async () => {
-    const phone = companyData?.phone?.replace(/\D/g, '') || '';
-    if (!phone) {
-      alert('Número de WhatsApp do ateliê não encontrado. Entre em contato diretamente.');
-      return;
-    }
-
-    setIsProcessingOrder(true);
-    const orderNum = completedOrderNumber || `#PED-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    const now = new Date();
-    const dataStr = now.toLocaleDateString('pt-BR');
-    const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-    let deliveryDetails = '';
-    if (deliveryType === 'pickup') {
-      deliveryDetails = '• *Modalidade:* 🏬 Retirada no Ateliê';
-    } else {
-      deliveryDetails = `• *Modalidade:* 🚚 Entrega / Envio\n• *Endereço:* ${deliveryAddress}${deliveryNeighborhood ? `, Bairro ${deliveryNeighborhood}` : ''}${deliveryCity ? ` - ${deliveryCity}` : ''}`;
-    }
-
-    let itemsText = '';
-    cart.forEach((item, idx) => {
-      const sub = (item.price * item.quantity).toFixed(2);
-      itemsText += `${idx + 1}. *${item.product.name}*\n   ↳ ${item.quantity}x de R$ ${item.price.toFixed(2)} = *R$ ${sub}*\n`;
-    });
-
-    let paymentStatusSection = '';
-    if (mpPaymentStatus === 'approved') {
-      paymentStatusSection = `• *Forma:* ⚡ Pix Automático Mercado Pago\n• *Status:* ✅ PAGO E APROVADO PELO MERCADO PAGO`;
-    } else if (paymentMethod === 'pix') {
-      paymentStatusSection = `• *Forma:* ⚡ Pix (Transferência Realizada)\n• *Status:* 💸 Realizado pelo cliente (Comprovante em anexo nesta conversa)`;
-    } else {
-      paymentStatusSection = `• *Forma:* 💳 Cartão de Crédito Mercado Pago\n• *Status:* 💳 Finalizado / Processando`;
-    }
-
-    const message = 
-`🛍️ *NOVO PEDIDO ONLINE • ${orderNum}*
-━━━━━━━━━━━━━━━━━━━━━━━━
-🏪 *Ateliê:* ${companyData?.name || 'Ateliê'}
-📅 *Data:* ${dataStr} às ${horaStr}
-
-👤 *DADOS DO CLIENTE*
-• *Nome:* ${customerName.trim()}
-• *WhatsApp:* ${customerPhone.trim()}${customerEmail ? `\n• *E-mail:* ${customerEmail.trim()}` : ''}
-
-📦 *ITENS DO PEDIDO*
-${itemsText}
-━━━━━━━━━━━━━━━━━━━━━━━━
-💰 *VALOR TOTAL: R$ ${cartTotal.toFixed(2)}*
-━━━━━━━━━━━━━━━━━━━━━━━━
-
-🚚 *ENTREGA / RETIRADA*
-${deliveryDetails}
-
-💳 *PAGAMENTO REALIZADO*
-${paymentStatusSection}
-
-📝 *DETALHES / PERSONALIZAÇÃO*
-• ${orderObservations.trim() || 'Sem observações adicionais informadas no pedido.'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━
-✨ _Olá! Realizei o pagamento do meu pedido pelo seu Catálogo Online. Segue o resumo para conferência e início da confecção!_`;
-
-    setLastOrderMessage(message);
 
     // Tentar gerar imagem de resumo para download em segundo plano
     try {
@@ -670,23 +524,7 @@ ${paymentStatusSection}
     setCartStep('success');
   };
 
-  const handleProcessOrder = handleProceedToPayment;
-
-  const copyPixKey = () => {
-    if (companyData?.pixKey) {
-      navigator.clipboard.writeText(companyData.pixKey);
-      setPixCopied(true);
-      setTimeout(() => setPixCopied(false), 2000);
-    }
-  };
-
-  const copyPixCopiaECola = (payload: string) => {
-    if (payload) {
-      navigator.clipboard.writeText(payload);
-      setPixCopiaColaCopied(true);
-      setTimeout(() => setPixCopiaColaCopied(false), 2000);
-    }
-  };
+  const handleProcessOrder = handleFinishAndSendOrder;
 
   const copyCatalogLink = () => {
     const url = window.location.href;
@@ -704,10 +542,6 @@ ${paymentStatusSection}
     setCustomerEmail('');
     setDeliveryAddress('');
     setOrderObservations('');
-    setMpPixData(null);
-    setMpPreferenceData(null);
-    setMpPaymentStatus(null);
-    setMpNotice(null);
   };
 
   if (loading) {
@@ -865,8 +699,8 @@ ${paymentStatusSection}
               <span>Retirada & Envio</span>
             </div>
             <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full border border-pink-100 shadow-sm">
-              <CreditCard size={15} className="text-blue-500" />
-              <span>Pix & Cartão</span>
+              <Sparkles size={15} className="text-pink-500" />
+              <span>Personalizados com Amor</span>
             </div>
             {companyData?.instagram && (
               <a 
@@ -1403,14 +1237,12 @@ ${paymentStatusSection}
                 <div>
                   <h3 className="text-lg font-black text-gray-800 leading-none">
                     {cartStep === 'items' && 'Seu Carrinho de Compras'}
-                    {cartStep === 'checkout' && 'Dados de Entrega & Pagamento'}
-                    {cartStep === 'payment' && 'Realizar Pagamento'}
+                    {cartStep === 'checkout' && 'Dados de Entrega & Contato'}
                     {cartStep === 'success' && 'Pedido Enviado com Sucesso!'}
                   </h3>
                   <p className="text-[10px] font-bold text-pink-500 uppercase tracking-wider mt-1">
                     {cartStep === 'items' && `${cartItemCount} itens adicionados`}
-                    {cartStep === 'checkout' && 'Passo 2 de 3 • Seus Dados'}
-                    {cartStep === 'payment' && 'Passo 3 de 3 • Pagamento & WhatsApp'}
+                    {cartStep === 'checkout' && 'Passo 2 de 2 • Seus Dados'}
                     {cartStep === 'success' && 'Tudo pronto!'}
                   </p>
                 </div>
@@ -1577,7 +1409,7 @@ ${paymentStatusSection}
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-gray-600 flex items-center justify-between">
                       <span>E-mail</span>
-                      <span className="text-[9px] text-gray-400 font-normal">opcional (para comprovante Mercado Pago)</span>
+                      <span className="text-[9px] text-gray-400 font-normal">opcional</span>
                     </label>
                     <input 
                       type="email" 
@@ -1687,56 +1519,7 @@ ${paymentStatusSection}
                   />
                 </div>
 
-                {/* Forma de Pagamento */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 border-b border-gray-100 pb-2">
-                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">4</span>
-                    Forma de Pagamento Preferida
-                  </h4>
-
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {[
-                      { id: 'pix', label: 'Pix', icon: Sparkles, badge: isMercadoPagoActive ? 'Baixa Automática' : 'Mais rápido' },
-                      { id: 'credit', label: 'Cartão de Crédito', icon: CreditCard, badge: isMercadoPagoActive ? 'Mercado Pago' : undefined }
-                    ].map(pm => {
-                      const Icon = pm.icon;
-                      const isSelected = paymentMethod === pm.id;
-                      return (
-                        <button
-                          key={pm.id}
-                          type="button"
-                          onClick={() => setPaymentMethod(pm.id as any)}
-                          className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                            isSelected 
-                              ? 'border-pink-500 bg-pink-50/60 shadow-sm' 
-                              : 'border-gray-200 bg-gray-50 hover:bg-gray-100/70'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Icon size={16} className={isSelected ? 'text-pink-600' : 'text-gray-400'} />
-                            <span className="text-xs font-bold text-gray-800">{pm.label}</span>
-                          </div>
-                          {pm.badge && (
-                            <span className="text-[8px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                              {pm.badge}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {isMercadoPagoActive && (
-                    <div className="p-3 bg-blue-50/60 rounded-2xl border border-blue-100 flex items-center gap-2.5 text-blue-800">
-                      <ShieldCheck size={16} className="text-blue-600 shrink-0" />
-                      <p className="text-[10px] font-medium leading-tight">
-                        <strong>Checkout Mercado Pago Integrado:</strong> Recebimento instantâneo por Pix com QR Code oficial ou Cartão em até 12x.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Resumo e Botão para Avançar ao Pagamento */}
+                {/* Resumo e Botão para Enviar Pedido via WhatsApp */}
                 <div className="p-5 bg-gradient-to-br from-pink-50 to-pink-100/40 rounded-3xl border border-pink-100 space-y-4">
                   <div className="flex justify-between items-center text-xs font-bold text-gray-600">
                     <span>Quantidade Total:</span>
@@ -1747,217 +1530,33 @@ ${paymentStatusSection}
                     <span className="text-2xl text-pink-600">R$ {cartTotal.toFixed(2)}</span>
                   </div>
 
-                  {/* BOTÃO PARA AVANÇAR AO PAGAMENTO */}
+                  {/* BOTÃO DIRETO PARA ENVIAR PEDIDO AO WHATSAPP */}
                   <button 
-                    onClick={handleProceedToPayment}
+                    onClick={handleFinishAndSendOrder}
                     disabled={isProcessingOrder}
-                    className="w-full py-4 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 shadow-xl shadow-pink-200 transition-all disabled:opacity-50 cursor-pointer"
+                    className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-200 transition-all disabled:opacity-50 cursor-pointer"
                   >
                     {isProcessingOrder ? (
                       <>
                         <RefreshCw className="animate-spin" size={18} />
-                        <span>Preparando Pagamento...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Avançar para Pagamento</span>
-                        <ArrowRight size={18} />
-                      </>
-                    )}
-                  </button>
-
-                  <p className="text-[10px] text-gray-400 text-center font-medium">
-                    🔒 Prossiga para ver o QR Code Pix ou link de pagamento. O envio ao WhatsApp será feito após o pagamento.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* PASSO 3: REALIZAR PAGAMENTO & ENVIAR AO WHATSAPP APÓS O PAGAMENTO */}
-            {cartStep === 'payment' && (
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar animate-fadeIn">
-                {/* Botão Voltar */}
-                <button 
-                  onClick={() => setCartStep('checkout')}
-                  className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-pink-600 transition-colors cursor-pointer"
-                >
-                  <ChevronLeft size={16} /> Voltar e alterar dados de entrega
-                </button>
-
-                {/* Resumo do Pedido */}
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-pink-600 bg-pink-50 px-2.5 py-0.5 rounded-full uppercase">
-                      Pedido {completedOrderNumber}
-                    </span>
-                    <p className="text-xs font-bold text-gray-800 mt-1">{customerName}</p>
-                    <p className="text-[10px] text-gray-400 font-medium">
-                      {deliveryType === 'pickup' ? '🏬 Retirada no Ateliê' : '🚚 Entrega'}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-gray-400 font-bold uppercase">Total a Pagar</span>
-                    <p className="text-lg font-black text-pink-600">R$ {cartTotal.toFixed(2)}</p>
-                  </div>
-                </div>
-
-                {/* Bloco de Pagamento Conforme Método Selecionado */}
-                {/* CASO PIX MERCADO PAGO AUTOMÁTICO GERADO */}
-                {mpPixData && (
-                  <div className="p-5 bg-gradient-to-b from-blue-50/70 to-blue-50/30 rounded-3xl border border-blue-200 text-center">
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                      <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full ${
-                        mpPaymentStatus === 'approved' 
-                          ? 'bg-emerald-500 text-white shadow-sm' 
-                          : 'bg-blue-600 text-white'
-                      }`}>
-                        {mpPaymentStatus === 'approved' ? '✓ Pagamento Aprovado' : '⚡ Pix Oficial Mercado Pago'}
-                      </span>
-                    </div>
-
-                    {mpPaymentStatus === 'approved' ? (
-                      <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-emerald-800 text-xs font-bold space-y-1 mb-2">
-                        <p className="text-sm">🎉 Pagamento Confirmado com Sucesso!</p>
-                        <p className="text-[11px] font-medium text-emerald-700">Seu pagamento foi identificado pelo sistema! Agora clique abaixo para enviar o pedido confirmado ao WhatsApp do ateliê.</p>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-xs font-bold text-gray-700 mb-3">
-                          Escaneie o QR Code abaixo no app do seu banco para pagar:
-                        </p>
-
-                        {mpPixData.qrCodeBase64 && (
-                          <div className="p-3 bg-white rounded-2xl border-2 border-dashed border-blue-200 inline-block shadow-xs mb-3">
-                            <img 
-                              src={`data:image/png;base64,${mpPixData.qrCodeBase64}`} 
-                              alt="QR Code Pix Mercado Pago" 
-                              className="w-48 h-48 object-contain mx-auto"
-                            />
-                          </div>
-                        )}
-
-                        {mpPixData.qrCode && (
-                          <div className="space-y-2">
-                            <button 
-                              type="button"
-                              onClick={() => copyPixCopiaECola(mpPixData.qrCode)}
-                              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-blue-200 transition-all cursor-pointer"
-                            >
-                              {pixCopiaColaCopied ? <Check size={16} /> : <Copy size={16} />}
-                              <span>{pixCopiaColaCopied ? 'Código Pix Copiado!' : 'Copiar Código Pix Copia e Cola'}</span>
-                            </button>
-                            <div className="flex items-center justify-center gap-1.5 text-[10px] text-blue-700 font-bold">
-                              <Clock size={12} className="animate-spin text-blue-500" />
-                              <span>Aguardando transferência bancária (baixa automática)</span>
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* CASO LINK DE CHECKOUT MERCADO PAGO GERADO (CARTÃO OU FALLBACK PIX) */}
-                {mpPreferenceData?.initPoint && (
-                  <div className="p-5 bg-gradient-to-b from-blue-50/70 to-blue-50/30 rounded-3xl border border-blue-200 text-center space-y-3">
-                    <span className="text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white px-3 py-1 rounded-full inline-block">
-                      {paymentMethod === 'pix' ? '⚡ Pagamento Mercado Pago (Pix & Cartão)' : '💳 Cartão de Crédito ou Débito'}
-                    </span>
-                    <p className="text-xs font-bold text-gray-700">
-                      {paymentMethod === 'pix' 
-                        ? 'Clique abaixo para concluir seu pagamento oficial com Pix ou Cartão no Mercado Pago:'
-                        : 'Finalize o pagamento com segurança no ambiente do Mercado Pago (parcele em até 12x):'
-                      }
-                    </p>
-                    <button 
-                      type="button"
-                      onClick={() => window.open(mpPreferenceData.initPoint, '_blank')}
-                      className="w-full py-4 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-all cursor-pointer"
-                    >
-                      <CreditCard size={18} />
-                      <span>{paymentMethod === 'pix' ? 'Pagar com Pix / Cartão no Mercado Pago' : 'Pagar Agora no Mercado Pago'}</span>
-                      <ExternalLink size={14} />
-                    </button>
-
-                    {mpNotice && (
-                      <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-left text-xs text-amber-900 space-y-1">
-                        <div className="flex items-center gap-1.5 font-bold text-amber-800">
-                          <Info size={13} className="text-amber-600 shrink-0" />
-                          <span className="text-[11px]">Dica para o Ateliê:</span>
-                        </div>
-                        <p className="text-[10px] leading-relaxed text-amber-800">
-                          {mpNotice}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* CASO PIX MANUAL (CHAVE PIX DIRETA DO ATELIÊ) */}
-                {!mpPixData && paymentMethod === 'pix' && companyData?.pixKey && (
-                  <div className="p-5 bg-pink-50/70 rounded-3xl border border-pink-100 text-left space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black uppercase tracking-wider text-pink-600 flex items-center gap-1">
-                        <Sparkles size={14} /> Chave Pix do Ateliê
-                      </span>
-                      <button 
-                        type="button"
-                        onClick={copyPixKey}
-                        className="text-xs font-bold text-gray-600 hover:text-pink-600 flex items-center gap-1 bg-white px-3 py-1 rounded-xl shadow-xs border border-pink-100 cursor-pointer"
-                      >
-                        {pixCopied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                        <span>{pixCopied ? 'Copiada!' : 'Copiar Chave'}</span>
-                      </button>
-                    </div>
-
-                    <div className="bg-white p-3.5 rounded-2xl border border-pink-100">
-                      <p className="text-xs font-mono font-bold text-gray-800 break-all select-all">
-                        {companyData.pixKey}
-                      </p>
-                    </div>
-
-                    <div className="text-[11px] text-gray-500 space-y-1">
-                      <p><strong>1.</strong> Copie a chave Pix acima e realize a transferência de <strong>R$ {cartTotal.toFixed(2)}</strong> no app do seu banco.</p>
-                      <p><strong>2.</strong> Em seguida, clique no botão abaixo para enviar o pedido com seu comprovante para o WhatsApp do ateliê.</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* BOTÃO FINALIZAR & ENVIAR PEDIDO NO WHATSAPP (ENVIADO APÓS O PAGAMENTO) */}
-                <div className="p-5 bg-gradient-to-br from-pink-50 to-pink-100/40 rounded-3xl border border-pink-100 space-y-3">
-                  <button 
-                    type="button"
-                    onClick={handleFinishAndSendWhatsApp}
-                    disabled={isProcessingOrder}
-                    className={`w-full py-4 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2.5 shadow-xl transition-all cursor-pointer ${
-                      mpPaymentStatus === 'approved'
-                        ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200 ring-4 ring-emerald-200'
-                        : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200 active:scale-95'
-                    }`}
-                  >
-                    {isProcessingOrder ? (
-                      <>
-                        <RefreshCw className="animate-spin" size={18} />
-                        <span>Montando e Enviando ao WhatsApp...</span>
+                        <span>Enviando Pedido...</span>
                       </>
                     ) : (
                       <>
                         <Send size={18} />
-                        <span>{mpPaymentStatus === 'approved' ? 'Enviar Pedido Confirmado no WhatsApp' : 'Finalizar & Enviar Pedido no WhatsApp'}</span>
+                        <span>Enviar Pedido via WhatsApp</span>
                       </>
                     )}
                   </button>
 
                   <p className="text-[10px] text-gray-500 text-center font-medium">
-                    {mpPaymentStatus === 'approved' 
-                      ? '🎉 Pagamento identificado! Ao clicar, seu pedido será montado e enviado com a confirmação para o WhatsApp do ateliê.'
-                      : '⚡ Ao clicar, seu pedido será montado e enviado automaticamente para o WhatsApp do ateliê após o pagamento.'}
+                    💬 Ao clicar, seu pedido será salvo e enviado diretamente ao WhatsApp do ateliê para combinarem os detalhes e o pagamento.
                   </p>
                 </div>
               </div>
             )}
 
-            {/* PASSO 4: SUCESSO DO PEDIDO AUTOMATIZADO APÓS ENVIO AO WHATSAPP */}
+            {/* PASSO 3: SUCESSO DO PEDIDO AUTOMATIZADO APÓS ENVIO AO WHATSAPP */}
             {cartStep === 'success' && (
               <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center text-center custom-scrollbar animate-scaleIn">
                 <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mb-6 shadow-lg shadow-emerald-100">
