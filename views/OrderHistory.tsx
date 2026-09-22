@@ -17,7 +17,12 @@ import {
   Hash,
   ShoppingBag,
   Download,
-  CreditCard
+  CreditCard,
+  CheckCircle,
+  RotateCcw,
+  Sparkles,
+  CheckCheck,
+  X
 } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
@@ -26,43 +31,69 @@ import autoTable from 'jspdf-autotable';
 
 interface OrderHistoryProps {
   projects: Project[];
+  setProjects?: React.Dispatch<React.SetStateAction<Project[]>>;
   customers: Customer[];
+  setCustomers?: React.Dispatch<React.SetStateAction<Customer[]>>;
   materials: Material[];
   platforms: Platform[];
   companyData: CompanyData;
-  transactions: Transaction[];
+  transactions?: Transaction[];
 }
 
 export const OrderHistory: React.FC<OrderHistoryProps> = ({ 
-  projects, customers, materials, platforms, companyData, transactions
+  projects, setProjects, customers, setCustomers, materials, platforms, companyData, transactions
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [maxQuoteFilter, setMaxQuoteFilter] = useState<number | null>(null);
+  const [sortBy, setSortBy] = useState<'number' | 'date'>('number');
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [selectedToApprove, setSelectedToApprove] = useState<Set<string>>(new Set());
   
-  // Initialize with URL params or current week (Monday to Friday)
+  // Contagem de pedidos aprovados
+  const approvedCount = useMemo(() => {
+    return projects.filter(p => p.status === 'approved').length;
+  }, [projects]);
+
+  // Atualizar status de um pedido
+  const handleUpdateProjectStatus = (projectId: string, newStatus: Project['status']) => {
+    if (!setProjects) return;
+    setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: newStatus } : p));
+  };
+
+  // Restaurar múltiplos pedidos para aprovado
+  const handleRestoreBatchApproved = (ids: string[]) => {
+    if (!setProjects || ids.length === 0) return;
+    setProjects(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'approved' } : p));
+    setSelectedToApprove(new Set());
+    setShowRestoreModal(false);
+    setStatusFilter('approved');
+    alert(`${ids.length} pedido(s) restaurado(s) com sucesso para o status APROVADO!`);
+  };
+
+  // Restaurar pedidos recentes (#280 a #285)
+  const handleApproveRecentBatch = () => {
+    const targetProjects = projects.filter(p => {
+      const qNum = parseInt(String(p.quoteNumber || '').replace(/\D/g, ''), 10);
+      return (qNum >= 280 && qNum <= 285) || p.quoteNumber === '283' || p.quoteNumber === '284' || p.quoteNumber === '285';
+    });
+    if (targetProjects.length > 0) {
+      handleRestoreBatchApproved(targetProjects.map(p => p.id));
+    } else {
+      alert('Nenhum pedido entre #280 e #285 encontrado.');
+    }
+  };
+  
+  // Por padrão exibe todo o histórico para nenhum pedido ficar oculto
   const [startDate, setStartDate] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    const start = params.get('start_date');
-    if (start) return start;
-
-    const curr = new Date();
-    const day = curr.getDay();
-    const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(curr.setDate(diff));
-    return monday.toISOString().split('T')[0];
+    return params.get('start_date') || '';
   });
   
   const [endDate, setEndDate] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    const end = params.get('end_date');
-    if (end) return end;
-
-    const curr = new Date();
-    const day = curr.getDay();
-    const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
-    const friday = new Date(curr.setDate(diff + 4));
-    return friday.toISOString().split('T')[0];
+    return params.get('end_date') || '';
   });
 
   const [dateFilterType, setDateFilterType] = useState<'delivery' | 'created'>('delivery');
@@ -86,24 +117,78 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
   };
 
   const filteredProjects = useMemo(() => {
+    const rawSearch = searchTerm.trim().toLowerCase();
+    
+    // Reconhece comandos como "até 283", "ate #283", "<= 283"
+    let searchMaxNum: number | null = null;
+    const ateMatch = rawSearch.match(/^(?:at[ée]|<=|<)\s*#?(\d+)/i);
+    if (ateMatch) {
+      searchMaxNum = parseInt(ateMatch[1], 10);
+    }
+
     return projects.filter(p => {
+      // Extrair número do pedido (via quoteNumber ou name #XYZ)
+      const numMatch = (String(p.quoteNumber || '') + ' ' + String(p.name || '')).match(/#?(\d+)/);
+      const projNum = numMatch ? parseInt(numMatch[1], 10) : null;
+
+      // Filtro explícito de cota máxima (ex: botão "Até #283")
+      if (maxQuoteFilter !== null) {
+        if (!projNum || projNum > maxQuoteFilter) return false;
+      }
+
+      // Filtro pelo termo de busca "até #283"
+      if (searchMaxNum !== null) {
+        if (!projNum || projNum > searchMaxNum) return false;
+      }
+
       const customerName = getCustomerName(p.customerId).toLowerCase();
-      const theme = p.theme.toLowerCase();
-      const search = searchTerm.toLowerCase();
-      const matchesSearch = theme.includes(search) || customerName.includes(search);
+      const theme = (p.theme || '').toLowerCase();
+      const pName = (p.name || '').toLowerCase();
+      const pDesc = (p.description || '').toLowerCase();
+      const pQuote = String(p.quoteNumber || '').replace(/^#/, '').toLowerCase();
+      const cleanSearch = rawSearch.replace(/^#/, '');
+
+      let matchesSearch = true;
+      if (rawSearch && searchMaxNum === null) {
+        matchesSearch = theme.includes(rawSearch) || 
+          customerName.includes(rawSearch) || 
+          pName.includes(rawSearch) ||
+          pDesc.includes(rawSearch) ||
+          (pQuote.length > 0 && (pQuote === cleanSearch || pQuote.includes(cleanSearch))) ||
+          (p.items && p.items.some(it => (it.name || '').toLowerCase().includes(rawSearch)));
+      }
+
       const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
       
       let dateToCompare = p.deliveryDate;
       if (dateFilterType === 'created') {
         const timestamp = p.id.startsWith('quote_') ? parseInt(p.id.split('_')[1]) : parseInt(p.id);
-        dateToCompare = new Date(timestamp).toISOString().split('T')[0];
+        dateToCompare = !isNaN(timestamp) ? new Date(timestamp).toISOString().split('T')[0] : (p.orderDate || p.createdAt?.split('T')[0]);
       }
 
-      const matchesDate = (!startDate || dateToCompare >= startDate) && (!endDate || dateToCompare <= endDate);
+      // Se há busca por texto/número e nenhuma data foi digitada pelo usuário, não bloquear por data
+      const isFreeSearch = Boolean(rawSearch || maxQuoteFilter !== null);
+      const matchesDate = isFreeSearch && (!startDate && !endDate)
+        ? true
+        : ((!startDate || (dateToCompare && dateToCompare >= startDate)) && (!endDate || (dateToCompare && dateToCompare <= endDate)));
 
       return matchesSearch && matchesStatus && matchesDate;
-    }).sort((a, b) => new Date(b.deliveryDate).getTime() - new Date(a.deliveryDate).getTime());
-  }, [projects, searchTerm, statusFilter, customers, startDate, endDate, dateFilterType]);
+    }).sort((a, b) => {
+      const numA = parseInt(String(a.quoteNumber || '').replace(/\D/g, '') || (a.name?.match(/#(\d+)/)?.[1] || '0'), 10);
+      const numB = parseInt(String(b.quoteNumber || '').replace(/\D/g, '') || (b.name?.match(/#(\d+)/)?.[1] || '0'), 10);
+
+      if (sortBy === 'number') {
+        if (numA && numB && numA !== numB) return numB - numA;
+        if (numA && !numB) return -1;
+        if (!numA && numB) return 1;
+      }
+
+      const dateA = new Date(a.deliveryDate || a.orderDate || a.createdAt || 0).getTime() || 0;
+      const dateB = new Date(b.deliveryDate || b.orderDate || b.createdAt || 0).getTime() || 0;
+      if (dateB !== dateA) return dateB - dateA;
+      return numB - numA;
+    });
+  }, [projects, searchTerm, statusFilter, customers, startDate, endDate, dateFilterType, maxQuoteFilter, sortBy]);
 
   const stats = useMemo(() => {
     const total = filteredProjects.length;
@@ -551,6 +636,14 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
              <FileText size={20} />
              Gerar Relatório
            </button>
+           <button 
+             onClick={() => setShowRestoreModal(true)}
+             className="bg-blue-600 text-white px-6 py-4 rounded-3xl font-black hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-200 text-xs uppercase tracking-wider"
+             title="Gerenciar e restaurar pedidos para o status Aprovado"
+           >
+             <Sparkles size={18} />
+             Restaurar Aprovados
+           </button>
         </div>
       </div>
 
@@ -561,7 +654,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
             <input 
               type="text" 
-              placeholder="Buscar por tema ou cliente..." 
+              placeholder="Buscar por tema, cliente ou Nº (ex: #283, até 283)..." 
               className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-transparent rounded-2xl outline-none focus:bg-white focus:border-pink-200 transition-all font-medium"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -581,14 +674,14 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
               type="date" 
               className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => { setStartDate(e.target.value); setMaxQuoteFilter(null); }}
             />
             <span className="text-gray-300">-</span>
             <input 
               type="date" 
               className="bg-transparent py-4 outline-none font-black text-[10px] uppercase tracking-widest text-gray-500"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => { setEndDate(e.target.value); setMaxQuoteFilter(null); }}
             />
           </div>
           <div className="flex items-center gap-2 bg-gray-50 px-4 rounded-2xl border border-transparent">
@@ -608,52 +701,125 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 px-4">
-          <button 
-            onClick={() => {
-              const today = new Date().toISOString().split('T')[0];
-              setStartDate(today);
-              setEndDate(today);
-            }}
-            className="px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-pink-50 hover:text-pink-500 hover:border-pink-100 transition-all"
-          >
-            Hoje
-          </button>
-          <button 
-            onClick={() => {
-              const curr = new Date();
-              const day = curr.getDay();
-              const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
-              const monday = new Date(curr.setDate(diff)).toISOString().split('T')[0];
-              const friday = new Date(curr.setDate(diff + 4)).toISOString().split('T')[0];
-              setStartDate(monday);
-              setEndDate(friday);
-            }}
-            className="px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-pink-50 hover:text-pink-500 hover:border-pink-100 transition-all"
-          >
-            Esta Semana
-          </button>
-          <button 
-            onClick={() => {
-              const date = new Date();
-              const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
-              const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
-              setStartDate(firstDay);
-              setEndDate(lastDay);
-            }}
-            className="px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-pink-50 hover:text-pink-500 hover:border-pink-100 transition-all"
-          >
-            Este Mês
-          </button>
-          <button 
-            onClick={() => {
-              setStartDate('');
-              setEndDate('');
-            }}
-            className="px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-pink-50 hover:text-pink-500 hover:border-pink-100 transition-all"
-          >
-            Todo o Período
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button 
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setMaxQuoteFilter(null);
+              }}
+              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                !startDate && !endDate && maxQuoteFilter === null
+                  ? 'bg-gray-900 text-white shadow-sm'
+                  : 'bg-white border border-gray-200 text-gray-500 hover:bg-pink-50 hover:text-pink-500'
+              }`}
+            >
+              Todos os Pedidos ({projects.length})
+            </button>
+
+            <button 
+              onClick={() => {
+                if (maxQuoteFilter === 283) {
+                  setMaxQuoteFilter(null);
+                } else {
+                  setMaxQuoteFilter(283);
+                  setStartDate('');
+                  setEndDate('');
+                }
+              }}
+              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                maxQuoteFilter === 283
+                  ? 'bg-pink-500 text-white shadow-md shadow-pink-200 ring-2 ring-pink-300'
+                  : 'bg-pink-50 border border-pink-200 text-pink-600 hover:bg-pink-100'
+              }`}
+              title="Filtrar pedidos cadastrados com numeração até #283"
+            >
+              <Hash size={12} className={maxQuoteFilter === 283 ? 'text-yellow-300' : 'text-pink-500'} />
+              <span>Até #283</span>
+              {maxQuoteFilter === 283 && (
+                <span className="ml-1 px-1.5 py-0.2 bg-white/20 rounded-full text-[9px]">Ativo</span>
+              )}
+            </button>
+
+            <button 
+              onClick={() => {
+                if (statusFilter === 'approved') {
+                  setStatusFilter('all');
+                } else {
+                  setStatusFilter('approved');
+                  setStartDate('');
+                  setEndDate('');
+                  setMaxQuoteFilter(null);
+                }
+              }}
+              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                statusFilter === 'approved'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200 ring-2 ring-blue-300'
+                  : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'
+              }`}
+              title="Filtrar apenas pedidos com status Aprovado"
+            >
+              <CheckCircle size={12} className={statusFilter === 'approved' ? 'text-white' : 'text-blue-600'} />
+              <span>Aprovados ({approvedCount})</span>
+            </button>
+
+            <button 
+              onClick={() => {
+                const today = new Date().toISOString().split('T')[0];
+                setStartDate(today);
+                setEndDate(today);
+                setMaxQuoteFilter(null);
+              }}
+              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                startDate === new Date().toISOString().split('T')[0] && endDate === new Date().toISOString().split('T')[0]
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white border border-gray-100 text-gray-400 hover:bg-pink-50 hover:text-pink-500'
+              }`}
+            >
+              Hoje
+            </button>
+            <button 
+              onClick={() => {
+                const curr = new Date();
+                const day = curr.getDay();
+                const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
+                const monday = new Date(curr.setDate(diff)).toISOString().split('T')[0];
+                const friday = new Date(curr.setDate(diff + 4)).toISOString().split('T')[0];
+                setStartDate(monday);
+                setEndDate(friday);
+                setMaxQuoteFilter(null);
+              }}
+              className="px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-pink-50 hover:text-pink-500 hover:border-pink-100 transition-all"
+            >
+              Esta Semana
+            </button>
+            <button 
+              onClick={() => {
+                const date = new Date();
+                const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
+                const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
+                setStartDate(firstDay);
+                setEndDate(lastDay);
+                setMaxQuoteFilter(null);
+              }}
+              className="px-4 py-2 bg-white border border-gray-100 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-pink-50 hover:text-pink-500 hover:border-pink-100 transition-all"
+            >
+              Este Mês
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Ordenar por:</span>
+            <button
+              onClick={() => setSortBy(prev => prev === 'number' ? 'date' : 'number')}
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Alterar ordenação entre Nº do Pedido e Data"
+            >
+              <ArrowUpDown size={12} className="text-gray-500" />
+              {sortBy === 'number' ? 'Nº do Pedido (#)' : 'Data'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -684,7 +850,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             {project.quoteNumber && (
-                              <span className="text-[8px] font-black bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded uppercase tracking-widest">#{project.quoteNumber}</span>
+                              <span className="text-[8px] font-black bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded uppercase tracking-widest">#{String(project.quoteNumber).replace(/^#/, '')}</span>
                             )}
                             <p className="font-black text-gray-800 text-sm">{project.theme}</p>
                             {project.isExchange && (
@@ -722,9 +888,29 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                       </div>
                     </td>
                     <td className="px-8 py-6">
-                      <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${statusColors[project.status]}`}>
-                        {statusLabels[project.status]}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={project.status}
+                          onChange={(e) => handleUpdateProjectStatus(project.id, e.target.value as Project['status'])}
+                          className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-transparent cursor-pointer outline-none transition-all ${statusColors[project.status]}`}
+                          title="Clique para alterar o status deste pedido"
+                        >
+                          <option value="approved">Aprovado</option>
+                          <option value="pending">Aguardando</option>
+                          <option value="in_progress">Produzindo</option>
+                          <option value="pending_payment">Pag. Pendente</option>
+                          <option value="completed">Finalizado</option>
+                        </select>
+                        {project.status !== 'approved' && (
+                          <button
+                            onClick={() => handleUpdateProjectStatus(project.id, 'approved')}
+                            className="p-1 text-blue-500 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-all"
+                            title="Restaurar diretamente como Aprovado"
+                          >
+                            <CheckCircle size={14} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-8 py-6 text-right">
                       <p className="text-sm font-black text-gray-800">R$ {finalPrice.toFixed(2)}</p>
@@ -769,6 +955,141 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Modal Restaurar Pedidos Aprovados */}
+      {showRestoreModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 animate-fadeIn flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-white/20 rounded-2xl">
+                  <Sparkles size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black">Restaurar Pedidos Aprovados</h3>
+                  <p className="text-xs text-blue-100 font-medium">Reative orçamentos e defina o status como Aprovado</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowRestoreModal(false)}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6">
+              <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black text-blue-800 uppercase tracking-wider">Ação Rápida: Pedidos Recentes</p>
+                  <p className="text-xs text-blue-600">Restaurar e aprovar diretamente os pedidos #280 a #285</p>
+                </div>
+                <button
+                  onClick={handleApproveRecentBatch}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm shrink-0"
+                >
+                  Aprovar #280 a #285
+                </button>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-wider">Selecione Pedidos da Lista:</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        if (selectedToApprove.size === projects.length) {
+                          setSelectedToApprove(new Set());
+                        } else {
+                          setSelectedToApprove(new Set(projects.map(p => p.id)));
+                        }
+                      }}
+                      className="text-[10px] font-bold text-blue-600 hover:underline"
+                    >
+                      {selectedToApprove.size === projects.length ? 'Desmarcar Todos' : 'Marcar Todos'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-72 overflow-y-auto border border-gray-100 rounded-2xl divide-y divide-gray-50">
+                  {projects.map(p => {
+                    const isSelected = selectedToApprove.has(p.id);
+                    const isAlreadyApproved = p.status === 'approved';
+                    const { finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
+
+                    return (
+                      <div 
+                        key={p.id} 
+                        onClick={() => {
+                          const next = new Set(selectedToApprove);
+                          if (next.has(p.id)) next.delete(p.id);
+                          else next.add(p.id);
+                          setSelectedToApprove(next);
+                        }}
+                        className={`p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                          isSelected ? 'bg-blue-50/70' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <input 
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              {p.quoteNumber && (
+                                <span className="text-[9px] font-black bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
+                                  #{String(p.quoteNumber).replace(/^#/, '')}
+                                </span>
+                              )}
+                              <p className="text-xs font-black text-gray-800 truncate">{p.theme || 'Sem Tema'}</p>
+                            </div>
+                            <p className="text-[10px] text-gray-400 font-medium truncate">
+                              Cliente: {getCustomerName(p.customerId)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
+                            isAlreadyApproved ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {isAlreadyApproved ? 'Aprovado' : statusLabels[p.status] || p.status}
+                          </span>
+                          <span className="text-xs font-black text-gray-700">R$ {finalPrice.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3">
+              <span className="text-xs font-bold text-gray-500">
+                {selectedToApprove.size} pedido(s) selecionado(s)
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowRestoreModal(false)}
+                  className="px-4 py-2.5 text-xs font-bold text-gray-500 hover:text-gray-700"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => handleRestoreBatchApproved(Array.from(selectedToApprove))}
+                  disabled={selectedToApprove.size === 0}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md"
+                >
+                  Restaurar Selecionados
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

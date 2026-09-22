@@ -36,6 +36,7 @@ interface AICaptionGeneratorProps {
   companyData?: CompanyData;
   products?: Product[];
   projects?: Project[];
+  currentUser?: string;
 }
 
 export type PlatformType = 'instagram_feed' | 'stories' | 'reels_tiktok' | 'whatsapp' | 'marketplace' | 'catalog' | 'catalog_marketplace';
@@ -57,8 +58,11 @@ export interface SavedCaption {
 export const AICaptionGenerator: React.FC<AICaptionGeneratorProps> = ({
   companyData,
   products = [],
-  projects = []
+  projects = [],
+  currentUser
 }) => {
+  const userKey = currentUser ? currentUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') : 'default';
+  const captionsStorageKey = `${userKey}_calculie_ai_captions`;
   // Form state
   const [productTopic, setProductTopic] = useState('');
   const [occasion, setOccasion] = useState('');
@@ -101,7 +105,7 @@ export const AICaptionGenerator: React.FC<AICaptionGeneratorProps> = ({
   // Saved / History state
   const [savedCaptions, setSavedCaptions] = useState<SavedCaption[]>(() => {
     try {
-      const saved = localStorage.getItem('calculie_ai_captions');
+      const saved = localStorage.getItem(captionsStorageKey);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -109,14 +113,24 @@ export const AICaptionGenerator: React.FC<AICaptionGeneratorProps> = ({
   });
   const [showHistory, setShowHistory] = useState(false);
 
+  // Reload when userKey changes
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(captionsStorageKey);
+      setSavedCaptions(saved ? JSON.parse(saved) : []);
+    } catch {
+      setSavedCaptions([]);
+    }
+  }, [captionsStorageKey]);
+
   // Save to local storage on change
   useEffect(() => {
     try {
-      localStorage.setItem('calculie_ai_captions', JSON.stringify(savedCaptions));
+      localStorage.setItem(captionsStorageKey, JSON.stringify(savedCaptions));
     } catch (e) {
       console.error('Erro ao salvar histórico de legendas:', e);
     }
-  }, [savedCaptions]);
+  }, [savedCaptions, captionsStorageKey]);
 
   // Fallback craft caption generator when Gemini API is unavailable/leaked
   const generateCraftFallback = (

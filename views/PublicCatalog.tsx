@@ -155,12 +155,12 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
           setMaterials(s.craft_materials || []);
           setPlatforms(s.craft_platforms || []);
         } else {
-          // 2. Fallback de localStorage caso esteja rodando localmente ou no mesmo navegador
+          // 2. Fallback de localStorage estritamente isolado por artesão
           const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-          const localCompany = localStorage.getItem(`craft_company_${userKey}`) || localStorage.getItem('craft_company');
-          const localProducts = localStorage.getItem(`craft_products_${userKey}`) || localStorage.getItem('craft_products');
-          const localMaterials = localStorage.getItem(`craft_materials_${userKey}`) || localStorage.getItem('craft_materials');
-          const localPlatforms = localStorage.getItem(`craft_platforms_${userKey}`) || localStorage.getItem('craft_platforms');
+          const localCompany = localStorage.getItem(`${userKey}_craft_company`);
+          const localProducts = localStorage.getItem(`${userKey}_craft_products`);
+          const localMaterials = localStorage.getItem(`${userKey}_craft_materials`);
+          const localPlatforms = localStorage.getItem(`${userKey}_craft_platforms`);
 
           if (localCompany) {
             try { setCompanyData(JSON.parse(localCompany)); } catch (e) {}
@@ -177,10 +177,10 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
         }
       } catch (err) {
         console.error("Erro ao carregar catálogo público:", err);
-        // Fallback secundário de localStorage
+        // Fallback secundário isolado por artesão
         const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-        const localCompany = localStorage.getItem(`craft_company_${userKey}`) || localStorage.getItem('craft_company');
-        const localProducts = localStorage.getItem(`craft_products_${userKey}`) || localStorage.getItem('craft_products');
+        const localCompany = localStorage.getItem(`${userKey}_craft_company`);
+        const localProducts = localStorage.getItem(`${userKey}_craft_products`);
         if (localCompany) {
           try { setCompanyData(JSON.parse(localCompany)); } catch (e) {}
         }
@@ -513,35 +513,31 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
 
       try {
         const projectsKey = `${userKey}_craft_projects`;
-        const existingProjects = JSON.parse(localStorage.getItem(projectsKey) || localStorage.getItem('craft_projects') || '[]');
+        const existingProjects = JSON.parse(localStorage.getItem(projectsKey) || '[]');
         if (!existingProjects.some((p: any) => p.quoteNumber === orderNum || p.id === projId)) {
           existingProjects.unshift(localProject);
           localStorage.setItem(projectsKey, JSON.stringify(existingProjects));
-          localStorage.setItem('craft_projects', JSON.stringify(existingProjects));
         }
 
         const transKey = `${userKey}_craft_transactions`;
-        const existingTrans = JSON.parse(localStorage.getItem(transKey) || localStorage.getItem('craft_transactions') || '[]');
+        const existingTrans = JSON.parse(localStorage.getItem(transKey) || '[]');
         if (!existingTrans.some((t: any) => t.id === txId)) {
           existingTrans.unshift(localTransaction);
           localStorage.setItem(transKey, JSON.stringify(existingTrans));
-          localStorage.setItem('craft_transactions', JSON.stringify(existingTrans));
         }
 
         const custKey = `${userKey}_craft_customers`;
-        const existingCusts = JSON.parse(localStorage.getItem(custKey) || localStorage.getItem('craft_customers') || '[]');
+        const existingCusts = JSON.parse(localStorage.getItem(custKey) || '[]');
         if (!existingCusts.some((c: any) => c.phone && c.phone.replace(/\D/g, '') === customerPhone.replace(/\D/g, ''))) {
           existingCusts.push(localCustomer);
           localStorage.setItem(custKey, JSON.stringify(existingCusts));
-          localStorage.setItem('craft_customers', JSON.stringify(existingCusts));
         }
 
         const catKey = `${userKey}_craft_trans_categories`;
-        const existingCats = JSON.parse(localStorage.getItem(catKey) || localStorage.getItem('craft_trans_categories') || '[]');
+        const existingCats = JSON.parse(localStorage.getItem(catKey) || '[]');
         if (Array.isArray(existingCats) && !existingCats.includes('Compra pelo Catálogo')) {
           existingCats.push('Compra pelo Catálogo');
           localStorage.setItem(catKey, JSON.stringify(existingCats));
-          localStorage.setItem('craft_trans_categories', JSON.stringify(existingCats));
         }
       } catch (cacheErr) {
         console.warn("Aviso ao sincronizar cache local de pedido:", cacheErr);

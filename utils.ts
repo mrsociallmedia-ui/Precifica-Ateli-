@@ -445,3 +445,245 @@ export function generatePixCopiaECola(params: PixPayloadParams): string {
 
   return `${rawPayload}${crc}`;
 }
+
+/**
+ * Formata número de telefone brasileiro mantendo DDD sempre nítido: (XX) 9XXXX-XXXX ou (XX) XXXX-XXXX.
+ * Trata colagem com DDI (+55 ou 55) para não duplicar DDD.
+ */
+export function formatBrazilianPhone(value: string): string {
+  if (!value) return '';
+  let digits = value.replace(/\D/g, '');
+
+  // Se o usuário colou ou digitou o DDI 55 (Brasil) no início com mais de 11 dígitos
+  if (digits.startsWith('55') && digits.length > 11) {
+    digits = digits.slice(2);
+  }
+
+  // Limita a 11 dígitos (2 do DDD + 9 do telefone)
+  digits = digits.slice(0, 11);
+
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    // Formato com 8 dígitos: (XX) XXXX-XXXX
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  // Formato com 9 dígitos: (XX) XXXXX-XXXX
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+}
+
+/**
+ * Retorna os dígitos limpos com DDI 55 para links de WhatsApp (wa.me/55...)
+ */
+export function getCleanWhatsAppDigits(phone?: string): string {
+  if (!phone) return '';
+  let digits = phone.replace(/\D/g, '');
+  if (!digits) return '';
+
+  // Remove zeros à esquerda (ex: 066992442924 -> 66992442924)
+  if (digits.startsWith('0')) {
+    digits = digits.replace(/^0+/, '');
+  }
+
+  // Remove zero acidental após DDI 55 (ex: 55066992442924 -> 5566992442924)
+  if (digits.startsWith('550')) {
+    digits = '55' + digits.slice(3);
+  }
+
+  // Se já tiver 12 ou 13 dígitos começando com 55 (ex: 5566992442924)
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    return digits;
+  }
+
+  // Se tem DDD e número (10 ou 11 dígitos), anexa o DDI 55 do Brasil
+  if (digits.length === 10 || digits.length === 11) {
+    return `55${digits}`;
+  }
+
+  // Se tiver menos de 10 dígitos (falta DDD), tenta com 55 como fallback
+  if (digits.length < 10) {
+    return `55${digits}`;
+  }
+
+  return digits;
+}
+
+/**
+ * Gera URL oficial e segura do WhatsApp (https://wa.me/55DDDNUMERO?text=...)
+ */
+export function buildWhatsAppLink(phone?: string, text?: string): string {
+  const clean = getCleanWhatsAppDigits(phone);
+  if (!clean) return '';
+  const baseUrl = `https://wa.me/${clean}`;
+  if (text) {
+    return `${baseUrl}?text=${encodeURIComponent(text)}`;
+  }
+  return baseUrl;
+}
+
+/**
+ * Reconstrói a lista de Projetos/Orçamentos a partir do histórico de transações de vendas
+ * (Garante auto-recuperação resiliente caso a lista de projetos esteja vazia)
+ */
+export function reconstructProjectsFromTransactions(transactions: Transaction[]): Project[] {
+  if (!Array.isArray(transactions) || transactions.length === 0) return [];
+
+  const financialKeywords = [
+    'ajuste caixa', 'ajuste de caixa', 'saldo anterior', 'atualizar caixa', 
+    'sangria', 'suprimento', 'retirada', 'despesa', 'lucro', 'salario', 
+    'pro labore', 'troco', 'empréstimo', 'pagamento que ficou faltando', 
+    'um real do topo', 'lanche', 'jogo loto', 'mercado'
+  ];
+
+  const projectMap = new Map<string, {
+    id: string;
+    quoteNumber: string;
+    theme: string;
+    transactions: Transaction[];
+    customerId: string;
+    paymentMethod: string;
+    isExchange: boolean;
+  }>();
+
+  transactions.forEach(t => {
+    // Apenas entradas financeiras podem ser vendas
+    if (t.type !== 'income') return;
+
+    // Ignorar transferências de saldo anterior e ajustes manuais do caixa
+    const tId = t.id || '';
+    if (tId.startsWith('tx_carryover_') || tId.startsWith('carryover_')) return;
+
+    const desc = (t.description || '').trim();
+    const descLower = desc.toLowerCase();
+
+    // Ignorar se for palavra-chave puramente financeira do caixa
+    if (financialKeywords.some(kw => descLower.includes(kw))) return;
+
+    // Se for transação manual sem número de orçamento e sem projeto vinculado, ignorar
+    let quoteNumber = '';
+    const quoteMatch = desc.match(/#+([A-Za-z0-9\-_]+)/);
+    if (quoteMatch) {
+      quoteNumber = quoteMatch[1];
+    }
+
+    let pId = t.projectId;
+    if (!pId && tId) {
+      const parts = tId.split('_');
+      if (parts.length >= 3 && (parts[0] === 'auto' || parts[0] === 'payment')) {
+        pId = parts[parts.length - 1];
+      }
+    }
+
+    if ((tId.startsWith('manual_') || tId.startsWith('tx_manual_')) && !quoteNumber && !pId) {
+      return;
+    }
+
+    let theme = '';
+    if (desc.includes('Saldo Final:')) {
+      theme = desc.split('Saldo Final:')[1].split('(')[0].trim();
+    } else if (desc.includes('Pagamento:')) {
+      theme = desc.split('Pagamento:')[1].split('(')[0].trim();
+    } else if (desc.includes('Entrada:')) {
+      theme = desc.split('Entrada:')[1].split('(')[0].trim();
+    } else if (desc.includes('Compra pelo Catálogo -')) {
+      theme = desc.split('Compra pelo Catálogo -')[1].split('(')[0].trim();
+    } else if (desc.includes('Venda:')) {
+      theme = desc.split('Venda:')[1].split('(')[0].trim();
+    } else {
+      theme = desc.split('(')[0].trim();
+    }
+
+    // Se o tema acabou sendo uma palavra de ajuste
+    if (financialKeywords.some(kw => theme.toLowerCase().includes(kw))) return;
+
+    const key = pId || (quoteNumber ? 'quote_' + quoteNumber : (tId.startsWith('auto_') || tId.startsWith('payment_') || tId.startsWith('proj_') ? 'tx_' + tId : ''));
+    if (!key) return;
+
+    if (!projectMap.has(key)) {
+      projectMap.set(key, {
+        id: pId || key,
+        quoteNumber: quoteNumber || '',
+        theme: theme || 'Pedido Personalizado',
+        transactions: [],
+        customerId: t.customerId || '',
+        paymentMethod: t.paymentMethod || 'Pix',
+        isExchange: !!t.isExchange
+      });
+    }
+
+    const entry = projectMap.get(key)!;
+    entry.transactions.push(t);
+    if (t.customerId && !entry.customerId) entry.customerId = t.customerId;
+    if (theme && (!entry.theme || entry.theme === 'Pedido Personalizado')) entry.theme = theme;
+    if (quoteNumber && !entry.quoteNumber) entry.quoteNumber = quoteNumber;
+    if (t.paymentMethod && (!entry.paymentMethod || entry.paymentMethod === 'Pix')) entry.paymentMethod = t.paymentMethod;
+    if (t.isExchange) entry.isExchange = true;
+  });
+
+  const reconstructedProjects: Project[] = [];
+
+  projectMap.forEach((entry) => {
+    entry.transactions.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const earliestDate = entry.transactions[0]?.date || '2026-09-01';
+    const latestDate = entry.transactions[entry.transactions.length - 1]?.date || earliestDate;
+    const totalAmount = entry.transactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+    const hasFinal = entry.transactions.some(t => (t.description || '').includes('Saldo Final') || t.id.startsWith('auto_final'));
+    const status: Project['status'] = hasFinal ? 'completed' : 'approved';
+    const quoteDisplay = entry.quoteNumber ? (entry.quoteNumber.startsWith('#') ? entry.quoteNumber : '#' + entry.quoteNumber) : '';
+
+    const project: Project = {
+      id: entry.id,
+      name: entry.theme ? (quoteDisplay ? `${entry.theme} (${quoteDisplay})` : entry.theme) : `Pedido ${quoteDisplay}`,
+      customerId: entry.customerId || '',
+      description: entry.theme || '',
+      observations: '',
+      notes: '',
+      items: [
+        {
+          name: entry.theme || 'Produto Artesanal',
+          quantity: 1,
+          hoursToMake: 0.5,
+          materials: [],
+          profitMargin: 30,
+          unitPrice: totalAmount > 0 ? totalAmount : 20,
+          manualBaseCost: 0,
+          packagingCost: 0,
+          minOrderQuantity: 1
+        }
+      ],
+      platformId: '4', // Venda Direta
+      excedente: 0,
+      status: status,
+      createdAt: `${earliestDate}T12:00:00.000Z`,
+      orderDate: earliestDate,
+      dueDate: latestDate,
+      deliveryDate: latestDate,
+      deliveryTime: '',
+      theme: entry.theme || 'Personalizado',
+      celebrantName: '',
+      celebrantAge: '',
+      quoteNumber: entry.quoteNumber || '',
+      shipping: 0,
+      discountPercentage: 0,
+      discountAmount: 0,
+      downPayment: hasFinal ? 0 : totalAmount,
+      installments: 1,
+      installmentAmount: 0,
+      paymentMethod: entry.paymentMethod || 'Pix',
+      paidAt: hasFinal ? `${latestDate}T12:00:00.000Z` : undefined,
+      isExchange: entry.isExchange,
+      hoursToMake: 0.5,
+      materials: [],
+      profitMargin: 30,
+      quantity: 1
+    };
+
+    reconstructedProjects.push(project);
+  });
+
+  reconstructedProjects.sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || ''));
+  return reconstructedProjects;
+}
+

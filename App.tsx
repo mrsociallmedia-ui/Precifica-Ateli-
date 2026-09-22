@@ -253,28 +253,51 @@ const App: React.FC = () => {
     };
   }, []);
 
+  const resetToDefaultState = useCallback(() => {
+    setCompanyData(INITIAL_COMPANY_DATA);
+    setMaterials([]);
+    setCustomers([]);
+    setPlatforms(PLATFORMS_DEFAULT);
+    setProjects([]);
+    setProducts([]);
+    setTransactions([]);
+    setClosures([]);
+    setProductCategories(['Festas', 'Papelaria', 'Presentes', 'Geral']);
+    setTransactionCategories(['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Permuta', 'Outros']);
+    setPaymentMethods(['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']);
+    lastSyncedStateRef.current = "";
+  }, []);
+
   const loadLocalCache = useCallback((email: string) => {
     const userKey = email.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-    const setters: Record<string, Function> = {
-      craft_company: setCompanyData,
-      craft_materials: setMaterials,
-      craft_customers: setCustomers,
-      craft_platforms: setPlatforms,
-      craft_projects: setProjects,
-      craft_products: setProducts,
-      craft_transactions: setTransactions,
-      craft_closures: setClosures,
-      craft_prod_categories: setProductCategories,
-      craft_trans_categories: setTransactionCategories,
-      craft_pay_methods: setPaymentMethods
+    
+    const read = <T,>(key: string, fallback: T): T => {
+      const saved = localStorage.getItem(`${userKey}_${key}`);
+      if (!saved) return fallback;
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(`Erro ao carregar cache ${key}`, e);
+        return fallback;
+      }
     };
 
-    Object.entries(setters).forEach(([key, setter]) => {
-      const saved = localStorage.getItem(`${userKey}_${key}`);
-      if (saved) {
-        try { setter(JSON.parse(saved)); } catch (e) { console.error(`Erro ao carregar cache ${key}`, e); }
-      }
-    });
+    const initialCompanyForUser: CompanyData = {
+      ...INITIAL_COMPANY_DATA,
+      name: `Ateliê de ${email.split('@')[0]}`
+    };
+
+    setCompanyData(read('craft_company', initialCompanyForUser));
+    setMaterials(read('craft_materials', []));
+    setCustomers(read('craft_customers', []));
+    setPlatforms(read('craft_platforms', PLATFORMS_DEFAULT));
+    setProjects(read('craft_projects', []));
+    setProducts(read('craft_products', []));
+    setTransactions(read('craft_transactions', []));
+    setClosures(read('craft_closures', []));
+    setProductCategories(read('craft_prod_categories', ['Festas', 'Papelaria', 'Presentes', 'Geral']));
+    setTransactionCategories(read('craft_trans_categories', ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Permuta', 'Outros']));
+    setPaymentMethods(read('craft_pay_methods', ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência']));
   }, []);
 
   const saveLocalCache = useCallback(() => {
@@ -297,10 +320,11 @@ const App: React.FC = () => {
     Object.entries(data).forEach(([key, value]) => {
       safeLocalStorageSet(`${userKey}_${key}`, value);
     });
-  }, [currentUser, companyData, materials, customers, platforms, projects, products, transactions, productCategories, transactionCategories, paymentMethods]);
+  }, [currentUser, companyData, materials, customers, platforms, projects, products, transactions, closures, productCategories, transactionCategories, paymentMethods]);
 
   const fetchCloudData = useCallback(async (email: string) => {
-    loadLocalCache(email);
+    const cleanEmail = email.trim().toLowerCase();
+    loadLocalCache(cleanEmail);
     if (!supabase || isMock) {
       setSyncStatus('local');
       return;
@@ -308,11 +332,11 @@ const App: React.FC = () => {
 
     try {
       setSyncStatus('syncing');
-      console.log(`Cloud Sync: Buscando dados para ${email}...`);
+      console.log(`Cloud Sync: Buscando dados para ${cleanEmail}...`);
       const { data, error } = await supabase
         .from('user_data')
         .select('app_state')
-        .eq('user_email', email.toLowerCase())
+        .eq('user_email', cleanEmail)
         .maybeSingle();
 
       if (error) {
@@ -328,28 +352,55 @@ const App: React.FC = () => {
 
       if (data?.app_state) {
         const s = data.app_state;
-        if (s.craft_company) setCompanyData(s.craft_company);
-        if (s.craft_materials) setMaterials(s.craft_materials);
-        if (s.craft_customers) setCustomers(s.craft_customers);
-        if (s.craft_platforms) setPlatforms(s.craft_platforms);
-        if (s.craft_projects) setProjects(s.craft_projects);
-        if (s.craft_products) setProducts(s.craft_products);
-        if (s.craft_transactions) setTransactions(s.craft_transactions);
-        if (s.craft_closures) setClosures(s.craft_closures);
-        if (s.craft_prod_categories) setProductCategories(s.craft_prod_categories);
-        if (s.craft_trans_categories) setTransactionCategories(s.craft_trans_categories);
-        if (s.craft_pay_methods) setPaymentMethods(s.craft_pay_methods);
+        const initialCompanyForUser: CompanyData = {
+          ...INITIAL_COMPANY_DATA,
+          name: `Ateliê de ${cleanEmail.split('@')[0]}`
+        };
+        const loadedCompany = s.craft_company || initialCompanyForUser;
+        const loadedMaterials = Array.isArray(s.craft_materials) ? s.craft_materials : [];
+        const loadedCustomers = Array.isArray(s.craft_customers) ? s.craft_customers : [];
+        const loadedPlatforms = Array.isArray(s.craft_platforms) ? s.craft_platforms : PLATFORMS_DEFAULT;
+        const loadedProjects = Array.isArray(s.craft_projects) ? s.craft_projects : [];
+        const loadedProducts = Array.isArray(s.craft_products) ? s.craft_products : [];
+        const loadedTransactions = Array.isArray(s.craft_transactions) ? s.craft_transactions : [];
+        const loadedClosures = Array.isArray(s.craft_closures) ? s.craft_closures : [];
+        const loadedProdCategories = Array.isArray(s.craft_prod_categories) ? s.craft_prod_categories : ['Festas', 'Papelaria', 'Presentes', 'Geral'];
+        const loadedTransCategories = Array.isArray(s.craft_trans_categories) ? s.craft_trans_categories : ['Venda', 'Material', 'Fixo', 'Salário', 'Marketing', 'Permuta', 'Outros'];
+        const loadedPayMethods = Array.isArray(s.craft_pay_methods) ? s.craft_pay_methods : ['Dinheiro', 'Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência'];
+
+        setCompanyData(loadedCompany);
+        setMaterials(loadedMaterials);
+        setCustomers(loadedCustomers);
+        setPlatforms(loadedPlatforms);
+        setProjects(loadedProjects);
+        setProducts(loadedProducts);
+        setTransactions(loadedTransactions);
+        setClosures(loadedClosures);
+        setProductCategories(loadedProdCategories);
+        setTransactionCategories(loadedTransCategories);
+        setPaymentMethods(loadedPayMethods);
+
+        // Atualizar também o cache local deste artesão
+        const userKey = cleanEmail.replace(/[^a-z0-9]/g, '_');
+        safeLocalStorageSet(`${userKey}_craft_company`, loadedCompany);
+        safeLocalStorageSet(`${userKey}_craft_materials`, loadedMaterials);
+        safeLocalStorageSet(`${userKey}_craft_customers`, loadedCustomers);
+        safeLocalStorageSet(`${userKey}_craft_platforms`, loadedPlatforms);
+        safeLocalStorageSet(`${userKey}_craft_projects`, loadedProjects);
+        safeLocalStorageSet(`${userKey}_craft_products`, loadedProducts);
+        safeLocalStorageSet(`${userKey}_craft_transactions`, loadedTransactions);
+        safeLocalStorageSet(`${userKey}_craft_closures`, loadedClosures);
+        safeLocalStorageSet(`${userKey}_craft_prod_categories`, loadedProdCategories);
+        safeLocalStorageSet(`${userKey}_craft_trans_categories`, loadedTransCategories);
+        safeLocalStorageSet(`${userKey}_craft_pay_methods`, loadedPayMethods);
         
         lastSyncedStateRef.current = JSON.stringify(s);
         setSyncStatus('synced');
         setSyncErrorMessage(null);
       } else {
-        // Se não houver dados na nuvem mas o usuário está logado, 
-        // consideramos 'synced' mas marcamos que precisamos fazer o primeiro push
+        // Usuário novo ou sem registros na nuvem: cria ambiente limpo e isolado
         setSyncStatus('synced');
-        // Agendar um push imediato para garantir que a nuvem tenha os dados iniciais
-        // Passamos 'true' para forçar o push mesmo antes do initializedRef.current ser setado no turn seguinte
-        setTimeout(() => pushCloudData(true), 500);
+        setSyncErrorMessage(null);
       }
     } catch (err: any) {
       console.error("Supabase Sync Error:", err);
@@ -425,21 +476,21 @@ const App: React.FC = () => {
         setIsInitialLoadDone(true);
       }).catch(() => setIsInitialLoadDone(true));
 
-      // Configurar Sincronização em Tempo Real (Realtime)
+      // Configurar Sincronização em Tempo Real (Realtime) isolada por usuário
       if (supabase && !isMock) {
+        const userChannelName = `user_data_realtime_${currentUser.replace(/[^a-z0-9]/g, '_')}`;
         const channel = supabase
-          .channel('user_data_realtime')
+          .channel(userChannelName)
           .on('postgres_changes', { 
             event: '*', 
             schema: 'public', 
             table: 'user_data', 
             filter: `user_email=eq.${currentUser.toLowerCase()}` 
           }, (payload: any) => {
-            // Quando os dados mudam no banco (por outro dispositivo), atualizamos o estado local
+            // Quando os dados mudam no banco (por outro dispositivo), atualizamos o estado local deste usuário
             if (payload.new && payload.new.app_state) {
               const s = payload.new.app_state;
               
-              // Evitar loops redundantes se o dado que chegou for exatamente igual ao que já temos localmente
               const serializedPayload = JSON.stringify(s);
               if (serializedPayload === lastSyncedStateRef.current) return;
 
@@ -481,6 +532,13 @@ const App: React.FC = () => {
 
   const handleLogin = (userEmail: string) => {
     const cleanEmail = userEmail.trim().toLowerCase();
+    if (cleanEmail !== currentUser) {
+      initializedRef.current = false;
+      setIsInitialLoadDone(false);
+      lastSyncedStateRef.current = "";
+      resetToDefaultState();
+    }
+    localStorage.setItem('last_user_email', cleanEmail);
     setCurrentUser(cleanEmail);
     setIsAuthenticated(true);
   };
@@ -498,6 +556,7 @@ const App: React.FC = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
     setShowLogoutConfirm(false);
+    resetToDefaultState();
     window.location.reload(); 
   };
 
@@ -780,7 +839,7 @@ const App: React.FC = () => {
                   case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
                   case 'catalog': return <CatalogManager currentUser={currentUser || ''} companyData={companyData} products={products} projects={projects} transactions={transactions} customers={customers} onNavigate={(tab) => setActiveTab(tab)} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} setCustomers={setCustomers} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} setProjects={setProjects} />;
-                  case 'captions': return <AICaptionGenerator companyData={companyData} products={products} projects={projects} />;
+                  case 'captions': return <AICaptionGenerator companyData={companyData} products={products} projects={projects} currentUser={currentUser || ''} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;
                   default: return <Dashboard {...props} setTransactions={setTransactions} setCompanyData={setCompanyData} onNavigate={(tab) => setActiveTab(tab)} />;
                 }

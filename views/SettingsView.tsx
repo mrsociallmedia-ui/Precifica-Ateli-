@@ -751,6 +751,61 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
 
+            {/* Conta Ativa e Isolamento de Dados */}
+            <div className="bg-gradient-to-br from-white to-blue-50/40 p-8 rounded-[2.5rem] shadow-sm border border-blue-100/70 space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100/50 pb-4">
+                <h4 className="font-black text-gray-800 flex items-center gap-3 uppercase text-xs tracking-widest">
+                  <ShieldCheck size={18} className="text-blue-500" /> Sua Conta & Privacidade dos Dados
+                </h4>
+                <span className="px-3 py-1 bg-green-50 text-green-600 border border-green-200 text-[10px] font-black rounded-full uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckCircle2 size={12} /> Dados 100% Isolados
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 bg-white rounded-2xl border border-blue-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-0.5">E-mail do Ateliê Ativo</span>
+                    <span className="text-sm font-black text-gray-800 break-all">{currentUser || 'Usuário Local'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-gray-500 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-150">
+                      Ambiente Individual
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-4 bg-white rounded-2xl border border-gray-100 space-y-1">
+                    <p className="font-black text-gray-800 flex items-center gap-1.5 text-xs">
+                      <Store size={14} className="text-pink-500" /> Catálogo & Pedidos
+                    </p>
+                    <p className="text-gray-500 text-[11px] leading-relaxed">
+                      Seus produtos e encomendas recebidas pertencem unicamente ao seu ateliê.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-white rounded-2xl border border-gray-100 space-y-1">
+                    <p className="font-black text-gray-800 flex items-center gap-1.5 text-xs">
+                      <Users size={14} className="text-blue-500" /> Clientes & Contatos
+                    </p>
+                    <p className="text-gray-500 text-[11px] leading-relaxed">
+                      Sua base de clientes é estritamente confidencial e não se mistura com outros ateliês.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-white rounded-2xl border border-gray-100 space-y-1">
+                    <p className="font-black text-gray-800 flex items-center gap-1.5 text-xs">
+                      <Receipt size={14} className="text-green-500" /> Finanças & Preços
+                    </p>
+                    <p className="text-gray-500 text-[11px] leading-relaxed">
+                      Entradas, saídas e custos fixos são salvos sob chave criptografada exclusiva do seu e-mail.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Segurança da Conta - REDEFINIR SENHA */}
             <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-8">
               <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest border-b border-gray-50 pb-4">

@@ -193,6 +193,40 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </p>
             </div>
 
+            {/* Aviso de Isolamento e Privacidade de Dados por Usuário */}
+            <div className="mb-6 px-4 py-3 bg-gradient-to-r from-pink-50/90 via-purple-50/60 to-pink-50/90 border border-pink-100/80 rounded-2xl flex items-center gap-3 shadow-xs">
+              <div className="w-8 h-8 rounded-xl bg-white shadow-xs text-pink-600 flex items-center justify-center shrink-0 border border-pink-100">
+                <ShieldCheck size={18} />
+              </div>
+              <div className="text-left">
+                <p className="text-[11px] font-black text-gray-800 leading-tight">Ambiente Privado por Usuário</p>
+                <p className="text-[10px] text-gray-500 font-semibold leading-tight">Cada ateliê tem seus clientes, estoque, orçamentos e financeiro 100% isolados.</p>
+              </div>
+            </div>
+
+            {(mode === 'access' || mode === 'register') && (
+              <div className="flex p-1 bg-gray-100/80 rounded-2xl mb-6">
+                <button
+                  type="button"
+                  onClick={() => { setMode('access'); resetStates(); }}
+                  className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
+                    mode === 'access' ? 'bg-white text-gray-800 shadow-xs' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  Entrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMode('register'); resetStates(); }}
+                  className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
+                    mode === 'register' ? 'bg-white text-pink-600 shadow-xs' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  Criar Conta
+                </button>
+              </div>
+            )}
+
             {error && (
               <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 animate-shake">
                 <AlertCircle size={18} className="shrink-0" />
@@ -251,6 +285,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Zap size={18} className="text-yellow-400" />}
                     {isSubmitting ? 'Acessando...' : 'Acessar Ateliê'}
                   </button>
+
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => { setMode('register'); resetStates(); }}
+                      className="text-xs font-bold text-gray-500 hover:text-pink-600 transition-colors inline-flex items-center gap-1.5"
+                    >
+                      <span>Não tem conta ainda?</span>
+                      <span className="font-black text-pink-500 underline underline-offset-4">Criar conta para meu ateliê</span>
+                    </button>
+                  </div>
 
 
                 </>

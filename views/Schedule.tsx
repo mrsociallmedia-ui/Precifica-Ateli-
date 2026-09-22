@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3, ChevronDown, ChevronUp, MessageCircle, RefreshCw, LayoutGrid, List, ExternalLink, Printer } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, Trash2, Gift, MousePointer2, PlayCircle, CheckCircle, AlertTriangle, X, Hash, DollarSign, Edit3, ChevronDown, ChevronUp, MessageCircle, RefreshCw, LayoutGrid, List, ExternalLink, Printer, Cloud } from 'lucide-react';
 import { Project, Customer, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -15,10 +15,12 @@ interface ScheduleProps {
   companyData: CompanyData;
   currentUser: string;
   onEditProject: (project: Project) => void;
+  onPullFromCloud?: () => void;
+  isSyncing?: boolean;
 }
 
 export const Schedule: React.FC<ScheduleProps> = ({ 
-  projects, setProjects, transactions, setTransactions, customers, materials, platforms, companyData, currentUser, onEditProject
+  projects, setProjects, transactions, setTransactions, customers, materials, platforms, companyData, currentUser, onEditProject, onPullFromCloud, isSyncing = false
 }) => {
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [showBirthdaysModal, setShowBirthdaysModal] = useState(false);
@@ -311,7 +313,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
       return `
         <tr>
           <td>
-            <span class="quote-num">#${project.quoteNumber || 'S/N'}</span>
+            <span class="quote-num">${project.quoteNumber ? (project.quoteNumber.startsWith('#') ? project.quoteNumber : `#${project.quoteNumber}`) : '#S/N'}</span>
           </td>
           <td>
             <div class="client-name">${customerName}</div>
@@ -429,9 +431,26 @@ export const Schedule: React.FC<ScheduleProps> = ({
     <div className="space-y-10 animate-fadeIn pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black text-gray-800 tracking-tight">Cronograma <span className="text-blue-500">& Produção</span></h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-4xl font-black text-gray-800 tracking-tight">Cronograma <span className="text-blue-500">& Produção</span></h2>
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-100 rounded-full text-blue-600 text-xs font-black">
+              <Cloud size={12} />
+              {projects.length} Pedidos na Nuvem
+            </span>
+          </div>
           <div className="flex flex-wrap items-center gap-4 mt-2">
-            <p className="text-gray-400 font-medium">Acompanhe seus prazos e etapas do pedido.</p>
+            <p className="text-gray-400 font-medium">Acompanhe seus prazos, entregas e etapas sincronizadas com o Supabase.</p>
+            {onPullFromCloud && (
+              <button 
+                onClick={onPullFromCloud}
+                disabled={isSyncing}
+                className="bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 font-black px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs uppercase tracking-wider transition-all shadow-xs active:scale-95 disabled:opacity-50"
+                title="Puxar pedidos e cronograma da nuvem Supabase"
+              >
+                <RefreshCw size={13} className={isSyncing ? 'animate-spin text-blue-500' : ''} />
+                <span>{isSyncing ? 'Puxando...' : 'Puxar Nuvem'}</span>
+              </button>
+            )}
             <div className="flex items-center bg-gray-100 p-1 rounded-xl">
                <button 
                   onClick={() => setViewMode('kanban')}
@@ -620,7 +639,7 @@ export const Schedule: React.FC<ScheduleProps> = ({
                         <div className="flex items-center gap-2">
                           {project.quoteNumber && (
                             <span className="flex items-center gap-0.5 text-[8px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md">
-                               <Hash size={8} /> {project.quoteNumber}
+                               <Hash size={8} /> {project.quoteNumber.replace(/^#/, '')}
                             </span>
                           )}
                         </div>

@@ -22,6 +22,7 @@ export interface Customer {
   cpf?: string;
   city?: string;
   complement?: string;
+  observations?: string;
 }
 
 export interface CatalogCustomerProfile {

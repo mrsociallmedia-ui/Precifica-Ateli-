@@ -17,7 +17,10 @@ import {
   Edit3,
   MessageCircle,
   RefreshCw,
-  DollarSign
+  DollarSign,
+  Search,
+  Cloud,
+  CloudDownload
 } from 'lucide-react';
 import { Customer, Project, Material, Platform, CompanyData, Transaction } from '../types';
 import { calculateProjectBreakdown } from '../utils';
@@ -30,6 +33,8 @@ interface CustomersProps {
   materials: Material[];
   platforms: Platform[];
   companyData: CompanyData;
+  onPullFromCloud?: () => void;
+  isSyncing?: boolean;
 }
 
 export const Customers: React.FC<CustomersProps> = ({ 
@@ -39,8 +44,12 @@ export const Customers: React.FC<CustomersProps> = ({
   transactions,
   materials, 
   platforms, 
-  companyData 
+  companyData,
+  onPullFromCloud,
+  isSyncing = false
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'with_orders' | 'with_balance'>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<Customer | null>(null);
@@ -113,24 +122,136 @@ export const Customers: React.FC<CustomersProps> = ({
     }, 0);
   }, [customerOrders, materials, platforms, companyData]);
 
+  const filteredCustomers = useMemo(() => {
+    return customers.filter(c => {
+      const matchSearch = searchTerm === '' || 
+        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.phone && c.phone.includes(searchTerm)) ||
+        (c.address && c.address.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (c.neighborhood && c.neighborhood.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      if (!matchSearch) return false;
+
+      if (filterType === 'with_orders') {
+        const orderCount = projects.filter(p => p.customerId === c.id).length;
+        return orderCount > 0;
+      }
+      if (filterType === 'with_balance') {
+        return (c.creditBalance || 0) !== 0;
+      }
+      return true;
+    });
+  }, [customers, searchTerm, filterType, projects]);
+
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div className="space-y-6 md:space-y-8 animate-fadeIn">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tight">Base de <span className="text-pink-500">Clientes</span></h2>
-          <p className="text-sm md:text-base text-gray-400 font-medium">Gerencie seus contatos e datas especiais.</p>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tight">Base de <span className="text-pink-500">Clientes</span></h2>
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 bg-pink-50 border border-pink-100 rounded-full text-pink-600 text-xs font-black">
+              <Cloud size={12} />
+              {customers.length} na Nuvem
+            </span>
+          </div>
+          <p className="text-sm md:text-base text-gray-400 font-medium">Gerencie seus contatos, orçamentos vinculados e dados sincronizados com o Supabase.</p>
         </div>
-        <button 
-          onClick={handleOpenAdd}
-          className="bg-pink-400 hover:bg-pink-500 text-white font-black px-6 md:px-8 py-3 md:py-4 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center gap-2 transition-all shadow-lg shadow-pink-100 active:scale-95 w-full md:w-auto"
-        >
-          <Plus size={20} />
-          Novo Cliente
-        </button>
+        <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+          {onPullFromCloud && (
+            <button 
+              onClick={onPullFromCloud}
+              disabled={isSyncing}
+              className="bg-white hover:bg-pink-50 text-pink-600 border border-pink-200 font-black px-5 py-3 md:py-4 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95 text-xs uppercase tracking-wider disabled:opacity-50"
+              title="Puxar base de clientes mais recente do Supabase"
+            >
+              <RefreshCw size={16} className={isSyncing ? 'animate-spin text-pink-500' : ''} />
+              <span>{isSyncing ? 'Puxando...' : 'Puxar da Nuvem'}</span>
+            </button>
+          )}
+          <button 
+            onClick={handleOpenAdd}
+            className="bg-pink-400 hover:bg-pink-500 text-white font-black px-6 md:px-8 py-3 md:py-4 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center gap-2 transition-all shadow-lg shadow-pink-100 active:scale-95 flex-1 sm:flex-initial"
+          >
+            <Plus size={20} />
+            Novo Cliente
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
-        {customers.map(customer => {
+      {/* Barra de Busca e Filtros */}
+      <div className="bg-white p-4 rounded-3xl border border-pink-50 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="relative w-full md:w-96">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input 
+            type="text"
+            placeholder="Buscar por nome, telefone ou bairro..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-11 pr-4 py-2.5 bg-pink-50/30 hover:bg-pink-50/60 focus:bg-white border border-pink-100 rounded-2xl text-xs font-bold text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-300 transition-all"
+          />
+          {searchTerm && (
+            <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+          <button
+            onClick={() => setFilterType('all')}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              filterType === 'all' 
+                ? 'bg-pink-500 text-white shadow-sm' 
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            Todos ({customers.length})
+          </button>
+          <button
+            onClick={() => setFilterType('with_orders')}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              filterType === 'with_orders' 
+                ? 'bg-pink-500 text-white shadow-sm' 
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            Com Pedidos
+          </button>
+          <button
+            onClick={() => setFilterType('with_balance')}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              filterType === 'with_balance' 
+                ? 'bg-pink-500 text-white shadow-sm' 
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            Com Saldo/Crédito
+          </button>
+        </div>
+      </div>
+
+      {filteredCustomers.length === 0 ? (
+        <div className="bg-white rounded-[2.5rem] p-12 text-center border border-pink-50 shadow-sm space-y-4">
+          <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center text-pink-400 mx-auto">
+            <Users size={32} />
+          </div>
+          <h3 className="text-lg font-black text-gray-700">Nenhum cliente encontrado</h3>
+          <p className="text-xs text-gray-400 max-w-sm mx-auto">
+            {searchTerm ? 'Tente buscar por outro termo ou limpar o filtro.' : 'Clique em "Novo Cliente" ou puxe seus clientes da nuvem Supabase.'}
+          </p>
+          {onPullFromCloud && (
+            <button 
+              onClick={onPullFromCloud}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-pink-500 text-white rounded-2xl text-xs font-black shadow-md shadow-pink-100 hover:bg-pink-600 transition-all"
+            >
+              <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
+              Puxar da Nuvem Supabase
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
+          {filteredCustomers.map(customer => {
           const orderCount = projects.filter(p => p.customerId === customer.id).length;
           
           const creditBalance = customer.creditBalance || 0;
@@ -242,6 +363,7 @@ export const Customers: React.FC<CustomersProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Modal Histórico */}
       {historyCustomer && (
