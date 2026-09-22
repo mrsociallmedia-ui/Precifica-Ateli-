@@ -129,8 +129,8 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
             </h1>
             <p className="text-pink-100 font-medium text-sm md:text-base leading-relaxed">
               Compartilhe o link da sua vitrine com seus clientes. Cada pedido finalizado pelo WhatsApp é 
-              <strong className="text-white"> automaticamente inserido no seu Cronograma</strong> e lançado como 
-              <strong className="text-white"> receita no Financeiro</strong>!
+              <strong className="text-white"> automaticamente inserido no seu Cronograma</strong> com status financeiro 
+              <strong className="text-white"> A Receber</strong>!
             </p>
           </div>
 
@@ -309,8 +309,8 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                             <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${badge.className}`}>
                               {badge.label}
                             </span>
-                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
-                              <CheckCircle2 size={11} className="text-emerald-500" /> Pago
+                            <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 inline-flex items-center gap-1 shadow-xs">
+                              <AlertCircle size={11} className="text-red-500" /> Financeiro: A Receber
                             </span>
                             <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
                               <Clock size={11} /> {orderDateFormatted}
@@ -352,9 +352,9 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                       <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs font-bold">
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] uppercase tracking-wider text-gray-400">Pagamento:</span>
-                          <span className="text-gray-700">{order.paymentMethod || 'Pix'}</span>
-                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
-                            Lançado no Caixa (Pago)
+                          <span className="text-gray-700">{order.paymentMethod || 'A combinar'}</span>
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-200">
+                            A Receber (Não lançado)
                           </span>
                         </div>
 

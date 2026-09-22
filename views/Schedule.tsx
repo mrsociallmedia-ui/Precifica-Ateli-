@@ -617,10 +617,15 @@ export const Schedule: React.FC<ScheduleProps> = ({
                   return (
                     <div key={project.id} className={`bg-white rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group relative overflow-hidden flex flex-col ${isMinimized ? 'p-4' : 'p-6'}`}>
                       <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           {project.quoteNumber && (
                             <span className="flex items-center gap-0.5 text-[8px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md">
                                <Hash size={8} /> {project.quoteNumber}
+                            </span>
+                          )}
+                          {Boolean((project.notes && project.notes.includes('Catálogo Online')) || (project.quoteNumber && project.quoteNumber.startsWith('#PED-'))) && (
+                            <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md bg-pink-50 text-pink-600 border border-pink-100">
+                              🛍️ Catálogo
                             </span>
                           )}
                         </div>
@@ -867,6 +872,11 @@ export const Schedule: React.FC<ScheduleProps> = ({
                                    <div className="flex items-center gap-2">
                                       <span className="font-black text-gray-800">{project.theme}</span>
                                       {project.quoteNumber && <span className="text-[8px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md">#{project.quoteNumber}</span>}
+                                      {Boolean((project.notes && project.notes.includes('Catálogo Online')) || (project.quoteNumber && project.quoteNumber.startsWith('#PED-'))) && (
+                                        <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md bg-pink-50 text-pink-600 border border-pink-100">
+                                          🛍️ Catálogo
+                                        </span>
+                                      )}
                                    </div>
                                    <span className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
                                       {project.items?.length || 0} itens • {project.items?.reduce((acc, i) => acc + (i.hoursToMake * i.quantity), 0).toFixed(1)}h

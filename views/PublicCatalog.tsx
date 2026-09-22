@@ -33,7 +33,7 @@ import {
   AlertCircle,
   Share2
 } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { supabase, fetchUserDataFromCloud } from '../supabaseClient';
 import { Product, CompanyData, Material, Platform } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
@@ -90,12 +90,8 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     const fetchData = async () => {
       try {
         setLoading(true);
-        // 1. Tentar buscar dados públicos no Supabase
-        const { data, error } = await supabase
-          .from('user_data')
-          .select('app_state')
-          .eq('user_email', userEmail.toLowerCase())
-          .maybeSingle();
+        // 1. Tentar buscar dados públicos no Supabase com fallback resiliente
+        const { data, error } = await fetchUserDataFromCloud(userEmail);
 
         if (data?.app_state) {
           const s = data.app_state;
@@ -333,7 +329,11 @@ ${deliveryDetails}
 
     setLastOrderMessage(message);
 
-    // AUTOMATIZAÇÃO: Inserir pedido no Cronograma e lançar receita no Financeiro (Compra pelo Catálogo)
+    let localProject: any = null;
+    let localCustomer: any = null;
+    let projId = `proj_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+
+    // AUTOMATIZAÇÃO: Inserir pedido no Cronograma
     try {
       const orderPayload = {
         userEmail,
@@ -369,13 +369,11 @@ ${deliveryDetails}
       const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
       const dateStr = now.toISOString().split('T')[0];
       const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const projId = `proj_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-      const txId = `tx_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
       const custId = `cust_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
 
       const itemsSummary = cart.map(i => `${i.quantity}x ${i.product.name}`).join(', ');
 
-      const localProject = {
+      localProject = {
         id: projId,
         name: `Pedido Catálogo: ${customerName.trim()}`,
         customerId: custId,
@@ -401,12 +399,12 @@ ${deliveryDetails}
         dueDate: dueDate,
         orderDate: dateStr,
         deliveryDate: dueDate,
-        theme: orderObservations.trim() ? orderObservations.trim().slice(0, 40) : 'Catálogo Online',
+        theme: orderObservations.trim() ? orderObservations.trim().slice(0, 50) : (itemsSummary.slice(0, 50) || 'Pedido Catálogo'),
         celebrantName: customerName.trim(),
         celebrantAge: '',
         quoteNumber: orderNum,
         paymentMethod: 'A combinar',
-        paidAt: now.toISOString(),
+        paidAt: undefined,
         hoursToMake: cart.reduce((acc, i) => acc + (((i.product.minutesToMake || 60) / 60) * i.quantity), 0),
         materials: [],
         profitMargin: 30,
@@ -414,20 +412,7 @@ ${deliveryDetails}
         downPayment: cartTotal
       };
 
-      const localTransaction = {
-        id: txId,
-        description: `Compra pelo Catálogo - ${customerName.trim()} (${orderNum})`,
-        amount: cartTotal,
-        type: 'income' as const,
-        category: 'Compra pelo Catálogo',
-        paymentMethod: 'A combinar',
-        date: dateStr,
-        status: 'paid' as const,
-        projectId: projId,
-        customerId: custId
-      };
-
-      const localCustomer = {
+      localCustomer = {
         id: custId,
         name: customerName.trim(),
         birthDate: '',
@@ -445,37 +430,23 @@ ${deliveryDetails}
           localStorage.setItem(projectsKey, JSON.stringify(existingProjects));
         }
 
-        const transKey = `${userKey}_craft_transactions`;
-        const existingTrans = JSON.parse(localStorage.getItem(transKey) || '[]');
-        if (!existingTrans.some((t: any) => t.id === txId)) {
-          existingTrans.unshift(localTransaction);
-          localStorage.setItem(transKey, JSON.stringify(existingTrans));
-        }
-
         const custKey = `${userKey}_craft_customers`;
         const existingCusts = JSON.parse(localStorage.getItem(custKey) || '[]');
         if (!existingCusts.some((c: any) => c.phone && c.phone.replace(/\D/g, '') === customerPhone.replace(/\D/g, ''))) {
           existingCusts.push(localCustomer);
           localStorage.setItem(custKey, JSON.stringify(existingCusts));
         }
-
-        const catKey = `${userKey}_craft_trans_categories`;
-        const existingCats = JSON.parse(localStorage.getItem(catKey) || '[]');
-        if (Array.isArray(existingCats) && !existingCats.includes('Compra pelo Catálogo')) {
-          existingCats.push('Compra pelo Catálogo');
-          localStorage.setItem(catKey, JSON.stringify(existingCats));
-        }
       } catch (cacheErr) {
         console.warn("Aviso ao sincronizar cache local de pedido:", cacheErr);
       }
 
       if (onOrderCreated) {
-        onOrderCreated(localProject, localTransaction, localCustomer);
+        onOrderCreated(localProject, null, localCustomer);
       }
 
       apiPromise.then(res => {
         if (res?.project && onOrderCreated) {
-          onOrderCreated(res.project, res.transaction, res.customerId ? { ...localCustomer, id: res.customerId } : undefined);
+          onOrderCreated(res.project, null, res.customerId ? { ...localCustomer, id: res.customerId } : undefined);
         }
       });
     } catch (autoErr) {
@@ -502,13 +473,15 @@ ${deliveryDetails}
     try {
       const summaryText = cart.map(i => `${i.quantity}x ${i.product.name}`).join(', ');
       const orderNotification = {
-        id: `proj_${Date.now()}`,
+        id: projId,
         quoteNumber: orderNum,
         customerName: customerName.trim(),
         total: cartTotal,
         itemsSummary: summaryText,
         createdAt: now.toISOString(),
-        userEmail: userEmail.trim().toLowerCase()
+        userEmail: userEmail.trim().toLowerCase(),
+        project: localProject,
+        customer: localCustomer
       };
 
       if (typeof window !== 'undefined') {

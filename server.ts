@@ -168,12 +168,12 @@ async function startServer() {
           dueDate: dueDate,
           orderDate: dateStr,
           deliveryDate: dueDate,
-          theme: orderObservations ? String(orderObservations).trim().slice(0, 40) : 'Catálogo Online',
+          theme: orderObservations ? String(orderObservations).trim().slice(0, 50) : (itemsSummary ? String(itemsSummary).slice(0, 50) : 'Pedido Catálogo'),
           celebrantName: customerName.trim(),
           celebrantAge: '',
           quoteNumber: orderNum || `#PED-${Math.floor(1000 + Math.random() * 9000)}`,
           paymentMethod: paymentMethod || 'A combinar',
-          paidAt: now.toISOString(),
+          paidAt: undefined,
           hoursToMake: orderItems.reduce((acc: number, i: any) => acc + (((Number(i.product?.minutesToMake) || 60) / 60) * (Number(i.quantity) || 1)), 0),
           materials: [],
           profitMargin: 30,
@@ -181,33 +181,9 @@ async function startServer() {
           downPayment: Number(cartTotal) || 0
         };
 
-        // Criar Transação (Financeiro)
-        const transactionId = `tx_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-        const newTransaction = {
-          id: transactionId,
-          description: `Compra pelo Catálogo - ${customerName.trim()} (${orderNum || newProject.quoteNumber})`,
-          amount: Number(cartTotal) || 0,
-          type: 'income',
-          category: 'Compra pelo Catálogo',
-          paymentMethod: paymentMethod || 'A combinar',
-          date: dateStr,
-          status: 'paid',
-          projectId: projectId,
-          customerId: customerId
-        };
-
-        // Adicionar categoria 'Compra pelo Catálogo' se não existir
-        if (!craftTransCategories.includes('Compra pelo Catálogo')) {
-          craftTransCategories.push('Compra pelo Catálogo');
-          appState.craft_trans_categories = craftTransCategories;
-        }
-
-        // Adicionar projeto e transação
+        // Adicionar projeto ao Cronograma (sem lançar no Financeiro automaticamente)
         craftProjects.unshift(newProject);
-        craftTransactions.unshift(newTransaction);
-
         appState.craft_projects = craftProjects;
-        appState.craft_transactions = craftTransactions;
 
         // Salvar via Supabase REST Upsert
         const saveRes = await fetch(`${primarySupabaseUrl}/rest/v1/user_data`, {
@@ -233,7 +209,7 @@ async function startServer() {
         res.json({
           success: true,
           project: newProject,
-          transaction: newTransaction,
+          transaction: null,
           customerId: customerId
         });
       } catch (error: any) {

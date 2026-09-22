@@ -43,7 +43,7 @@ import { AICaptionGenerator } from './views/AICaptionGenerator';
 import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
-import { supabase, isMock, clearStaleSupabaseAuth } from './supabaseClient';
+import { supabase, isMock, clearStaleSupabaseAuth, fetchUserDataFromCloud, saveUserDataToCloud } from './supabaseClient';
 import { safeLocalStorageSet, compressImage } from './utils';
 import { PWAInstallBanner, PWAInstallButton } from './components/PWAInstallBanner';
 import { 
@@ -102,8 +102,17 @@ const App: React.FC = () => {
   const [activeCatalogToast, setActiveCatalogToast] = useState<CatalogOrderAlert | null>(null);
   const knownCatalogOrderIdsRef = useRef<Set<string>>(new Set());
 
-  // Disparar notificação sonora e visual no aplicativo
-  const handleNewCatalogOrderAlert = useCallback((orderData: { id?: string; quoteNumber?: string; customerName: string; total: number; itemsSummary?: string; createdAt?: string }) => {
+  // Disparar notificação sonora e visual no aplicativo e atualizar cronograma
+  const handleNewCatalogOrderAlert = useCallback((orderData: { 
+    id?: string; 
+    quoteNumber?: string; 
+    customerName: string; 
+    total: number; 
+    itemsSummary?: string; 
+    createdAt?: string;
+    project?: Project;
+    customer?: Customer;
+  }) => {
     const alertItem: CatalogOrderAlert = {
       id: orderData.id || `notif_${Date.now()}`,
       quoteNumber: orderData.quoteNumber || '#PED-CATALOGO',
@@ -113,6 +122,24 @@ const App: React.FC = () => {
       createdAt: orderData.createdAt || new Date().toISOString(),
       read: false
     };
+
+    // Atualiza lista de projetos (Cronograma) imediatamente se o projeto foi enviado
+    if (orderData.project) {
+      const proj = orderData.project;
+      setProjects(prev => {
+        const exists = prev.some(p => p.id === proj.id || (p.quoteNumber && p.quoteNumber === proj.quoteNumber));
+        return exists ? prev : [proj, ...prev];
+      });
+    }
+
+    // Atualiza lista de clientes se o cliente foi enviado
+    if (orderData.customer) {
+      const cust = orderData.customer;
+      setCustomers(prev => {
+        const exists = prev.some(c => c.id === cust.id || (c.phone && cust.phone && c.phone.replace(/\D/g, '') === cust.phone.replace(/\D/g, '')));
+        return exists ? prev : [cust, ...prev];
+      });
+    }
 
     setCatalogNotifications(prev => {
       if (prev.some(n => (n.id && n.id === alertItem.id) || (n.quoteNumber && n.quoteNumber === alertItem.quoteNumber))) {
@@ -431,14 +458,15 @@ const App: React.FC = () => {
     const rawProjects = read<Project[]>('craft_projects', []);
     const rawTransactions = read<Transaction[]>('craft_transactions', []);
 
-    // Garante que pedidos e transações do Catálogo fiquem 100% como Pagos (e não pendentes a receber)
+    // Pedidos do Catálogo Online entram como "A Receber" (sem paidAt forçado) e NÃO entram no Financeiro
     const sanitizedProjects = rawProjects.map(p => {
       const isCatalog = Boolean(
         (p.notes && p.notes.includes('Catálogo Online')) ||
         (p.quoteNumber && p.quoteNumber.startsWith('#PED-'))
       );
-      if (isCatalog && !p.paidAt) {
-        return { ...p, paidAt: p.createdAt || p.orderDate || new Date().toISOString() };
+      if (isCatalog) {
+        // Pedido do catálogo fica com status A Receber
+        return { ...p, paidAt: undefined };
       }
       return p;
     });
@@ -449,16 +477,14 @@ const App: React.FC = () => {
         .map(p => p.id)
     );
 
-    const sanitizedTransactions = rawTransactions.map(t => {
+    // Remove lançamentos automáticos de catálogo do Financeiro
+    const sanitizedTransactions = rawTransactions.filter(t => {
       const isCatalogTx = Boolean(
         t.category === 'Compra pelo Catálogo' ||
-        (t.description && (t.description.includes('Catálogo') || t.description.includes('#PED-'))) ||
+        (t.description && (t.description.includes('Compra pelo Catálogo') || t.description.includes('Catálogo -'))) ||
         (t.projectId && catalogProjectIds.has(t.projectId))
       );
-      if (isCatalogTx && t.status !== 'paid') {
-        return { ...t, status: 'paid' as const };
-      }
-      return t;
+      return !isCatalogTx;
     });
 
     setCompanyData(read('craft_company', initialCompanyForUser));
@@ -507,11 +533,7 @@ const App: React.FC = () => {
     try {
       setSyncStatus('syncing');
       console.log(`Cloud Sync: Buscando dados para ${cleanEmail}...`);
-      const { data, error } = await supabase
-        .from('user_data')
-        .select('app_state')
-        .eq('user_email', cleanEmail)
-        .maybeSingle();
+      const { data, error } = await fetchUserDataFromCloud(cleanEmail);
 
       if (error) {
         console.error("Cloud Sync Fetch Error:", error);
@@ -543,8 +565,8 @@ const App: React.FC = () => {
             (p.notes && p.notes.includes('Catálogo Online')) ||
             (p.quoteNumber && p.quoteNumber.startsWith('#PED-'))
           );
-          if (isCatalog && !p.paidAt) {
-            return { ...p, paidAt: p.createdAt || p.orderDate || new Date().toISOString() };
+          if (isCatalog) {
+            return { ...p, paidAt: undefined };
           }
           return p;
         });
@@ -555,16 +577,14 @@ const App: React.FC = () => {
             .map(p => p.id)
         );
 
-        const loadedTransactions = rawTransactions.map(t => {
+        // Remove lançamentos de catálogo do Financeiro
+        const loadedTransactions = rawTransactions.filter(t => {
           const isCatalogTx = Boolean(
             t.category === 'Compra pelo Catálogo' ||
-            (t.description && (t.description.includes('Catálogo') || t.description.includes('#PED-'))) ||
+            (t.description && (t.description.includes('Compra pelo Catálogo') || t.description.includes('Catálogo -'))) ||
             (t.projectId && catalogProjectIds.has(t.projectId))
           );
-          if (isCatalogTx && t.status !== 'paid') {
-            return { ...t, status: 'paid' as const };
-          }
-          return t;
+          return !isCatalogTx;
         });
         const loadedClosures = Array.isArray(s.craft_closures) ? s.craft_closures : [];
         const loadedProdCategories = Array.isArray(s.craft_prod_categories) ? s.craft_prod_categories : ['Festas', 'Papelaria', 'Presentes', 'Geral'];
@@ -644,13 +664,7 @@ const App: React.FC = () => {
     setSyncStatus('syncing');
     console.log(`Cloud Sync: Salvando dados para ${currentUser}...`);
     try {
-      const { error } = await supabase
-        .from('user_data')
-        .upsert({ 
-          user_email: currentUser.toLowerCase(), 
-          app_state: appState,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_email' });
+      const { error } = await saveUserDataToCloud(currentUser, appState);
 
       if (error) {
         console.error("Cloud Sync Push Error:", error);
@@ -833,27 +847,20 @@ const App: React.FC = () => {
     return (
       <PublicCatalog 
         userEmail={publicCatalogEmail} 
-        onOrderCreated={(newProj, newTx, newCust) => {
+        onOrderCreated={(newProj, _newTx, newCust) => {
           if (newCust) setCustomers(prev => {
             const exists = prev.some(c => c.id === newCust.id || (c.phone && newCust.phone && c.phone.replace(/\D/g, '') === newCust.phone.replace(/\D/g, '')));
             return exists ? prev : [newCust, ...prev];
           });
           if (newProj) setProjects(prev => {
-            const projectWithPaid = {
+            const catalogProj = {
               ...newProj,
-              paidAt: newProj.paidAt || new Date().toISOString()
+              paidAt: undefined
             };
             const exists = prev.some(p => p.id === newProj.id || (p.quoteNumber && p.quoteNumber === newProj.quoteNumber));
-            return exists ? prev.map(p => (p.id === newProj.id || (p.quoteNumber && p.quoteNumber === newProj.quoteNumber)) ? projectWithPaid : p) : [projectWithPaid, ...prev];
+            return exists ? prev.map(p => (p.id === newProj.id || (p.quoteNumber && p.quoteNumber === newProj.quoteNumber)) ? catalogProj : p) : [catalogProj, ...prev];
           });
-          if (newTx) setTransactions(prev => {
-            const txWithPaid = {
-              ...newTx,
-              status: 'paid' as const
-            };
-            const exists = prev.some(t => t.id === newTx.id);
-            return exists ? prev.map(t => t.id === newTx.id ? txWithPaid : t) : [txWithPaid, ...prev];
-          });
+          // Pedidos do catálogo não entram no Financeiro automaticamente
           if (newProj) {
             handleNewCatalogOrderAlert({
               id: newProj.id,
