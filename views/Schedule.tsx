@@ -706,13 +706,16 @@ export const Schedule: React.FC<ScheduleProps> = ({
                       </div>
   
                       <div className="flex items-center justify-between mb-6 pb-4 border-b border-dashed border-gray-100">
-                         <span className="text-[9px] font-black text-gray-300 uppercase">
-                           {remainingBalance > 0 ? 'A Receber' : 'Status Pagamento'}
+                         <span className="text-[9px] font-black text-gray-400 uppercase">
+                           Status Pagamento
                          </span>
                          {remainingBalance > 0 ? (
-                           <span className="text-sm font-black text-red-500">
-                             R$ {remainingBalance.toFixed(2)}
-                           </span>
+                           <div className="text-right leading-tight">
+                             <span className="text-sm font-black text-amber-600 block">A RECEBER</span>
+                             <span className="text-[10px] font-extrabold text-red-500 block">
+                               R$ {remainingBalance.toFixed(2)}
+                             </span>
+                           </div>
                          ) : (
                            <div className="text-right leading-tight">
                              <span className="text-sm font-black text-green-500 block">PAGO</span>

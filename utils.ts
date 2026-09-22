@@ -212,16 +212,11 @@ export const calculateProjectBreakdown = (
     }
   }
 
-  const isCatalogOrder = Boolean(
-    (project.notes && project.notes.includes('Catálogo Online')) ||
-    (project.quoteNumber && project.quoteNumber.startsWith('#PED-'))
-  );
-
-  if (project.paidAt || isCatalogOrder) {
+  if (project.paidAt) {
     totalPaid = Math.max(totalPaid, finalPrice);
   }
 
-  const remainingBalance = (project.paidAt || isCatalogOrder) ? 0 : Math.max(0, finalPrice - totalPaid);
+  const remainingBalance = project.paidAt ? 0 : Math.max(0, finalPrice - totalPaid);
 
   return {
     variableCosts: totalVariableCosts,

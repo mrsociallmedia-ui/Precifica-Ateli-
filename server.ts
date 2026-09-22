@@ -178,7 +178,7 @@ async function startServer() {
           materials: [],
           profitMargin: 30,
           quantity: orderItems.reduce((acc: number, i: any) => acc + (Number(i.quantity) || 1), 0),
-          downPayment: Number(cartTotal) || 0
+          downPayment: 0
         };
 
         // Adicionar projeto ao Cronograma (sem lançar no Financeiro automaticamente)

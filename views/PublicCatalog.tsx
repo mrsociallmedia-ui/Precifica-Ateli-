@@ -409,7 +409,7 @@ ${deliveryDetails}
         materials: [],
         profitMargin: 30,
         quantity: cart.reduce((acc, i) => acc + i.quantity, 0),
-        downPayment: cartTotal
+        downPayment: 0
       };
 
       localCustomer = {
