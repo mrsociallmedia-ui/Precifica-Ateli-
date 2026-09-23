@@ -48,41 +48,11 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [maxQuoteFilter, setMaxQuoteFilter] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<'number' | 'date'>('number');
-  const [showRestoreModal, setShowRestoreModal] = useState(false);
-  const [selectedToApprove, setSelectedToApprove] = useState<Set<string>>(new Set());
   
-  // Contagem de pedidos aprovados
-  const approvedCount = useMemo(() => {
-    return projects.filter(p => p.status === 'approved').length;
-  }, [projects]);
-
   // Atualizar status de um pedido
   const handleUpdateProjectStatus = (projectId: string, newStatus: Project['status']) => {
     if (!setProjects) return;
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: newStatus } : p));
-  };
-
-  // Restaurar múltiplos pedidos para aprovado
-  const handleRestoreBatchApproved = (ids: string[]) => {
-    if (!setProjects || ids.length === 0) return;
-    setProjects(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'approved' } : p));
-    setSelectedToApprove(new Set());
-    setShowRestoreModal(false);
-    setStatusFilter('approved');
-    alert(`${ids.length} pedido(s) restaurado(s) com sucesso para o status APROVADO!`);
-  };
-
-  // Restaurar pedidos recentes (#280 a #285)
-  const handleApproveRecentBatch = () => {
-    const targetProjects = projects.filter(p => {
-      const qNum = parseInt(String(p.quoteNumber || '').replace(/\D/g, ''), 10);
-      return (qNum >= 280 && qNum <= 285) || p.quoteNumber === '283' || p.quoteNumber === '284' || p.quoteNumber === '285';
-    });
-    if (targetProjects.length > 0) {
-      handleRestoreBatchApproved(targetProjects.map(p => p.id));
-    } else {
-      alert('Nenhum pedido entre #280 e #285 encontrado.');
-    }
   };
   
   // Por padrão exibe todo o histórico para nenhum pedido ficar oculto
@@ -636,14 +606,6 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
              <FileText size={20} />
              Gerar Relatório
            </button>
-           <button 
-             onClick={() => setShowRestoreModal(true)}
-             className="bg-blue-600 text-white px-6 py-4 rounded-3xl font-black hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-200 text-xs uppercase tracking-wider"
-             title="Gerenciar e restaurar pedidos para o status Aprovado"
-           >
-             <Sparkles size={18} />
-             Restaurar Aprovados
-           </button>
         </div>
       </div>
 
@@ -654,7 +616,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
             <input 
               type="text" 
-              placeholder="Buscar por tema, cliente ou Nº (ex: #283, até 283)..." 
+              placeholder="Buscar por tema, cliente ou Nº do pedido..." 
               className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-transparent rounded-2xl outline-none focus:bg-white focus:border-pink-200 transition-all font-medium"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -703,67 +665,6 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-4">
           <div className="flex flex-wrap items-center gap-2">
-            <button 
-              onClick={() => {
-                setStartDate('');
-                setEndDate('');
-                setMaxQuoteFilter(null);
-              }}
-              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                !startDate && !endDate && maxQuoteFilter === null
-                  ? 'bg-gray-900 text-white shadow-sm'
-                  : 'bg-white border border-gray-200 text-gray-500 hover:bg-pink-50 hover:text-pink-500'
-              }`}
-            >
-              Todos os Pedidos ({projects.length})
-            </button>
-
-            <button 
-              onClick={() => {
-                if (maxQuoteFilter === 283) {
-                  setMaxQuoteFilter(null);
-                } else {
-                  setMaxQuoteFilter(283);
-                  setStartDate('');
-                  setEndDate('');
-                }
-              }}
-              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
-                maxQuoteFilter === 283
-                  ? 'bg-pink-500 text-white shadow-md shadow-pink-200 ring-2 ring-pink-300'
-                  : 'bg-pink-50 border border-pink-200 text-pink-600 hover:bg-pink-100'
-              }`}
-              title="Filtrar pedidos cadastrados com numeração até #283"
-            >
-              <Hash size={12} className={maxQuoteFilter === 283 ? 'text-yellow-300' : 'text-pink-500'} />
-              <span>Até #283</span>
-              {maxQuoteFilter === 283 && (
-                <span className="ml-1 px-1.5 py-0.2 bg-white/20 rounded-full text-[9px]">Ativo</span>
-              )}
-            </button>
-
-            <button 
-              onClick={() => {
-                if (statusFilter === 'approved') {
-                  setStatusFilter('all');
-                } else {
-                  setStatusFilter('approved');
-                  setStartDate('');
-                  setEndDate('');
-                  setMaxQuoteFilter(null);
-                }
-              }}
-              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
-                statusFilter === 'approved'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200 ring-2 ring-blue-300'
-                  : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'
-              }`}
-              title="Filtrar apenas pedidos com status Aprovado"
-            >
-              <CheckCircle size={12} className={statusFilter === 'approved' ? 'text-white' : 'text-blue-600'} />
-              <span>Aprovados ({approvedCount})</span>
-            </button>
-
             <button 
               onClick={() => {
                 const today = new Date().toISOString().split('T')[0];
@@ -955,141 +856,6 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
           </table>
         </div>
       </div>
-
-      {/* Modal Restaurar Pedidos Aprovados */}
-      {showRestoreModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 animate-fadeIn flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-white/20 rounded-2xl">
-                  <Sparkles size={24} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-black">Restaurar Pedidos Aprovados</h3>
-                  <p className="text-xs text-blue-100 font-medium">Reative orçamentos e defina o status como Aprovado</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowRestoreModal(false)}
-                className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all text-white"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto space-y-6">
-              <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-black text-blue-800 uppercase tracking-wider">Ação Rápida: Pedidos Recentes</p>
-                  <p className="text-xs text-blue-600">Restaurar e aprovar diretamente os pedidos #280 a #285</p>
-                </div>
-                <button
-                  onClick={handleApproveRecentBatch}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm shrink-0"
-                >
-                  Aprovar #280 a #285
-                </button>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-black text-gray-500 uppercase tracking-wider">Selecione Pedidos da Lista:</p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        if (selectedToApprove.size === projects.length) {
-                          setSelectedToApprove(new Set());
-                        } else {
-                          setSelectedToApprove(new Set(projects.map(p => p.id)));
-                        }
-                      }}
-                      className="text-[10px] font-bold text-blue-600 hover:underline"
-                    >
-                      {selectedToApprove.size === projects.length ? 'Desmarcar Todos' : 'Marcar Todos'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="max-h-72 overflow-y-auto border border-gray-100 rounded-2xl divide-y divide-gray-50">
-                  {projects.map(p => {
-                    const isSelected = selectedToApprove.has(p.id);
-                    const isAlreadyApproved = p.status === 'approved';
-                    const { finalPrice } = calculateProjectBreakdown(p, materials, platforms, companyData, transactions);
-
-                    return (
-                      <div 
-                        key={p.id} 
-                        onClick={() => {
-                          const next = new Set(selectedToApprove);
-                          if (next.has(p.id)) next.delete(p.id);
-                          else next.add(p.id);
-                          setSelectedToApprove(next);
-                        }}
-                        className={`p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
-                          isSelected ? 'bg-blue-50/70' : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <input 
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => {}}
-                            className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              {p.quoteNumber && (
-                                <span className="text-[9px] font-black bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
-                                  #{String(p.quoteNumber).replace(/^#/, '')}
-                                </span>
-                              )}
-                              <p className="text-xs font-black text-gray-800 truncate">{p.theme || 'Sem Tema'}</p>
-                            </div>
-                            <p className="text-[10px] text-gray-400 font-medium truncate">
-                              Cliente: {getCustomerName(p.customerId)}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
-                            isAlreadyApproved ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                          }`}>
-                            {isAlreadyApproved ? 'Aprovado' : statusLabels[p.status] || p.status}
-                          </span>
-                          <span className="text-xs font-black text-gray-700">R$ {finalPrice.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3">
-              <span className="text-xs font-bold text-gray-500">
-                {selectedToApprove.size} pedido(s) selecionado(s)
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowRestoreModal(false)}
-                  className="px-4 py-2.5 text-xs font-bold text-gray-500 hover:text-gray-700"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => handleRestoreBatchApproved(Array.from(selectedToApprove))}
-                  disabled={selectedToApprove.size === 0}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md"
-                >
-                  Restaurar Selecionados
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
