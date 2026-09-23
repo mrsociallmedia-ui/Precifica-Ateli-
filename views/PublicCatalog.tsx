@@ -31,10 +31,21 @@ import {
   Phone,
   Instagram,
   AlertCircle,
-  Share2
+  Share2,
+  User,
+  UserCheck,
+  UserPlus,
+  Edit3,
+  Calendar,
+  CreditCard,
+  CheckCheck,
+  Building,
+  FileText,
+  LogOut,
+  Heart
 } from 'lucide-react';
 import { supabase, fetchUserDataFromCloud } from '../supabaseClient';
-import { Product, CompanyData, Material, Platform } from '../types';
+import { Product, CompanyData, Material, Platform, CatalogCustomerProfile } from '../types';
 import { calculateProjectBreakdown } from '../utils';
 
 declare const html2canvas: any;
@@ -73,7 +84,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
   const [completedOrderNumber, setCompletedOrderNumber] = useState('');
   const [lastOrderMessage, setLastOrderMessage] = useState('');
 
-  // Dados do Formulário do Cliente
+  // Dados do Formulário do Cliente & Cadastro
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
@@ -83,8 +94,48 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
   const [deliveryCity, setDeliveryCity] = useState('');
   const [orderObservations, setOrderObservations] = useState('');
   const [formErrors, setFormErrors] = useState<{ name?: string; phone?: string; address?: string }>({});
+  const [saveCustomerToStorage, setSaveCustomerToStorage] = useState(true);
+
+  // Estados de Cadastro Exclusivo do Cliente
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [savedProfile, setSavedProfile] = useState<CatalogCustomerProfile | null>(null);
+  const [regLoading, setRegLoading] = useState(false);
+  const [regSuccessMsg, setRegSuccessMsg] = useState<string | null>(null);
+  const [regErrors, setRegErrors] = useState<{ name?: string; phone?: string; cep?: string }>({});
+  const [regForm, setRegForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    cpf: '',
+    birthDate: '',
+    zipCode: '',
+    address: '',
+    neighborhood: '',
+    city: '',
+    complement: '',
+    notes: ''
+  });
 
   const orderSummaryRef = useRef<HTMLDivElement>(null);
+
+  // Carregar cadastro prévio salvo localmente
+  useEffect(() => {
+    try {
+      const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const saved = localStorage.getItem(`${userKey}_catalog_customer_profile`) || localStorage.getItem('catalog_customer_profile');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setSavedProfile(parsed);
+        if (parsed.name) setCustomerName(parsed.name);
+        if (parsed.phone) setCustomerPhone(parsed.phone);
+        if (parsed.email) setCustomerEmail(parsed.email);
+        if (parsed.address) setDeliveryAddress(parsed.address);
+        if (parsed.neighborhood) setDeliveryNeighborhood(parsed.neighborhood);
+        if (parsed.city) setDeliveryCity(parsed.city);
+        if (parsed.deliveryType) setDeliveryType(parsed.deliveryType);
+      }
+    } catch (e) {}
+  }, [userEmail]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -148,7 +199,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
   }, [selectedProduct]);
 
   // Formatação automática de telefone (99) 99999-9999
-  const handlePhoneChange = (val: string) => {
+  const formatPhone = (val: string) => {
     const raw = val.replace(/\D/g, '').slice(0, 11);
     let formatted = raw;
     if (raw.length > 2) {
@@ -157,9 +208,231 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     if (raw.length > 7) {
       formatted = `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
     }
+    return formatted;
+  };
+
+  const handlePhoneChange = (val: string) => {
+    const formatted = formatPhone(val);
     setCustomerPhone(formatted);
     if (formErrors.phone) {
       setFormErrors(prev => ({ ...prev, phone: undefined }));
+    }
+  };
+
+  const formatCpf = (val: string) => {
+    const raw = val.replace(/\D/g, '').slice(0, 11);
+    let formatted = raw;
+    if (raw.length > 3) formatted = `${raw.slice(0, 3)}.${raw.slice(3)}`;
+    if (raw.length > 6) formatted = `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6)}`;
+    if (raw.length > 9) formatted = `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6, 9)}-${raw.slice(9)}`;
+    return formatted;
+  };
+
+  const formatCep = (val: string) => {
+    const raw = val.replace(/\D/g, '').slice(0, 8);
+    let formatted = raw;
+    if (raw.length > 5) formatted = `${raw.slice(0, 5)}-${raw.slice(5)}`;
+    return formatted;
+  };
+
+  // Busca automática de endereço por CEP (ViaCEP)
+  const handleCepLookup = async (cepVal: string) => {
+    const cleanCep = cepVal.replace(/\D/g, '');
+    const formatted = formatCep(cepVal);
+    setRegForm(prev => ({ ...prev, zipCode: formatted }));
+
+    if (cleanCep.length === 8) {
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+        const data = await res.json();
+        if (!data.erro) {
+          setRegForm(prev => ({
+            ...prev,
+            address: data.logradouro || prev.address,
+            neighborhood: data.bairro || prev.neighborhood,
+            city: data.localidade ? `${data.localidade} - ${data.uf}` : prev.city
+          }));
+          setRegErrors(prev => ({ ...prev, cep: undefined }));
+        } else {
+          setRegErrors(prev => ({ ...prev, cep: 'CEP não localizado.' }));
+        }
+      } catch (err) {
+        console.warn("Erro ao buscar CEP:", err);
+      }
+    }
+  };
+
+  // Abrir Modal de Cadastro do Cliente
+  const handleOpenCustomerModal = () => {
+    setRegSuccessMsg(null);
+    setRegErrors({});
+    if (savedProfile) {
+      setRegForm({
+        name: savedProfile.name || '',
+        phone: savedProfile.phone || '',
+        email: savedProfile.email || '',
+        cpf: savedProfile.cpf || '',
+        birthDate: (savedProfile as any).birthDate || '',
+        zipCode: savedProfile.zipCode || '',
+        address: savedProfile.address || '',
+        neighborhood: savedProfile.neighborhood || '',
+        city: savedProfile.city || '',
+        complement: savedProfile.complement || '',
+        notes: (savedProfile as any).notes || ''
+      });
+    } else {
+      setRegForm({
+        name: customerName || '',
+        phone: customerPhone || '',
+        email: customerEmail || '',
+        cpf: '',
+        birthDate: '',
+        zipCode: '',
+        address: deliveryAddress || '',
+        neighborhood: deliveryNeighborhood || '',
+        city: deliveryCity || '',
+        complement: '',
+        notes: ''
+      });
+    }
+    setIsCustomerModalOpen(true);
+  };
+
+  // Salvar Cadastro de Cliente (Online e Local)
+  const handleSaveCustomerRegistration = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const errors: { name?: string; phone?: string; cep?: string } = {};
+
+    if (!regForm.name.trim()) {
+      errors.name = 'Informe seu nome completo.';
+    }
+    const cleanPhone = regForm.phone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      errors.phone = 'Informe um WhatsApp válido com DDD.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setRegErrors(errors);
+      return;
+    }
+
+    try {
+      setRegLoading(true);
+      setRegErrors({});
+
+      const customerPayload = {
+        name: regForm.name.trim(),
+        phone: regForm.phone.trim(),
+        email: regForm.email.trim() || undefined,
+        cpf: regForm.cpf.trim() || undefined,
+        birthDate: regForm.birthDate.trim() || undefined,
+        zipCode: regForm.zipCode.trim() || undefined,
+        address: regForm.address.trim() || undefined,
+        neighborhood: regForm.neighborhood.trim() || undefined,
+        city: regForm.city.trim() || undefined,
+        complement: regForm.complement.trim() || undefined,
+        notes: regForm.notes.trim() || undefined
+      };
+
+      // 1. Enviar para a API de cadastro de cliente
+      try {
+        await fetch('/api/catalog/customer/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userEmail,
+            customer: customerPayload
+          })
+        });
+      } catch (apiErr) {
+        console.warn("Aviso ao salvar cadastro via API:", apiErr);
+      }
+
+      // 2. Salvar nos cookies/localStorage para compras futuras
+      const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const profileToSave: CatalogCustomerProfile = {
+        name: regForm.name.trim(),
+        phone: regForm.phone.trim(),
+        email: regForm.email.trim() || undefined,
+        cpf: regForm.cpf.trim() || undefined,
+        zipCode: regForm.zipCode.trim() || undefined,
+        address: regForm.address.trim() || undefined,
+        neighborhood: regForm.neighborhood.trim() || undefined,
+        city: regForm.city.trim() || undefined,
+        complement: regForm.complement.trim() || undefined
+      };
+
+      try {
+        localStorage.setItem(`${userKey}_catalog_customer_profile`, JSON.stringify(profileToSave));
+        localStorage.setItem('catalog_customer_profile', JSON.stringify(profileToSave));
+
+        // Salvar também na lista de clientes do ateliê
+        const custKey = `${userKey}_craft_customers`;
+        const existingCusts = JSON.parse(localStorage.getItem(custKey) || '[]');
+        const cleanP = regForm.phone.replace(/\D/g, '');
+        const existsIdx = existingCusts.findIndex((c: any) => c.phone && c.phone.replace(/\D/g, '') === cleanP);
+        const newCustObj = {
+          id: existsIdx >= 0 ? existingCusts[existsIdx].id : `cust_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`,
+          name: regForm.name.trim(),
+          phone: regForm.phone.trim(),
+          email: regForm.email.trim() || '',
+          cpf: regForm.cpf.trim() || '',
+          birthDate: regForm.birthDate.trim() || '',
+          address: regForm.address.trim() || '',
+          neighborhood: regForm.neighborhood.trim() || '',
+          city: regForm.city.trim() || '',
+          zipCode: regForm.zipCode.trim() || '',
+          complement: regForm.complement.trim() || ''
+        };
+
+        if (existsIdx >= 0) {
+          existingCusts[existsIdx] = { ...existingCusts[existsIdx], ...newCustObj };
+        } else {
+          existingCusts.push(newCustObj);
+        }
+        localStorage.setItem(custKey, JSON.stringify(existingCusts));
+      } catch (e) {}
+
+      // 3. Atualizar estados ativos da tela
+      setSavedProfile(profileToSave);
+      setCustomerName(regForm.name.trim());
+      setCustomerPhone(regForm.phone.trim());
+      if (regForm.email) setCustomerEmail(regForm.email.trim());
+      if (regForm.address) {
+        setDeliveryAddress(regForm.address.trim() + (regForm.complement ? `, ${regForm.complement.trim()}` : ''));
+      }
+      if (regForm.neighborhood) setDeliveryNeighborhood(regForm.neighborhood.trim());
+      if (regForm.city) setDeliveryCity(regForm.city.trim());
+
+      setRegSuccessMsg('Cadastro salvo com sucesso! Seus dados serão usados automaticamente em seus pedidos.');
+      setTimeout(() => {
+        setIsCustomerModalOpen(false);
+        setRegSuccessMsg(null);
+      }, 1600);
+    } catch (err: any) {
+      console.error("Erro ao salvar cadastro:", err);
+      setRegErrors({ name: 'Erro ao salvar cadastro. Tente novamente.' });
+    } finally {
+      setRegLoading(false);
+    }
+  };
+
+  // Limpar Cadastro Salvo
+  const handleClearCustomerRegistration = () => {
+    if (confirm('Deseja realmente desconectar e limpar seus dados salvos neste navegador?')) {
+      const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+      try {
+        localStorage.removeItem(`${userKey}_catalog_customer_profile`);
+        localStorage.removeItem('catalog_customer_profile');
+      } catch (e) {}
+      setSavedProfile(null);
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerEmail('');
+      setDeliveryAddress('');
+      setDeliveryNeighborhood('');
+      setDeliveryCity('');
+      setIsCustomerModalOpen(false);
     }
   };
 
@@ -467,6 +740,22 @@ ${deliveryDetails}
         paymentMethod: 'A combinar'
       });
       localStorage.setItem('my_online_orders', JSON.stringify(existingOrders.slice(0, 20)));
+
+      if (saveCustomerToStorage) {
+        const userKey = userEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const profileToSave: CatalogCustomerProfile = {
+          name: customerName.trim(),
+          phone: customerPhone.trim(),
+          email: customerEmail.trim() || undefined,
+          address: deliveryAddress.trim() || undefined,
+          neighborhood: deliveryNeighborhood.trim() || undefined,
+          city: deliveryCity.trim() || undefined,
+          deliveryType
+        };
+        localStorage.setItem(`${userKey}_catalog_customer_profile`, JSON.stringify(profileToSave));
+        localStorage.setItem('catalog_customer_profile', JSON.stringify(profileToSave));
+        setSavedProfile(profileToSave);
+      }
     } catch (e) {}
 
     // Notificar aplicativo sobre o novo pedido do catálogo
@@ -593,10 +882,27 @@ ${deliveryDetails}
 
           {/* Ações da Barra Superior */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Botão de Cadastro do Cliente */}
+            <button
+              type="button"
+              onClick={handleOpenCustomerModal}
+              className={`p-2.5 sm:px-3.5 sm:py-2.5 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold border cursor-pointer ${
+                savedProfile 
+                  ? 'bg-pink-50 hover:bg-pink-100/80 border-pink-200 text-pink-700 shadow-xs' 
+                  : 'bg-white hover:bg-pink-50/70 border-pink-200 text-pink-600 shadow-xs'
+              }`}
+              title={savedProfile ? 'Ver ou Editar Meu Cadastro' : 'Cadastre-se no Ateliê'}
+            >
+              {savedProfile ? <UserCheck size={16} className="text-pink-600" /> : <UserPlus size={16} className="text-pink-500" />}
+              <span className="hidden sm:inline font-black">
+                {savedProfile ? `Olá, ${savedProfile.name.split(' ')[0]}` : 'Cadastre-se'}
+              </span>
+            </button>
+
             {/* Link Compartilhar */}
             <button
               onClick={copyCatalogLink}
-              className="p-2.5 sm:px-3.5 sm:py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold border border-gray-100"
+              className="p-2.5 sm:px-3.5 sm:py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold border border-gray-100 cursor-pointer"
               title="Copiar Link do Catálogo"
             >
               {linkCopied ? <Check size={16} className="text-emerald-500" /> : <Share2 size={16} />}
@@ -607,7 +913,7 @@ ${deliveryDetails}
             {companyData?.phone && (
               <button 
                 onClick={() => window.open(`https://wa.me/${companyData.phone?.replace(/\D/g, '')}`, '_blank')}
-                className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2.5 sm:px-3.5 sm:py-2.5 rounded-2xl transition-all flex items-center gap-2 font-black text-xs border border-emerald-200/60 shadow-sm"
+                className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-2.5 sm:px-3.5 sm:py-2.5 rounded-2xl transition-all flex items-center gap-2 font-black text-xs border border-emerald-200/60 shadow-sm cursor-pointer"
                 title="Falar no WhatsApp"
               >
                 <MessageCircle size={17} className="text-emerald-600" />
@@ -621,7 +927,7 @@ ${deliveryDetails}
                 setCartStep('items');
                 setIsCartOpen(true);
               }}
-              className="bg-pink-500 hover:bg-pink-600 active:scale-95 text-white p-2.5 sm:px-4 sm:py-2.5 rounded-2xl transition-all shadow-lg shadow-pink-200/70 flex items-center gap-2.5 relative"
+              className="bg-pink-500 hover:bg-pink-600 active:scale-95 text-white p-2.5 sm:px-4 sm:py-2.5 rounded-2xl transition-all shadow-lg shadow-pink-200/70 flex items-center gap-2.5 relative cursor-pointer"
             >
               <div className="relative">
                 <ShoppingCart size={18} />
@@ -652,7 +958,7 @@ ${deliveryDetails}
               <img 
                 src={companyLogo} 
                 alt={companyData?.name || 'Logo Ateliê'} 
-                className="w-full h-full object-contain hover:scale-105 transition-transform duration-300"
+                className="w-full h-full object-contain hover:scale-105 transition-transform duration-300" 
                 referrerPolicy="no-referrer" 
               />
             </div>
@@ -665,9 +971,35 @@ ${deliveryDetails}
             {companyData?.name || 'Nosso Ateliê Personalizado'}
           </h2>
 
-          <p className="text-gray-500 font-medium max-w-xl text-base md:text-lg mb-8 leading-relaxed">
+          <p className="text-gray-500 font-medium max-w-xl text-base md:text-lg mb-6 leading-relaxed">
             {companyData?.catalogSubtitle || 'Peças artesanais e papelaria personalizada produzidas com amor, dedicação e exclusividade para o seu momento especial.'}
           </p>
+
+          {/* Banner Elegante de Cadastro de Cliente */}
+          <div className="w-full max-w-2xl mb-8 bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl border border-pink-100 shadow-sm flex items-center justify-between gap-3 text-left">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-pink-100 text-pink-600 flex items-center justify-center shrink-0">
+                {savedProfile ? <UserCheck size={20} /> : <UserPlus size={20} />}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-gray-800 truncate">
+                  {savedProfile ? `Olá, ${savedProfile.name}!` : 'Cadastre-se no Ateliê'}
+                </p>
+                <p className="text-[11px] text-gray-500 font-medium truncate sm:whitespace-normal">
+                  {savedProfile 
+                    ? 'Seus dados de entrega estão salvos para agilizar seus pedidos.' 
+                    : 'Salve seu endereço e contato para fazer pedidos com 1 clique.'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenCustomerModal}
+              className="px-4 py-2 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider shrink-0 transition-all shadow-md shadow-pink-200 cursor-pointer"
+            >
+              {savedProfile ? 'Meus Dados' : 'Cadastrar'}
+            </button>
+          </div>
 
           {/* Selos de Confiança e Atendimento */}
           <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 mb-10 text-xs font-bold text-gray-600">
@@ -1351,10 +1683,36 @@ ${deliveryDetails}
 
                 {/* Dados do Cliente */}
                 <div className="space-y-4">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 border-b border-gray-100 pb-2">
-                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">1</span>
-                    Seus Dados para o Pedido
-                  </h4>
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px]">1</span>
+                      Seus Dados para o Pedido
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={handleOpenCustomerModal}
+                      className="text-[11px] font-black text-pink-600 hover:text-pink-700 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <User size={12} />
+                      <span>{savedProfile ? 'Editar Cadastro' : 'Cadastre-se'}</span>
+                    </button>
+                  </div>
+
+                  {savedProfile && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl flex items-center justify-between text-xs font-bold text-emerald-800">
+                      <span className="flex items-center gap-1.5">
+                        <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                        <span>Preenchido com o seu cadastro ({savedProfile.name.split(' ')[0]})</span>
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={handleOpenCustomerModal} 
+                        className="text-pink-600 font-black hover:underline text-[11px] cursor-pointer"
+                      >
+                        Alterar
+                      </button>
+                    </div>
+                  )}
 
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-gray-600">Seu Nome Completo *</label>
@@ -1413,7 +1771,7 @@ ${deliveryDetails}
                     <button 
                       type="button"
                       onClick={() => setDeliveryType('pickup')}
-                      className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                      className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                         deliveryType === 'pickup' 
                           ? 'border-pink-500 bg-pink-50/60 shadow-sm' 
                           : 'border-gray-200 bg-gray-50 hover:bg-gray-100/70'
@@ -1429,7 +1787,7 @@ ${deliveryDetails}
                     <button 
                       type="button"
                       onClick={() => setDeliveryType('delivery')}
-                      className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                      className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                         deliveryType === 'delivery' 
                           ? 'border-pink-500 bg-pink-50/60 shadow-sm' 
                           : 'border-gray-200 bg-gray-50 hover:bg-gray-100/70'
@@ -1484,6 +1842,19 @@ ${deliveryDetails}
                     </div>
                   )}
                 </div>
+
+                {/* Salvar dados de cadastro checkbox */}
+                <label className="flex items-center gap-2.5 p-3 rounded-2xl bg-gray-50 border border-gray-200/80 cursor-pointer hover:bg-pink-50/40 transition-colors">
+                  <input 
+                    type="checkbox"
+                    checked={saveCustomerToStorage}
+                    onChange={(e) => setSaveCustomerToStorage(e.target.checked)}
+                    className="w-4 h-4 accent-pink-500 rounded cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-gray-700">
+                    Salvar meus dados de cadastro para pedidos futuros
+                  </span>
+                </label>
 
                 {/* Personalização / Observações */}
                 <div className="space-y-2">
@@ -1578,6 +1949,257 @@ ${deliveryDetails}
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CADASTRO / PERFIL DO CLIENTE */}
+      {isCustomerModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 animate-fadeIn flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div 
+            className="absolute inset-0" 
+            onClick={() => !regLoading && setIsCustomerModalOpen(false)}
+          ></div>
+          <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col relative z-10 animate-scaleIn border border-pink-100">
+            {/* Header do Modal */}
+            <div className="p-5 sm:p-6 bg-gradient-to-r from-pink-500 to-rose-400 text-white flex items-center justify-between relative">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30">
+                  <User size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black leading-tight">
+                    {savedProfile ? 'Meu Cadastro no Ateliê' : 'Cadastre-se no Catálogo'}
+                  </h3>
+                  <p className="text-xs text-pink-100 font-medium">
+                    {savedProfile 
+                      ? 'Atualize seus dados para entregas e pedidos mais rápidos' 
+                      : 'Preencha seus dados para agilizar seus pedidos'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsCustomerModalOpen(false)}
+                disabled={regLoading}
+                className="text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Corpo do Formulário */}
+            <form onSubmit={handleSaveCustomerRegistration} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+              {regSuccessMsg && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-xs font-bold text-emerald-800 animate-fadeIn">
+                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                  <span>{regSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Seção 1: Dados Pessoais */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                  <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-black">1</span>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-800">Dados Pessoais & Contato</h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[11px] font-bold text-gray-600">Nome Completo *</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Maria Eduarda da Silva"
+                      value={regForm.name}
+                      onChange={(e) => {
+                        setRegForm(prev => ({ ...prev, name: e.target.value }));
+                        if (regErrors.name) setRegErrors(prev => ({ ...prev, name: undefined }));
+                      }}
+                      className={`w-full p-3.5 bg-gray-50 border rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all ${
+                        regErrors.name ? 'border-red-400 bg-red-50/20' : 'border-gray-200 focus:border-pink-300'
+                      }`}
+                      required
+                    />
+                    {regErrors.name && <p className="text-[10px] text-red-500 font-bold">{regErrors.name}</p>}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-gray-600">WhatsApp com DDD *</label>
+                    <input 
+                      type="tel" 
+                      placeholder="(99) 99999-9999"
+                      value={regForm.phone}
+                      onChange={(e) => {
+                        const formatted = formatPhone(e.target.value);
+                        setRegForm(prev => ({ ...prev, phone: formatted }));
+                        if (regErrors.phone) setRegErrors(prev => ({ ...prev, phone: undefined }));
+                      }}
+                      className={`w-full p-3.5 bg-gray-50 border rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all ${
+                        regErrors.phone ? 'border-red-400 bg-red-50/20' : 'border-gray-200 focus:border-pink-300'
+                      }`}
+                      required
+                    />
+                    {regErrors.phone && <p className="text-[10px] text-red-500 font-bold">{regErrors.phone}</p>}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-gray-600 flex items-center justify-between">
+                      <span>E-mail</span>
+                      <span className="text-[9px] text-gray-400 font-normal">opcional</span>
+                    </label>
+                    <input 
+                      type="email" 
+                      placeholder="seuemail@exemplo.com"
+                      value={regForm.email}
+                      onChange={(e) => setRegForm(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full p-3.5 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-gray-600 flex items-center justify-between">
+                      <span>CPF</span>
+                      <span className="text-[9px] text-gray-400 font-normal">opcional</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="000.000.000-00"
+                      value={regForm.cpf}
+                      onChange={(e) => setRegForm(prev => ({ ...prev, cpf: formatCpf(e.target.value) }))}
+                      className="w-full p-3.5 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-gray-600 flex items-center justify-between">
+                      <span>Data de Aniversário</span>
+                      <span className="text-[9px] text-gray-400 font-normal">para mimos</span>
+                    </label>
+                    <input 
+                      type="date" 
+                      value={regForm.birthDate}
+                      onChange={(e) => setRegForm(prev => ({ ...prev, birthDate: e.target.value }))}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Seção 2: Endereço de Entrega */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                  <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] font-black">2</span>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-800">Endereço de Entrega Principal</h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div className="space-y-1 sm:col-span-1">
+                    <label className="text-[11px] font-bold text-gray-600 flex items-center justify-between">
+                      <span>CEP</span>
+                      <span className="text-[9px] text-pink-500 font-bold">Auto-busca</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="00000-000"
+                      value={regForm.zipCode}
+                      onChange={(e) => handleCepLookup(e.target.value)}
+                      className="w-full p-3.5 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all"
+                    />
+                    {regErrors.cep && <p className="text-[10px] text-red-500 font-bold">{regErrors.cep}</p>}
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[11px] font-bold text-gray-600">Rua e Número</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Av. Paulista, 1000"
+                      value={regForm.address}
+                      onChange={(e) => setRegForm(prev => ({ ...prev, address: e.target.value }))}
+                      className="w-full p-3.5 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-gray-600">Complemento / Apto</label>
+                    <input 
+                      type="text" 
+                      placeholder="Apto 42, Bloco B"
+                      value={regForm.complement}
+                      onChange={(e) => setRegForm(prev => ({ ...prev, complement: e.target.value }))}
+                      className="w-full p-3.5 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-gray-600">Bairro</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Jardim das Flores"
+                      value={regForm.neighborhood}
+                      onChange={(e) => setRegForm(prev => ({ ...prev, neighborhood: e.target.value }))}
+                      className="w-full p-3.5 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-gray-600">Cidade / UF</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: São Paulo - SP"
+                      value={regForm.city}
+                      onChange={(e) => setRegForm(prev => ({ ...prev, city: e.target.value }))}
+                      className="w-full p-3.5 bg-gray-50 border border-gray-200 focus:border-pink-300 rounded-2xl outline-none font-bold text-sm text-gray-800 transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                {savedProfile ? (
+                  <button
+                    type="button"
+                    onClick={handleClearCustomerRegistration}
+                    className="text-xs text-red-500 hover:text-red-600 font-bold flex items-center gap-1.5 p-2 rounded-xl hover:bg-red-50 transition-colors cursor-pointer"
+                  >
+                    <LogOut size={14} />
+                    <span>Limpar meus dados salvos</span>
+                  </button>
+                ) : (
+                  <div className="text-[11px] text-gray-400 font-medium">
+                    🔒 Seus dados ficam protegidos e salvos no seu aparelho.
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomerModalOpen(false)}
+                    disabled={regLoading}
+                    className="flex-1 sm:flex-none px-5 py-3 rounded-2xl border border-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={regLoading}
+                    className="flex-1 sm:flex-none px-6 py-3 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-pink-200 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {regLoading ? (
+                      <>
+                        <RefreshCw className="animate-spin" size={15} />
+                        <span>Salvando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCheck size={16} />
+                        <span>Salvar Cadastro</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
