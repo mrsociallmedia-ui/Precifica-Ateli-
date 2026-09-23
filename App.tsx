@@ -113,11 +113,17 @@ const App: React.FC = () => {
     project?: Project;
     customer?: Customer;
   }) => {
+    const computedTotal = (Number(orderData.total) > 0)
+      ? Number(orderData.total)
+      : (orderData.project?.items && orderData.project.items.length > 0)
+        ? orderData.project.items.reduce((acc: number, i: any) => acc + ((Number(i.unitPrice) || 0) * (Number(i.quantity) || 1)), 0)
+        : (Number((orderData.project as any)?.total) || 0);
+
     const alertItem: CatalogOrderAlert = {
       id: orderData.id || `notif_${Date.now()}`,
       quoteNumber: orderData.quoteNumber || '#PED-CATALOGO',
       customerName: orderData.customerName || 'Cliente',
-      total: Number(orderData.total) || 0,
+      total: computedTotal,
       itemsSummary: orderData.itemsSummary || 'Itens do pedido online',
       createdAt: orderData.createdAt || new Date().toISOString(),
       read: false
@@ -289,13 +295,18 @@ const App: React.FC = () => {
           if (p.id) knownCatalogOrderIdsRef.current.add(p.id);
           if (p.quoteNumber) knownCatalogOrderIdsRef.current.add(p.quoteNumber);
 
+          const itemsTotal = (p.items && p.items.length > 0)
+            ? p.items.reduce((acc, item) => acc + ((Number(item.unitPrice) || 0) * (Number(item.quantity) || 1)), 0)
+            : (Number((p as any).total) || Number(p.downPayment) || 0);
+
           handleNewCatalogOrderAlert({
             id: p.id,
             quoteNumber: p.quoteNumber,
             customerName: p.celebrantName || p.name.replace('Pedido Catálogo: ', '') || 'Cliente',
-            total: p.downPayment || 0,
+            total: itemsTotal,
             itemsSummary: p.description,
-            createdAt: p.createdAt || new Date().toISOString()
+            createdAt: p.createdAt || new Date().toISOString(),
+            project: p
           });
         }
       }
@@ -862,13 +873,18 @@ const App: React.FC = () => {
           });
           // Pedidos do catálogo não entram no Financeiro automaticamente
           if (newProj) {
+            const itemsTotal = (newProj.items && newProj.items.length > 0)
+              ? newProj.items.reduce((acc: number, item: any) => acc + ((Number(item.unitPrice) || 0) * (Number(item.quantity) || 1)), 0)
+              : (Number((newProj as any).total) || Number(newProj.downPayment) || 0);
+
             handleNewCatalogOrderAlert({
               id: newProj.id,
               quoteNumber: newProj.quoteNumber,
               customerName: newProj.celebrantName || newProj.name.replace('Pedido Catálogo: ', '') || 'Cliente',
-              total: newProj.downPayment || 0,
+              total: itemsTotal,
               itemsSummary: newProj.description,
-              createdAt: newProj.createdAt
+              createdAt: newProj.createdAt,
+              project: newProj
             });
           }
         }}
@@ -1057,19 +1073,27 @@ const App: React.FC = () => {
               notifications={catalogNotifications}
               activeToast={activeCatalogToast}
               onDismissToast={() => setActiveCatalogToast(null)}
-              onMarkAllRead={() => {
+              onDismissNotification={(notifId) => {
                 setCatalogNotifications(prev => {
-                  const updated = prev.map(n => ({ ...n, read: true }));
+                  const updated = prev.filter(n => n.id !== notifId);
                   try {
                     localStorage.setItem('catalog_order_notifications', JSON.stringify(updated));
                   } catch (e) {}
                   return updated;
                 });
               }}
+              onMarkAllRead={() => {
+                setCatalogNotifications(() => {
+                  try {
+                    localStorage.setItem('catalog_order_notifications', JSON.stringify([]));
+                  } catch (e) {}
+                  return [];
+                });
+              }}
               onSelectOrder={(orderAlert, targetTab) => {
                 setActiveTab(targetTab);
                 setCatalogNotifications(prev => {
-                  const updated = prev.map(n => n.id === orderAlert.id ? { ...n, read: true } : n);
+                  const updated = prev.filter(n => n.id !== orderAlert.id && n.quoteNumber !== orderAlert.quoteNumber);
                   try {
                     localStorage.setItem('catalog_order_notifications', JSON.stringify(updated));
                   } catch (e) {}
@@ -1097,7 +1121,7 @@ const App: React.FC = () => {
                   case 'pricing': return <PricingCalculator {...props} setCustomers={setCustomers} products={products} setProjects={setProjects} setTransactions={setTransactions} paymentMethods={paymentMethods} projectToEdit={projectToEdit} onClearEditProject={() => setProjectToEdit(null)} />;
                   case 'schedule': return <Schedule {...props} currentUser={currentUser || ''} setProjects={setProjects} transactions={transactions} setTransactions={setTransactions} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'order_history': return <OrderHistory {...props} transactions={transactions} />;
-                  case 'catalog': return <CatalogManager currentUser={currentUser || ''} companyData={companyData} products={products} projects={projects} transactions={transactions} customers={customers} onNavigate={(tab) => setActiveTab(tab)} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
+                  case 'catalog': return <CatalogManager currentUser={currentUser || ''} companyData={companyData} products={products} projects={projects} transactions={transactions} customers={customers} materials={materials} platforms={platforms} onNavigate={(tab) => setActiveTab(tab)} onEditProject={(p) => { setProjectToEdit(p); setActiveTab('pricing'); }} />;
                   case 'finance': return <FinancialControl {...props} setTransactions={setTransactions} setCustomers={setCustomers} closures={closures} setClosures={setClosures} categories={transactionCategories} setCategories={setTransactionCategories} paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} setProjects={setProjects} />;
                   case 'captions': return <AICaptionGenerator companyData={companyData} products={products} projects={projects} currentUser={currentUser || ''} />;
                   case 'settings': return <SettingsView companyData={companyData} setCompanyData={setCompanyData} platforms={platforms} setPlatforms={setPlatforms} currentUser={currentUser || ''} />;

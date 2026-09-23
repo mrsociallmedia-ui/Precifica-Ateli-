@@ -20,7 +20,8 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { Project, Product, Transaction, CompanyData, Customer } from '../types';
+import { Project, Product, Transaction, CompanyData, Customer, Material, Platform } from '../types';
+import { calculateProjectBreakdown } from '../utils';
 
 interface CatalogManagerProps {
   currentUser: string;
@@ -29,6 +30,8 @@ interface CatalogManagerProps {
   projects: Project[];
   transactions: Transaction[];
   customers: Customer[];
+  materials?: Material[];
+  platforms?: Platform[];
   onNavigate: (tab: string) => void;
   onEditProject?: (project: Project) => void;
 }
@@ -40,6 +43,8 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
   projects,
   transactions,
   customers,
+  materials = [],
+  platforms = [],
   onNavigate,
   onEditProject
 }) => {
@@ -59,15 +64,33 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
     (p.name && p.name.toLowerCase().includes('catálogo'))
   ).sort((a, b) => new Date(b.createdAt || b.orderDate).getTime() - new Date(a.createdAt || a.orderDate).getTime());
 
-  // Filtrar transações financeiras do catálogo
-  const catalogTransactions = transactions.filter(t => 
-    t.category === 'Compra pelo Catálogo' ||
-    (t.description && t.description.toLowerCase().includes('catálogo'))
-  );
+  // Helper centralizado para obter o valor total de qualquer pedido do catálogo
+  const getOrderTotal = (order: Project) => {
+    if (order.items && order.items.length > 0) {
+      const sumItems = order.items.reduce((acc, item) => {
+        const price = Number(item.unitPrice) || 0;
+        const qty = Number(item.quantity) || 1;
+        return acc + (price * qty);
+      }, 0);
+      if (sumItems > 0) return sumItems;
+    }
+    try {
+      const breakdown = calculateProjectBreakdown(
+        order,
+        materials,
+        platforms,
+        companyData,
+        transactions
+      );
+      if (breakdown.finalPrice > 0) return breakdown.finalPrice;
+    } catch (e) {
+      // ignore
+    }
+    return Number((order as any).total) || Number(order.downPayment) || 0;
+  };
 
-  const totalCatalogRevenue = catalogTransactions
-    .filter(t => t.type === 'income')
-    .reduce((acc, t) => acc + t.amount, 0);
+  // Somar o total de todos os pedidos recebidos pelo catálogo
+  const totalCatalogRevenue = catalogOrders.reduce((acc, order) => acc + getOrderTotal(order), 0);
 
   const catalogProducts = products.filter(p => p.showInCatalog !== false);
 
@@ -294,6 +317,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                   const customer = customers.find(c => c.id === order.customerId);
                   const badge = statusBadges[order.status] || { label: order.status, className: 'bg-gray-50 text-gray-600 border-gray-200' };
                   const orderDateFormatted = new Date(order.createdAt || order.orderDate).toLocaleDateString('pt-BR');
+                  const orderTotal = getOrderTotal(order);
                   
                   return (
                     <div 
@@ -330,7 +354,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                         <div className="text-right">
                           <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">Total</span>
                           <span className="text-base font-black text-emerald-600">
-                            R$ {(order.downPayment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {orderTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
                       </div>

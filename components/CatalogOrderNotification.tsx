@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingBag, Bell, X, Calendar, ChevronRight, CheckCheck, Sparkles } from 'lucide-react';
+import { ShoppingBag, Bell, X, Calendar, ChevronRight, CheckCheck, Sparkles, Trash2 } from 'lucide-react';
 import { Project } from '../types';
 
 export interface CatalogOrderAlert {
@@ -17,6 +17,7 @@ interface CatalogOrderNotificationProps {
   activeToast: CatalogOrderAlert | null;
   onDismissToast: () => void;
   onMarkAllRead: () => void;
+  onDismissNotification?: (id: string) => void;
   onSelectOrder: (order: CatalogOrderAlert, targetTab: 'schedule' | 'catalog') => void;
 }
 
@@ -104,6 +105,7 @@ export const CatalogOrderNotification: React.FC<CatalogOrderNotificationProps> =
   activeToast,
   onDismissToast,
   onMarkAllRead,
+  onDismissNotification,
   onSelectOrder
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
@@ -131,9 +133,6 @@ export const CatalogOrderNotification: React.FC<CatalogOrderNotificationProps> =
         type="button"
         onClick={() => {
           setShowDropdown(!showDropdown);
-          if (!showDropdown && unreadCount > 0) {
-            onMarkAllRead();
-          }
         }}
         className={`relative p-2.5 rounded-xl border transition-all flex items-center justify-center cursor-pointer ${
           unreadCount > 0
@@ -159,15 +158,21 @@ export const CatalogOrderNotification: React.FC<CatalogOrderNotificationProps> =
                 <ShoppingBag size={14} />
               </div>
               <h4 className="font-black text-gray-800 text-sm">Pedidos do Catálogo</h4>
+              {unreadCount > 0 && (
+                <span className="px-1.5 py-0.5 bg-pink-100 text-pink-700 text-[10px] font-black rounded-full">
+                  {unreadCount} novo{unreadCount > 1 ? 's' : ''}
+                </span>
+              )}
             </div>
             {notifications.length > 0 && (
               <button
                 type="button"
                 onClick={onMarkAllRead}
-                className="text-[10px] font-bold text-gray-400 hover:text-pink-600 flex items-center gap-1 transition-colors"
+                className="text-[10px] font-black text-pink-600 hover:text-pink-700 hover:bg-pink-50 px-2 py-1 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                title="Limpar notificações lidas"
               >
-                <CheckCheck size={12} />
-                <span>Marcar lidos</span>
+                <CheckCheck size={13} />
+                <span>Limpar lidos</span>
               </button>
             )}
           </div>
@@ -177,9 +182,9 @@ export const CatalogOrderNotification: React.FC<CatalogOrderNotificationProps> =
               <div className="w-12 h-12 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center text-gray-300">
                 <Bell size={20} />
               </div>
-              <p className="text-xs font-bold text-gray-500">Nenhum pedido recente no catálogo</p>
+              <p className="text-xs font-bold text-gray-500">Nenhum pedido pendente</p>
               <p className="text-[10px] text-gray-400 max-w-[220px] mx-auto">
-                Assim que um cliente fizer um pedido pelo link, você será notificado aqui em tempo real.
+                Assim que um cliente fizer um pedido pelo catálogo online, ele aparecerá aqui e no cronograma.
               </p>
             </div>
           ) : (
@@ -187,19 +192,40 @@ export const CatalogOrderNotification: React.FC<CatalogOrderNotificationProps> =
               {notifications.map((notif) => (
                 <div
                   key={notif.id}
-                  className={`p-3 rounded-2xl border transition-all text-left space-y-1.5 ${
+                  className={`p-3 rounded-2xl border transition-all text-left space-y-1.5 relative group/item ${
                     !notif.read
                       ? 'bg-pink-50/50 border-pink-100 hover:bg-pink-50'
                       : 'bg-gray-50/60 border-gray-100 hover:bg-gray-50'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase text-pink-600 bg-white px-2 py-0.5 rounded-md border border-pink-100 shadow-2xs">
-                      {notif.quoteNumber || '#PED-CATALOGO'}
-                    </span>
-                    <span className="text-[10px] font-bold text-gray-400">
-                      {new Date(notif.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-[10px] font-black uppercase text-pink-600 bg-white px-2 py-0.5 rounded-md border border-pink-100 shadow-2xs">
+                        {notif.quoteNumber || '#PED-CATALOGO'}
+                      </span>
+                      {!notif.read && (
+                        <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-gray-400">
+                        {new Date(notif.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {onDismissNotification && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDismissNotification(notif.id);
+                          }}
+                          className="text-gray-300 hover:text-red-500 p-0.5 rounded transition-colors"
+                          title="Remover notificação"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div>
@@ -211,7 +237,7 @@ export const CatalogOrderNotification: React.FC<CatalogOrderNotificationProps> =
 
                   <div className="flex items-center justify-between pt-1 border-t border-gray-100/60">
                     <span className="text-xs font-black text-emerald-600">
-                      R$ {Number(notif.total).toFixed(2)}
+                      R$ {Number(notif.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                     <div className="flex items-center gap-1">
                       <button
@@ -220,7 +246,7 @@ export const CatalogOrderNotification: React.FC<CatalogOrderNotificationProps> =
                           setShowDropdown(false);
                           onSelectOrder(notif, 'schedule');
                         }}
-                        className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-100 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors flex items-center gap-1"
+                        className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-100 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors flex items-center gap-1 cursor-pointer"
                       >
                         <Calendar size={10} />
                         <span>Cronograma</span>
@@ -231,7 +257,7 @@ export const CatalogOrderNotification: React.FC<CatalogOrderNotificationProps> =
                           setShowDropdown(false);
                           onSelectOrder(notif, 'catalog');
                         }}
-                        className="px-2 py-1 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors flex items-center gap-0.5"
+                        className="px-2.5 py-1 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors flex items-center gap-0.5 cursor-pointer"
                       >
                         <span>Ver</span>
                         <ChevronRight size={10} />
@@ -267,7 +293,7 @@ export const CatalogOrderNotification: React.FC<CatalogOrderNotificationProps> =
                 <button
                   type="button"
                   onClick={onDismissToast}
-                  className="text-gray-400 hover:text-gray-600 p-0.5 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="text-gray-400 hover:text-gray-600 p-0.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                   title="Fechar"
                 >
                   <X size={16} />
@@ -287,7 +313,7 @@ export const CatalogOrderNotification: React.FC<CatalogOrderNotificationProps> =
                   </p>
                 )}
                 <p className="text-sm font-black text-emerald-600 mt-1">
-                  R$ {Number(activeToast.total).toFixed(2)}
+                  R$ {Number(activeToast.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
 
