@@ -87,6 +87,10 @@ export interface CompanyData {
   instagram?: string;
   city?: string;
   catalogSubtitle?: string;
+  pixKey?: string;
+  pixKeyType?: 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
+  pixBeneficiaryName?: string;
+  pixQrCode?: string;
 }
 
 export interface ProjectItemEntry {
@@ -148,6 +152,10 @@ export interface Project {
   cakeSize?: string;
   cakeFloors?: string; 
   isExchange?: boolean;
+  pixKey?: string;
+  pixKeyType?: 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
+  pixBeneficiaryName?: string;
+  pixQrCode?: string;
   
   // Mercado Livre specific
   mlCommissionPercentage?: number;

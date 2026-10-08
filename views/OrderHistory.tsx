@@ -340,98 +340,149 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
       const primaryColor = '#ec4899'; 
 
       container.innerHTML = `
-        <div style="padding: 50px; border-top: 15px solid ${primaryColor}; position: relative; overflow: hidden; background: white;">
-          <div style="position: absolute; top: 100px; right: -50px; width: 300px; height: 300px; background: ${primaryColor}; opacity: 0.03; border-radius: 50%; pointer-events: none; z-index: 0;"></div>
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 50px; position: relative; z-index: 1;">
+        <div style="padding: 35px 40px 25px; border-top: 12px solid ${primaryColor}; position: relative; overflow: hidden; background: white; box-sizing: border-box;">
+          <div style="position: absolute; top: 100px; right: -50px; width: 260px; height: 260px; background: ${primaryColor}; opacity: 0.03; border-radius: 50%; pointer-events: none; z-index: 0;"></div>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; position: relative; z-index: 1;">
             <div style="flex: 1.5;">
               ${companyData.logo ? 
-                `<img src="${companyData.logo}" style="max-height: 90px; max-width: 280px; object-fit: contain; margin-bottom: 15px;" />` : 
-                `<div style="height: 50px; width: 50px; background: ${primaryColor}; border-radius: 12px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-weight: 900; font-size: 24px;">${companyData.name.charAt(0)}</span></div>`
+                `<img src="${companyData.logo}" style="max-height: 70px; max-width: 250px; object-fit: contain; margin-bottom: 10px;" />` : 
+                `<div style="height: 44px; width: 44px; background: ${primaryColor}; border-radius: 10px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-weight: 900; font-size: 22px;">${companyData.name.charAt(0)}</span></div>`
               }
-              <h1 style="margin: 0; font-size: 28px; font-weight: 900; color: ${primaryColor}; letter-spacing: -1px; line-height: 1.1;">${companyData.name}</h1>
-              <div style="margin-top: 10px; font-size: 11px; color: #6b7280; font-weight: 600; line-height: 1.5;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: 900; color: ${primaryColor}; letter-spacing: -0.5px; line-height: 1.1;">${companyData.name}</h1>
+              <div style="margin-top: 6px; font-size: 11px; color: #6b7280; font-weight: 600; line-height: 1.4;">
                 ${companyData.email ? `<div>${companyData.email}</div>` : ''}
                 ${companyData.phone ? `<div>${companyData.phone}</div>` : ''}
                 ${companyData.cnpj ? `<div>CNPJ: ${companyData.cnpj}</div>` : ''}
               </div>
             </div>
             <div style="display: flex; flex-direction: column; align-items: flex-end; flex: 1;">
-              <h2 style="margin: 0; font-size: 12px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px;">Proposta Comercial</h2>
-              <div style="background: #fdf2f8; padding: 20px; border-radius: 25px; border: 1px solid #fce7f3; min-width: 180px; text-align: center; position: relative; z-index: 10;">
-                <p style="margin: 0; font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; position: relative; z-index: 11;">Orçamento Nº</p>
-                <p style="margin: 0; font-size: 32px; font-weight: 900; color: #1f2937; line-height: 1.2; position: relative; z-index: 11;">#${proj.quoteNumber || (proj.id.includes('_') ? proj.id.split('_')[1] : proj.id.slice(-6).toUpperCase())}</p>
-                <p style="margin: 8px 0 0 0; font-size: 11px; color: #6b7280; font-weight: 700; text-transform: uppercase; position: relative; z-index: 11;">Emissão: ${new Date(proj.createdAt).toLocaleDateString('pt-BR')}</p>
+              <h2 style="margin: 0; font-size: 11px; font-weight: 900; color: ${primaryColor}; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px;">Proposta Comercial</h2>
+              <div style="background: #fdf2f8; padding: 14px 20px; border-radius: 20px; border: 1px solid #fce7f3; min-width: 170px; text-align: center; position: relative; z-index: 10;">
+                <p style="margin: 0; font-size: 9px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; position: relative; z-index: 11;">Orçamento Nº</p>
+                <p style="margin: 0; font-size: 26px; font-weight: 900; color: #1f2937; line-height: 1.2; position: relative; z-index: 11;">#${proj.quoteNumber || (proj.id.includes('_') ? proj.id.split('_')[1] : proj.id.slice(-6).toUpperCase())}</p>
+                <p style="margin: 4px 0 0 0; font-size: 10px; color: #6b7280; font-weight: 700; text-transform: uppercase; position: relative; z-index: 11;">Emissão: ${new Date(proj.createdAt).toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 50px;">
-            <div style="background: #fafafa; padding: 25px; border-radius: 25px; border: 1px solid #f3f4f6;">
-              <p style="margin: 0 0 10px 0; font-size: 10px; color: #9ca3af; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Dados do Cliente</p>
-              <p style="margin: 0; font-weight: 800; color: #111827; font-size: 18px;">${customer?.name || 'Cliente Avulso'}</p>
-              <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">${customer?.phone || 'Telefone não informado'}</p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 22px;">
+            <div style="background: #fafafa; padding: 16px 20px; border-radius: 18px; border: 1px solid #f3f4f6;">
+              <p style="margin: 0 0 6px 0; font-size: 9px; color: #9ca3af; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Dados do Cliente</p>
+              <p style="margin: 0; font-weight: 800; color: #111827; font-size: 16px;">${customer?.name || 'Cliente Avulso'}</p>
+              <p style="margin: 4px 0 0 0; font-size: 12px; color: #4b5563; font-weight: 600;">${customer?.phone || 'Telefone não informado'}</p>
             </div>
-            <div style="background: #f0f9ff; padding: 25px; border-radius: 25px; border: 1px solid #e0f2fe;">
-              <p style="margin: 0 0 10px 0; font-size: 10px; color: #0ea5e9; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Resumo do Pedido</p>
-              <p style="margin: 0; font-weight: 800; color: #111827; font-size: 18px;">${proj.theme}</p>
-              <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563; font-weight: 600;">Data de Entrega: <span style="color: #0ea5e9;">${formatDisplayDate(proj.deliveryDate, proj.deliveryTime)}</span></p>
+            <div style="background: #f0f9ff; padding: 16px 20px; border-radius: 18px; border: 1px solid #e0f2fe;">
+              <p style="margin: 0 0 6px 0; font-size: 9px; color: #0ea5e9; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Resumo do Pedido</p>
+              <p style="margin: 0; font-weight: 800; color: #111827; font-size: 16px;">${proj.theme}</p>
+              <p style="margin: 4px 0 0 0; font-size: 12px; color: #4b5563; font-weight: 600;">Data de Entrega: <span style="color: #0ea5e9;">${formatDisplayDate(proj.deliveryDate, proj.deliveryTime)}</span></p>
             </div>
           </div>
-          <div style="margin-bottom: 50px; border-radius: 25px; overflow: hidden; border: 1px solid #f3f4f6; box-shadow: 0 4px 15px rgba(0,0,0,0.02);">
+          <div style="margin-bottom: 22px; border-radius: 18px; overflow: hidden; border: 1px solid #f3f4f6; box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
             <table style="width: 100%; border-collapse: collapse; background: white;">
               <thead>
                 <tr style="background: #111827; color: white;">
-                  <th style="padding: 20px 25px; text-align: left; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Descrição do Produto</th>
-                  <th style="padding: 20px 25px; text-align: center; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Qtd</th>
-                  <th style="padding: 20px 25px; text-align: right; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Vlr. Unitário</th>
-                  <th style="padding: 20px 25px; text-align: right; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Subtotal</th>
+                  <th style="padding: 12px 20px; text-align: left; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Descrição do Produto</th>
+                  <th style="padding: 12px 15px; text-align: center; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Qtd</th>
+                  <th style="padding: 12px 20px; text-align: right; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Vlr. Unitário</th>
+                  <th style="padding: 12px 20px; text-align: right; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Subtotal</th>
                 </tr>
               </thead>
               <tbody>
                 ${proj.items!.map((item, idx) => `
                   <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};">
-                    <td style="padding: 18px 25px; border-bottom: 1px solid #f3f4f6;">
-                      <div style="font-weight: 700; color: #374151; font-size: 14px;">${item.name}</div>
+                    <td style="padding: 12px 20px; border-bottom: 1px solid #f3f4f6;">
+                      <div style="font-weight: 700; color: #374151; font-size: 13px;">${item.name}</div>
                     </td>
-                    <td style="padding: 18px 25px; text-align: center; font-weight: 700; color: #4b5563; font-size: 14px; border-bottom: 1px solid #f3f4f6;">${item.quantity}</td>
-                    <td style="padding: 18px 25px; text-align: right; color: #4b5563; font-size: 14px; border-bottom: 1px solid #f3f4f6;">R$ ${item.unitPrice?.toFixed(2) || '0.00'}</td>
-                    <td style="padding: 18px 25px; text-align: right; font-weight: 900; color: #111827; font-size: 14px; border-bottom: 1px solid #f3f4f6;">R$ ${((item.unitPrice || 0) * item.quantity).toFixed(2)}</td>
+                    <td style="padding: 12px 15px; text-align: center; font-weight: 700; color: #4b5563; font-size: 13px; border-bottom: 1px solid #f3f4f6;">${item.quantity}</td>
+                    <td style="padding: 12px 20px; text-align: right; color: #4b5563; font-size: 13px; border-bottom: 1px solid #f3f4f6;">R$ ${item.unitPrice?.toFixed(2) || '0.00'}</td>
+                    <td style="padding: 12px 20px; text-align: right; font-weight: 900; color: #111827; font-size: 13px; border-bottom: 1px solid #f3f4f6;">R$ ${((item.unitPrice || 0) * item.quantity).toFixed(2)}</td>
                   </tr>
                 `).join('')}
               </tbody>
             </table>
           </div>
-          <div style="display: flex; justify-content: flex-end;">
-            <div style="width: 350px;">
-                <div style="padding: 10px 20px;">
-                    <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #6b7280; font-weight: 700;">
+          <div style="display: flex; gap: 20px; margin-bottom: 22px;">
+            <div style="flex: 1;">
+              ${proj.observations ? `
+                <div style="background: #fdf2f8; padding: 18px 20px; border-radius: 18px; border: 1px solid #fce7f3; height: 100%; box-sizing: border-box;">
+                  <p style="margin: 0 0 6px 0; font-size: 9px; color: #ec4899; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;">Descrição / Observações</p>
+                  <p style="margin: 0; font-size: 12px; color: #4b5563; font-weight: 600; line-height: 1.5; white-space: pre-line;">${proj.observations}</p>
+                </div>
+              ` : `
+                <div style="background: #fafafa; padding: 18px 20px; border-radius: 18px; border: 1px solid #f3f4f6; height: 100%; display: flex; align-items: center; justify-content: center; box-sizing: border-box;">
+                  <p style="margin: 0; font-size: 10px; color: #9ca3af; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Sem observações adicionais</p>
+                </div>
+              `}
+            </div>
+            <div style="width: 310px;">
+                <div style="padding: 6px 16px;">
+                    <div style="display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; color: #6b7280; font-weight: 700;">
                         <span>Subtotal:</span>
                         <span>R$ ${calcBreakdown.basePieceValue.toFixed(2)}</span>
                     </div>
-                    ${calcBreakdown.shipping > 0 ? `<div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #6b7280; font-weight: 700;"><span>Frete:</span><span>+ R$ ${calcBreakdown.shipping.toFixed(2)}</span></div>` : ''}
-                    ${calcBreakdown.totalDiscount > 0 ? `<div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #ef4444; font-weight: 700;"><span>Desconto:</span><span>- R$ ${calcBreakdown.totalDiscount.toFixed(2)}</span></div>` : ''}
+                    ${calcBreakdown.shipping > 0 ? `<div style="display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; color: #6b7280; font-weight: 700;"><span>Frete:</span><span>+ R$ ${calcBreakdown.shipping.toFixed(2)}</span></div>` : ''}
+                    ${calcBreakdown.totalDiscount > 0 ? `<div style="display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; color: #ef4444; font-weight: 700;"><span>Desconto:</span><span>- R$ ${calcBreakdown.totalDiscount.toFixed(2)}</span></div>` : ''}
                 </div>
-                <div style="background: #111827; border-radius: 25px; padding: 25px 30px; color: white; margin-top: 10px;">
+                <div style="background: #111827; border-radius: 18px; padding: 18px 22px; color: white; margin-top: 6px;">
                   <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;">Total Geral</span>
-                    <span style="font-weight: 900; font-size: 28px;">R$ ${calcBreakdown.finalPrice.toFixed(2)}</span>
+                    <span style="font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;">Total Geral</span>
+                    <span style="font-weight: 900; font-size: 24px;">R$ ${calcBreakdown.finalPrice.toFixed(2)}</span>
                   </div>
                   ${(proj.installments && proj.installments > 1) ? `
-                    <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.15); display: flex; justify-content: space-between; align-items: center;">
-                      <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #f472b6;">Condição</span>
-                      <span style="font-size: 12px; font-weight: 900; color: #fef08a;">
+                    <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.15); display: flex; justify-content: space-between; align-items: center;">
+                      <span style="font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #f472b6;">Condição</span>
+                      <span style="font-size: 11px; font-weight: 900; color: #fef08a;">
                         ${proj.downPayment && proj.downPayment > 0 ? `Entrada R$ ${proj.downPayment.toFixed(2)} + ` : ''}${proj.installments}x de R$ ${(proj.installmentAmount && proj.installmentAmount > 0 ? proj.installmentAmount : ((proj.downPayment && proj.downPayment > 0 ? Math.max(0, calcBreakdown.finalPrice - proj.downPayment) : calcBreakdown.finalPrice) / proj.installments)).toFixed(2)}
                       </span>
                     </div>
+                    ${proj.installmentDates && proj.installmentDates.length > 0 ? `
+                      <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.2); font-size: 9px; opacity: 0.9;">
+                        <div style="font-weight: 800; color: #f472b6; text-transform: uppercase; font-size: 8px; margin-bottom: 2px;">Vencimentos:</div>
+                        ${proj.installmentDates.map((d, i) => {
+                          const parts = d.split('-');
+                          const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : d;
+                          const instVal = proj.installmentAmount && proj.installmentAmount > 0 ? proj.installmentAmount : ((proj.downPayment && proj.downPayment > 0 ? Math.max(0, calcBreakdown.finalPrice - proj.downPayment) : calcBreakdown.finalPrice) / proj.installments!);
+                          return `<div style="display: flex; justify-content: space-between; padding: 1px 0;"><span>${i + 1}ª Parcela (${formatted}):</span><span style="font-weight: 700;">R$ ${instVal.toFixed(2)}</span></div>`;
+                        }).join('')}
+                      </div>
+                    ` : ''}
                   ` : (proj.paymentMethod ? `
-                    <div style="margin-top: 8px; font-size: 10px; opacity: 0.7; text-align: right; text-transform: uppercase; letter-spacing: 1px;">
+                    <div style="margin-top: 6px; font-size: 9px; opacity: 0.7; text-align: right; text-transform: uppercase; letter-spacing: 1px;">
                       Pagamento: ${proj.paymentMethod} (À vista)
                     </div>
                   ` : '')}
                 </div>
             </div>
           </div>
-          <div style="margin-top: 50px; text-align: center; border-top: 1px solid #f3f4f6; padding-top: 20px;">
-            <p style="margin: 0; font-size: 12px; color: #9ca3af; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Orçamento válido por 7 dias</p>
+          ${(proj.pixKey || companyData.pixKey || proj.pixQrCode || companyData.pixQrCode) ? `
+            <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 18px; padding: 16px 22px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; box-sizing: border-box; page-break-inside: avoid; break-inside: avoid;">
+              <div style="flex: 1;">
+                <div style="display: inline-block; background: #059669; color: white; font-size: 9px; font-weight: 900; padding: 3px 10px; border-radius: 6px; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 6px;">
+                  PAGAMENTO VIA PIX
+                </div>
+                ${(proj.pixKey || companyData.pixKey) ? `
+                  <div style="font-size: 13px; font-weight: 800; color: #065f46; margin-bottom: 3px;">
+                    Chave Pix: <span style="font-family: monospace; font-size: 14px; font-weight: 900; color: #047857; background: #d1fae5; padding: 2px 8px; border-radius: 6px; word-break: break-all;">${proj.pixKey || companyData.pixKey}</span>
+                  </div>
+                ` : ''}
+                ${(proj.pixBeneficiaryName || companyData.pixBeneficiaryName || companyData.name) ? `
+                  <div style="font-size: 11px; font-weight: 700; color: #374151; margin-bottom: 3px;">
+                    Titular: <span style="font-weight: 900; color: #111827;">${proj.pixBeneficiaryName || companyData.pixBeneficiaryName || companyData.name}</span>
+                  </div>
+                ` : ''}
+                <div style="font-size: 10px; color: #047857; font-weight: 600; margin-top: 4px;">
+                  Aponte a câmera do seu banco para o QR Code ao lado ou use a chave Pix acima para pagar.
+                </div>
+              </div>
+              ${(proj.pixQrCode || companyData.pixQrCode) ? `
+                <div style="background: white; padding: 8px; border-radius: 14px; border: 1.5px solid #a7f3d0; box-shadow: 0 2px 8px rgba(5,150,105,0.08); shrink-0; text-align: center;">
+                  <img src="${proj.pixQrCode || companyData.pixQrCode}" style="width: 85px; height: 85px; object-fit: contain; display: block;" crossOrigin="anonymous" />
+                  <span style="display: block; font-size: 8px; font-weight: 900; color: #059669; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px;">QR Code Pix</span>
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
+          <div style="margin-top: 15px; text-align: center; border-top: 1px solid #f3f4f6; padding-top: 10px;">
+            <p style="margin: 0; font-size: 10px; color: #9ca3af; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Orçamento válido por 7 dias</p>
           </div>
         </div>
       `;
@@ -445,11 +496,54 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
         allowTaint: true,
         logging: false
       });
-      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const pdfPageWidth = pdf.internal.pageSize.getWidth();
+      const pdfPageHeight = pdf.internal.pageSize.getHeight();
+      const totalPdfHeight = (canvas.height * pdfPageWidth) / canvas.width;
+
+      if (totalPdfHeight <= pdfPageHeight) {
+        // Encaixa com perfeição em uma única folha A4
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfPageWidth, totalPdfHeight);
+      } else if (totalPdfHeight <= pdfPageHeight * 1.15) {
+        // Pequeno excesso: ajusta proporcionalmente para não cortar nada e caber na folha A4
+        const scale = pdfPageHeight / totalPdfHeight;
+        const scaledWidth = pdfPageWidth * scale;
+        const offsetX = (pdfPageWidth - scaledWidth) / 2;
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', offsetX, 0, scaledWidth, pdfPageHeight);
+      } else {
+        // Documento longo com muitos itens: paginação limpa sem cortar blocos
+        const pageCanvasHeight = Math.floor(canvas.width * (pdfPageHeight / pdfPageWidth));
+        let renderedHeight = 0;
+        let pageIndex = 0;
+
+        while (renderedHeight < canvas.height) {
+          if (pageIndex > 0) {
+            pdf.addPage();
+          }
+          const sliceHeight = Math.min(pageCanvasHeight, canvas.height - renderedHeight);
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = sliceHeight;
+          const ctx = pageCanvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+            ctx.drawImage(
+              canvas,
+              0, renderedHeight, canvas.width, sliceHeight,
+              0, 0, canvas.width, sliceHeight
+            );
+          }
+          const pageImgData = pageCanvas.toDataURL('image/png');
+          const slicePdfHeight = (sliceHeight * pdfPageWidth) / canvas.width;
+          pdf.addImage(pageImgData, 'PNG', 0, 0, pdfPageWidth, slicePdfHeight);
+          renderedHeight += sliceHeight;
+          pageIndex++;
+        }
+      }
+
       pdf.save(`Orcamento_${proj.quoteNumber || (proj.id.includes('_') ? proj.id.split('_')[1] : proj.id.slice(-6).toUpperCase())}.pdf`);
       document.body.removeChild(container);
     } catch (err) {
@@ -554,6 +648,16 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
       doc.setFontSize(9);
       doc.setFont('helvetica', 'italic');
       doc.text(paymentText, 14, currentY);
+    }
+
+    const pixKeyToUse = project.pixKey || companyData.pixKey;
+    if (pixKeyToUse) {
+      currentY += 6;
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(5, 150, 105);
+      doc.text(`Chave Pix: ${pixKeyToUse}${project.pixBeneficiaryName || companyData.pixBeneficiaryName ? ` (${project.pixBeneficiaryName || companyData.pixBeneficiaryName})` : ''}`, 14, currentY);
+      doc.setTextColor(55, 65, 81);
     }
 
     // Assinatura

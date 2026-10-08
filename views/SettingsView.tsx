@@ -31,7 +31,10 @@ import {
   Download,
   Share,
   PlusSquare,
-  Check
+  Check,
+  QrCode,
+  Sparkles,
+  Image as ImageIcon
 } from 'lucide-react';
 import { CompanyData, Platform } from '../types';
 import { supabase } from '../supabaseClient';
@@ -94,6 +97,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       } catch (err) {
         console.error('Erro ao comprimir logo:', err);
       }
+    }
+  };
+
+  const handleQrCodeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressedDataUrl = await compressImage(file, 400, 0.85);
+        setCompanyData(prev => ({ ...prev, pixQrCode: compressedDataUrl }));
+      } catch (err) {
+        console.error('Erro ao comprimir imagem do QR Code:', err);
+        alert('Erro ao carregar imagem do QR Code.');
+      }
+    }
+  };
+
+  const handleGenerateDefaultQrCode = async () => {
+    if (!companyData.pixKey?.trim()) {
+      alert('Preencha a Chave Pix primeiro para gerar o QR Code.');
+      return;
+    }
+    const cleanKey = companyData.pixKey.trim();
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(cleanKey)}`;
+    try {
+      const res = await fetch(qrUrl);
+      const blob = await res.blob();
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCompanyData(prev => ({ ...prev, pixQrCode: reader.result as string }));
+      };
+      reader.readAsDataURL(blob);
+    } catch {
+      setCompanyData(prev => ({ ...prev, pixQrCode: qrUrl }));
     }
   };
 
@@ -280,6 +316,104 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Cidade / Estado</label>
                     <input type="text" placeholder="Ex: São Paulo" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-800" value={companyData.city || ''} onChange={e => setCompanyData({...companyData, city: e.target.value})} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pix & QR Code Padrão do Ateliê */}
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-emerald-50 space-y-6">
+              <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+                <h4 className="font-black text-gray-700 flex items-center gap-3 uppercase text-xs tracking-widest">
+                  <QrCode size={16} className="text-emerald-500" /> Pix & QR Code Padrão do Ateliê
+                </h4>
+                <span className="text-[10px] bg-emerald-50 text-emerald-600 font-black px-2.5 py-1 rounded-full uppercase tracking-wider">
+                  Automático nos Orçamentos
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 font-medium">
+                Configure seus dados do Pix para que os novos orçamentos já venham com QR Code e chave Pix prontos para cobrança na proposta em PDF.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Chave Pix Principal</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: CPF, CNPJ, Celular, E-mail ou Chave Aleatória" 
+                    className="w-full p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl outline-none font-bold text-gray-800 text-sm focus:ring-2 focus:ring-emerald-200" 
+                    value={companyData.pixKey || ''} 
+                    onChange={e => setCompanyData({...companyData, pixKey: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome do Titular / Favorecido</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Seu Nome Completo ou Razão Social" 
+                    className="w-full p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl outline-none font-bold text-gray-800 text-sm focus:ring-2 focus:ring-emerald-200" 
+                    value={companyData.pixBeneficiaryName || ''} 
+                    onChange={e => setCompanyData({...companyData, pixBeneficiaryName: e.target.value})} 
+                  />
+                </div>
+              </div>
+
+              {/* Upload e Geração de QR Code */}
+              <div className="pt-2 border-t border-gray-100 space-y-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center justify-between">
+                  <span>QR Code Padrão do Pix</span>
+                  <span className="text-emerald-600 font-bold lowercase text-[10px]">Aparece na proposta comercial e recibo</span>
+                </label>
+
+                <div className="flex flex-col sm:flex-row items-center gap-6 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                  {companyData.pixQrCode ? (
+                    <div className="relative group shrink-0">
+                      <div className="w-28 h-28 bg-white rounded-2xl border-2 border-emerald-200 p-2 shadow-sm flex items-center justify-center overflow-hidden">
+                        <img 
+                          src={companyData.pixQrCode} 
+                          alt="QR Code Pix Padrão" 
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCompanyData(prev => ({ ...prev, pixQrCode: '' }))}
+                        className="absolute -top-2 -right-2 p-1.5 bg-red-500 text-white rounded-full shadow hover:bg-red-600 transition-colors"
+                        title="Remover QR Code"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-28 h-28 bg-white rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 shrink-0">
+                      <QrCode size={32} className="text-gray-300" />
+                      <span className="text-[9px] font-bold text-gray-400 mt-1">Nenhum QR Code</span>
+                    </div>
+                  )}
+
+                  <div className="flex-1 space-y-2 w-full">
+                    <div className="flex flex-wrap gap-2">
+                      <label className="cursor-pointer py-3 px-4 bg-white border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50 rounded-xl text-gray-700 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs">
+                        <ImageIcon size={16} className="text-emerald-500" /> Carregar Imagem / Print
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={handleQrCodeUpload} 
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={handleGenerateDefaultQrCode}
+                        className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs"
+                      >
+                        <Sparkles size={16} /> Gerar da Chave Pix
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-gray-400 font-medium leading-relaxed">
+                      Envie a imagem do QR Code salva do app do seu banco ou clique em "Gerar da Chave Pix" para criar automaticamente.
+                    </p>
                   </div>
                 </div>
               </div>
