@@ -281,7 +281,11 @@ export const PDV: React.FC<PDVProps> = ({
   const handleBarcodeScan = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const cleanCode = barcodeInput.trim();
-    if (!cleanCode) return;
+    console.log('Tentando ler código de barras:', cleanCode);
+    if (!cleanCode) {
+        console.log('Código de barras vazio, ignorando.');
+        return;
+    }
 
     let foundProduct: Product | undefined = undefined;
     let foundVariation: ProductVariation | undefined = undefined;
@@ -306,6 +310,8 @@ export const PDV: React.FC<PDVProps> = ({
     }
 
     if (foundProduct) {
+      console.log('Produto encontrado:', foundProduct.name);
+      // ... (rest of the logic remains the same)
       const displayName = foundVariation ? `${foundProduct.name} (${foundVariation.name})` : foundProduct.name;
       const availableStock = getAvailableStock(foundProduct, foundVariation?.name);
       const existingInCart = cart.find(item => 
@@ -336,6 +342,7 @@ export const PDV: React.FC<PDVProps> = ({
       setBarcodeInput('');
       barcodeInputRef.current?.focus();
     } else {
+      console.log('Produto NÃO encontrado para o código:', cleanCode);
       setBarcodeScanFeedback({
         type: 'error',
         message: `⚠️ Código de barras "${cleanCode}" não foi encontrado!`
