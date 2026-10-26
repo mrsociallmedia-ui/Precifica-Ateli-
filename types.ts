@@ -7,6 +7,7 @@ export interface Material {
   quantity: number;
   supplier?: string;
   defaultPiecesPerUnit?: number; // Novo: Quantas peças cabem em uma unidade (ex: 4 tags por folha)
+  minQuantity?: number; // Nível mínimo definido pelo usuário para alerta de reposição
 }
 
 export interface Customer {
@@ -168,6 +169,15 @@ export interface Project {
   quantity: number;
 }
 
+export interface ProductVariation {
+  id: string;
+  name: string; // Ex: "Homem Aranha", "Princesas", "Dinossauro", "Dourado", etc.
+  priceAdjustment?: number; // Ajuste adicional sobre o preço base (ex: +5.00 ou 0)
+  stockQuantity?: number; // Contagem específica de estoque para esta variação
+  sku?: string;
+  image?: string; // Nova foto para a variação
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -188,6 +198,10 @@ export interface Product {
   platformId?: string;
   isKit?: boolean;
   kitProducts?: { productId: string; quantity: number }[];
+  stockQuantity?: number; // Quantidade de peças prontas em estoque
+  minStockAlert?: number; // Nível de alerta para estoque baixo
+  trackStock?: boolean; // Controlar contagem de estoque para esta peça
+  variations?: ProductVariation[]; // Variações do produto (ex: temas, modelos, personagens)
 }
 
 export interface Transaction {
@@ -210,7 +224,7 @@ export interface Transaction {
 export interface CashClosure {
   id: string;
   date: string;
-  type: 'daily' | 'monthly' | 'custom';
+  type: 'daily' | 'monthly' | 'custom' | 'pdv';
   startDate: string;
   endDate: string;
   systemBalance: number;
@@ -221,6 +235,14 @@ export interface CashClosure {
   totalSales?: number;
   notes: string;
   closedAt: string;
+  initialDrawerBalance?: number;
+  cashSalesTotal?: number;
+  cardSalesTotal?: number;
+  pixSalesTotal?: number;
+  otherSalesTotal?: number;
+  countedCashInDrawer?: number;
+  cashDifference?: number;
+  operatorName?: string;
 }
 
 export interface PricingBreakdown {

@@ -530,9 +530,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ projects, customers, mater
           <h2 className="text-4xl font-black text-gray-800 tracking-tight">Painel de <span className="text-pink-500">Gestão</span></h2>
           <p className="text-gray-400 font-medium">Controle total do seu ateliê em um só lugar.</p>
         </div>
-        <div className="bg-white p-3 px-6 rounded-full border border-pink-50 shadow-sm flex items-center gap-3">
-          <CalendarDays className="text-pink-500" size={18} />
-          <span className="text-sm font-black text-gray-700">{new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          {onNavigate && (
+            <button 
+              onClick={() => onNavigate('pdv')}
+              className="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white px-5 py-3 rounded-full shadow-md shadow-emerald-200 flex items-center gap-2 font-black text-xs uppercase tracking-wider transition-all"
+            >
+              <Store size={16} />
+              Abrir PDV / Caixa
+            </button>
+          )}
+          <div className="bg-white p-3 px-6 rounded-full border border-pink-50 shadow-sm flex items-center gap-3">
+            <CalendarDays className="text-pink-500" size={18} />
+            <span className="text-sm font-black text-gray-700">{new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+          </div>
         </div>
       </div>
 

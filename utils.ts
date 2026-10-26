@@ -1,5 +1,10 @@
 import { Project, Material, Platform, CompanyData, PricingBreakdown, Transaction } from './types';
 
+const safeNum = (val: any, fallback = 0): number => {
+  const num = Number(val);
+  return (isNaN(num) || !isFinite(num)) ? fallback : num;
+};
+
 export const calculateProjectBreakdown = (
   project: Partial<Project>,
   materials: Material[],
@@ -13,9 +18,14 @@ export const calculateProjectBreakdown = (
   let totalCalculatedProfit = 0;
   let totalManualPieceValue = 0;
 
-  const monthlyCapacityHours = (companyData.workHoursDaily || 1) * (companyData.workDaysMonthly || 1);
+  const workHours = safeNum(companyData?.workHoursDaily, 1) > 0 ? safeNum(companyData.workHoursDaily, 1) : 1;
+  const workDays = safeNum(companyData?.workDaysMonthly, 1) > 0 ? safeNum(companyData.workDaysMonthly, 1) : 1;
+  const monthlyCapacityHours = workHours * workDays;
+
+  const fixedCostsVal = safeNum(companyData?.fixedCostsMonthly, 0);
+  const meiTaxVal = safeNum(companyData?.meiTax, 0);
   const hourlyFixedCost = monthlyCapacityHours > 0 
-    ? ((companyData.fixedCostsMonthly || 0) + (companyData.meiTax || 0)) / monthlyCapacityHours 
+    ? (fixedCostsVal + meiTaxVal) / monthlyCapacityHours 
     : 0;
 
   if (project.items && project.items.length > 0) {
@@ -25,75 +35,87 @@ export const calculateProjectBreakdown = (
         const mat = materials.find(m => m.id === matItem.materialId);
         if (!mat) return acc;
         
-        const pricePerUnit = mat.price / mat.quantity;
+        const matQty = safeNum(mat.quantity, 1) > 0 ? safeNum(mat.quantity, 1) : 1;
+        const matPrice = safeNum(mat.price, 0);
+        const pricePerUnit = matPrice / matQty;
+
         let baseMaterialCost = 0;
-        let basePrintingCost = matItem.printingCost || 0;
+        let basePrintingCost = safeNum(matItem.printingCost, 0);
+        const usageVal = safeNum(matItem.usageValue, 1) > 0 ? safeNum(matItem.usageValue, 1) : 1;
+        const itemMatQty = safeNum(matItem.quantity, 1);
 
         if (matItem.usageType === 'multiple_per_unit') {
-          baseMaterialCost = pricePerUnit / (matItem.usageValue || 1);
-          basePrintingCost = basePrintingCost / (matItem.usageValue || 1);
+          baseMaterialCost = pricePerUnit / usageVal;
+          basePrintingCost = basePrintingCost / usageVal;
         } else if (matItem.usageType === 'multiple_units') {
-          baseMaterialCost = pricePerUnit * (matItem.usageValue || 1);
-          basePrintingCost = basePrintingCost * (matItem.usageValue || 1);
+          baseMaterialCost = pricePerUnit * usageVal;
+          basePrintingCost = basePrintingCost * usageVal;
         } else if (matItem.usageType === 'single') {
           baseMaterialCost = pricePerUnit;
         } else {
-          baseMaterialCost = pricePerUnit * matItem.quantity;
+          baseMaterialCost = pricePerUnit * itemMatQty;
         }
 
-        return acc + (baseMaterialCost + basePrintingCost);
+        const itemTotalMatCost = baseMaterialCost + basePrintingCost;
+        return acc + safeNum(itemTotalMatCost, 0);
       }, 0);
 
-      const baseMatCost = (item.manualBaseCost !== undefined && item.manualBaseCost > 0)
-        ? item.manualBaseCost
+      const baseMatCost = (item.manualBaseCost !== undefined && safeNum(item.manualBaseCost) > 0)
+        ? safeNum(item.manualBaseCost)
         : rawMaterialCost;
 
-      const itemVariableCost = baseMatCost * item.quantity;
-      const minQty = (item.minOrderQuantity && item.minOrderQuantity > 0) ? item.minOrderQuantity : 1;
-      const unitPackagingCost = (item.packagingCost || 0) / minQty;
-      const packagingTotal = unitPackagingCost * item.quantity;
+      const itemQty = safeNum(item.quantity, 1) > 0 ? safeNum(item.quantity, 1) : 1;
+      const itemVariableCost = baseMatCost * itemQty;
+      const minQty = safeNum(item.minOrderQuantity, 1) > 0 ? safeNum(item.minOrderQuantity, 1) : 1;
+      const unitPackagingCost = safeNum(item.packagingCost, 0) / minQty;
+      const packagingTotal = unitPackagingCost * itemQty;
       const totalItemVariableCost = itemVariableCost + packagingTotal;
 
       // 2. Calcular Custo de Mão de Obra e Custos Fixos
-      const itemLaborCost = (item.hoursToMake * companyData.hourlyRate) * item.quantity;
-      const itemFixedCost = (item.hoursToMake * hourlyFixedCost) * item.quantity;
+      const itemHours = safeNum(item.hoursToMake, 0);
+      const hourlyRate = safeNum(companyData?.hourlyRate, 0);
+      const itemLaborCost = (itemHours * hourlyRate) * itemQty;
+      const itemFixedCost = (itemHours * hourlyFixedCost) * itemQty;
       
-      totalVariableCosts += totalItemVariableCost;
-      totalLaborCosts += itemLaborCost;
-      totalFixedCosts += itemFixedCost;
+      totalVariableCosts += safeNum(totalItemVariableCost, 0);
+      totalLaborCosts += safeNum(itemLaborCost, 0);
+      totalFixedCosts += safeNum(itemFixedCost, 0);
 
       // 3. Lucro ou Valor Manual
-      if (item.unitPrice && item.unitPrice > 0) {
-        totalManualPieceValue += item.unitPrice * item.quantity;
+      if (item.unitPrice && safeNum(item.unitPrice) > 0) {
+        totalManualPieceValue += safeNum(item.unitPrice) * itemQty;
       } else {
         const itemBaseCost = totalItemVariableCost + itemLaborCost;
         const itemSubtotalBase = itemBaseCost + itemFixedCost;
         
         // Calcular o excedente específico deste item para incluir no preço sugerido
-        const itemExcedente = itemSubtotalBase * ((project.excedente || 0) / 100);
+        const projectExcedente = safeNum(project.excedente, 0);
+        const itemExcedente = itemSubtotalBase * (projectExcedente / 100);
         const itemTotalCostWithExcedente = itemSubtotalBase + itemExcedente;
         
-        const itemProfit = itemTotalCostWithExcedente * (item.profitMargin / 100);
-        totalCalculatedProfit += itemProfit;
-        totalManualPieceValue += (itemTotalCostWithExcedente + itemProfit);
+        const profitMargin = safeNum(item.profitMargin, 30);
+        const itemProfit = itemTotalCostWithExcedente * (profitMargin / 100);
+        totalCalculatedProfit += safeNum(itemProfit, 0);
+        totalManualPieceValue += safeNum(itemTotalCostWithExcedente + itemProfit, 0);
       }
     });
   }
 
-  totalVariableCosts += ((project as any).packagingCost || 0);
+  totalVariableCosts += safeNum((project as any)?.packagingCost, 0);
 
   // Despesas Variáveis (Excedente/Segurança) calculadas sobre o custo base
   const subtotalCosts = totalVariableCosts + totalLaborCosts + totalFixedCosts;
-  const excedenteAmount = subtotalCosts * ((project.excedente || 0) / 100);
+  const projectExcedente = safeNum(project.excedente, 0);
+  const excedenteAmount = subtotalCosts * (projectExcedente / 100);
   
   // O Lucro final na decomposição será a diferença entre o Valor da Peça fixado e os custos somados
-  const basePieceValue = totalManualPieceValue;
+  const basePieceValue = safeNum(totalManualPieceValue, 0);
   const totalInternalCosts = subtotalCosts + excedenteAmount;
   const finalProfit = Math.max(0, basePieceValue - totalInternalCosts);
 
   // Aplicação de Descontos no Valor Base da Peça
-  const discPerc = basePieceValue * ((project.discountPercentage || 0) / 100);
-  const totalDiscount = discPerc + (project.discountAmount || 0);
+  const discPerc = basePieceValue * (safeNum(project.discountPercentage, 0) / 100);
+  const totalDiscount = discPerc + safeNum(project.discountAmount, 0);
   const valueAfterDiscount = Math.max(0, basePieceValue - totalDiscount);
 
   // Taxas de Plataforma
@@ -106,12 +128,11 @@ export const calculateProjectBreakdown = (
   let feeDetails = { commission: 0, fixedFee: 0, shippingSubsidy: 0 };
 
   if (isShopee) {
-    // ... (existing shopee logic)
     const baseVal = valueAfterDiscount;
     let commissionPercent = 0;
     let fixedFee = 0;
     let subsidyPercent = 0;
-    const cpfExtraFee = companyData.shopeeSellerType === 'cpf_with_fee' ? 3 : 0;
+    const cpfExtraFee = companyData?.shopeeSellerType === 'cpf_with_fee' ? 3 : 0;
 
     if (baseVal <= 79.99) {
       commissionPercent = 20;
@@ -149,18 +170,13 @@ export const calculateProjectBreakdown = (
       };
     }
   } else if (isMercadoLivre) {
-    const commissionPercent = project.mlCommissionPercentage || (selectedPlatform?.feePercentage || 0);
-    const mlShipping = project.mlShippingCost || 0;
+    const commissionPercent = safeNum(project.mlCommissionPercentage, safeNum(selectedPlatform?.feePercentage, 0));
+    const mlShipping = safeNum(project.mlShippingCost, 0);
     const platformFeePercent = commissionPercent / 100;
 
     if (platformFeePercent < 1) {
-      // No Mercado Livre, itens abaixo de R$ 79 têm taxa fixa de R$ 6,00
-      // Preço Final = (Valor Desejado + Frete Vendedor + Taxa Fixa) / (1 - Taxa%)
-      
-      // Tentativa inicial sem os 6 reais
       priceWithFees = (valueAfterDiscount + mlShipping) / (1 - platformFeePercent);
       
-      // Se o preço final for < 79, aplica a taxa fixa de 6 reais e recalcula
       if (priceWithFees < 79) {
         priceWithFees = (valueAfterDiscount + mlShipping + 6) / (1 - platformFeePercent);
       }
@@ -174,12 +190,11 @@ export const calculateProjectBreakdown = (
       };
     }
   } else {
-    const platformFeePercent = selectedPlatform ? selectedPlatform.feePercentage / 100 : 0;
-    const fixedFee = selectedPlatform?.fixedFee || 0;
-    const shippingSubsidy = selectedPlatform?.shippingSubsidy || 0;
+    const platformFeePercent = selectedPlatform ? safeNum(selectedPlatform.feePercentage, 0) / 100 : 0;
+    const fixedFee = safeNum(selectedPlatform?.fixedFee, 0);
+    const shippingSubsidy = safeNum(selectedPlatform?.shippingSubsidy, 0);
 
     if (platformFeePercent >= 0 && platformFeePercent < 1) {
-      // Preço Final = (Valor Desejado + Taxas Fixas + Subsídio Frete) / (1 - Taxa Percentual)
       priceWithFees = (valueAfterDiscount + fixedFee + shippingSubsidy) / (1 - platformFeePercent);
       actualPlatformFees = priceWithFees - valueAfterDiscount;
 
@@ -192,11 +207,11 @@ export const calculateProjectBreakdown = (
   }
 
   // Preço Final = Valor com taxas + Frete
-  const shipping = project.shipping || 0;
-  const finalPrice = priceWithFees + shipping;
+  const shipping = safeNum(project.shipping, 0);
+  const finalPrice = safeNum(priceWithFees, 0) + shipping;
 
   // Calcular pagamentos já realizados
-  let totalPaid = project.downPayment || 0;
+  let totalPaid = safeNum(project.downPayment, 0);
   
   if (transactions && project.id) {
     const projectTransactions = transactions.filter(t => 
@@ -205,7 +220,7 @@ export const calculateProjectBreakdown = (
       (t.projectId === project.id || t.id.endsWith(`_${project.id}`) || t.id.includes(`_${project.id}_`))
     );
     
-    const paidViaTransactions = projectTransactions.reduce((acc, t) => acc + t.amount, 0);
+    const paidViaTransactions = projectTransactions.reduce((acc, t) => acc + safeNum(t.amount, 0), 0);
     
     if (paidViaTransactions > 0) {
       totalPaid = paidViaTransactions;
@@ -219,20 +234,24 @@ export const calculateProjectBreakdown = (
   const remainingBalance = project.paidAt ? 0 : Math.max(0, finalPrice - totalPaid);
 
   return {
-    variableCosts: totalVariableCosts,
-    laborCosts: totalLaborCosts,
-    fixedCosts: totalFixedCosts,
-    excedente: excedenteAmount,
-    profit: finalProfit,
-    platformFees: actualPlatformFees,
+    variableCosts: safeNum(totalVariableCosts),
+    laborCosts: safeNum(totalLaborCosts),
+    fixedCosts: safeNum(totalFixedCosts),
+    excedente: safeNum(excedenteAmount),
+    profit: safeNum(finalProfit),
+    platformFees: safeNum(actualPlatformFees),
     bonus: 0,
-    shipping,
-    totalDiscount,
-    downPayment: totalPaid,
-    remainingBalance: Math.ceil(remainingBalance * 100) / 100,
-    finalPrice: Math.ceil(finalPrice * 100) / 100,
-    basePieceValue,
-    platformFeeDetails: feeDetails
+    shipping: safeNum(shipping),
+    totalDiscount: safeNum(totalDiscount),
+    downPayment: safeNum(totalPaid),
+    remainingBalance: safeNum(Math.ceil(remainingBalance * 100) / 100),
+    finalPrice: safeNum(Math.ceil(finalPrice * 100) / 100),
+    basePieceValue: safeNum(basePieceValue),
+    platformFeeDetails: {
+      commission: safeNum(feeDetails.commission),
+      fixedFee: safeNum(feeDetails.fixedFee),
+      shippingSubsidy: safeNum(feeDetails.shippingSubsidy)
+    }
   };
 };
 

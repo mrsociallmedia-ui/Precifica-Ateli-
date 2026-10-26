@@ -1,12 +1,13 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-  Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack, Repeat, FileText as FileIcon, Layers3, Share2, ExternalLink, QrCode, MessageSquare,
-  ShoppingCart, ShoppingBag, Minus, RefreshCw, MessageCircle, Wand2, Eye, EyeOff, Calculator, BarChart4, Receipt, AlertCircle, Store, Zap
+  Sparkles, Plus, Trash2, Edit3, Package, DollarSign, Clock, Layers, ChevronRight, X, Printer, Info, Ruler, Search, ArrowRightLeft, TrendingUp, Tag, Tags, PlusCircle, CheckCircle2, FileText, Copy, LayoutGrid, FileStack, Repeat, FileText as FileIcon, Layers3, Share2, ExternalLink, QrCode, MessageSquare,
+  ShoppingCart, ShoppingBag, Minus, RefreshCw, MessageCircle, Wand2, Eye, EyeOff, Calculator, BarChart4, Receipt, AlertCircle, Store, Zap, PackageCheck, AlertTriangle
 } from 'lucide-react';
 import { generateContent } from '../lib/gemini';
-import { Product, Material, CompanyData, Platform, ProjectItem } from '../types';
+import { Product, Material, CompanyData, Platform, ProjectItem, ProductVariation } from '../types';
 import { calculateProjectBreakdown, getMLRange, compressImage, buildWhatsAppLink } from '../utils';
+import { BarcodeModal } from '../components/BarcodeModal';
 
 declare const html2canvas: any;
 
@@ -26,6 +27,7 @@ export const Products: React.FC<ProductsProps> = ({
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [selectedBarcodeProduct, setSelectedBarcodeProduct] = useState<Product | null>(null);
 
   // Estados para Kit Festa
   const [activeTab, setActiveTab] = useState<'pecas' | 'kits'>('pecas');
@@ -193,13 +195,74 @@ export const Products: React.FC<ProductsProps> = ({
   };
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
+  const [selectedPreviewVariationId, setSelectedPreviewVariationId] = useState<string | null>(null);
+
+  // Estados para Variações do Produto
+  const [newVariationName, setNewVariationName] = useState('');
+  const [newVariationPriceAdj, setNewVariationPriceAdj] = useState<number>(0);
+  const [newVariationStock, setNewVariationStock] = useState<number>(0);
+  const [newVariationImage, setNewVariationImage] = useState('');
+
+  const COMMON_VARIATION_SUGGESTIONS = [
+    'Homem Aranha',
+    'Princesas Disney',
+    'Safari Baby',
+    'Dinossauro / Jurassic',
+    'Jardim Encantado',
+    'Fundo do Mar',
+    'Patrulha Canina',
+    'Circo Mágico',
+    'Minnie / Mickey',
+    'Astronauta',
+    'Ursinho Baloeiro',
+    'Sininho / Fadas'
+  ];
+
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: '', category: productCategories[0] || 'Geral', description: '', minutesToMake: 0, materials: [],
     profitMargin: companyData.defaultProfitMargin, marketPrice: 0, manualBaseCost: 0, image: '', images: [], packagingCost: 0, minOrderQuantity: 1,
     showInCatalog: true,
     mlCommissionPercentage: 0,
-    mlShippingCost: 0
+    mlShippingCost: 0,
+    stockQuantity: 0,
+    minStockAlert: 2,
+    trackStock: true,
+    variations: []
   });
+
+  const handleAddVariation = (nameToAdd?: string) => {
+    const name = (nameToAdd || newVariationName).trim();
+    if (!name) return;
+    const existing = (newProduct.variations || []).some(v => v.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      alert('Esta variação já foi adicionada.');
+      return;
+    }
+    const newVar: ProductVariation = {
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
+      name: name,
+      priceAdjustment: Number(newVariationPriceAdj) || 0,
+      stockQuantity: Number(newVariationStock) || 0,
+      image: newVariationImage
+    };
+    setNewProduct(prev => ({
+      ...prev,
+      variations: [...(prev.variations || []), newVar]
+    }));
+    setNewVariationName('');
+    setNewVariationPriceAdj(0);
+    setNewVariationStock(0);
+    setNewVariationImage('');
+  };
+
+
+  const handleRemoveVariation = (varId: string) => {
+    setNewProduct(prev => ({
+      ...prev,
+      variations: (prev.variations || []).filter(v => v.id !== varId)
+    }));
+  };
 
   const [isMLMode, setIsMLMode] = useState(false);
 
@@ -382,7 +445,11 @@ export const Products: React.FC<ProductsProps> = ({
         minOrderQuantity: 1,
         showInCatalog: true,
         isKit: true,
-        kitProducts: kitPartsList
+        kitProducts: kitPartsList,
+        stockQuantity: Number(newProduct.stockQuantity) || 0,
+        minStockAlert: Number(newProduct.minStockAlert) || 0,
+        trackStock: newProduct.trackStock !== false,
+        variations: newProduct.variations || []
       };
 
       if (editingProductId) {
@@ -401,7 +468,14 @@ export const Products: React.FC<ProductsProps> = ({
     }
 
     if (editingProductId) {
-      setProducts(prev => prev.map(p => p.id === editingProductId ? { ...p, ...newProduct as Product } : p));
+      setProducts(prev => prev.map(p => p.id === editingProductId ? { 
+        ...p, 
+        ...newProduct as Product,
+        stockQuantity: Number(newProduct.stockQuantity) || 0,
+        minStockAlert: Number(newProduct.minStockAlert) || 0,
+        trackStock: newProduct.trackStock !== false,
+        variations: newProduct.variations || []
+      } : p));
     } else {
       const product: Product = {
         id: Date.now().toString(),
@@ -419,7 +493,11 @@ export const Products: React.FC<ProductsProps> = ({
         minOrderQuantity: Number(newProduct.minOrderQuantity) || 1,
         showInCatalog: newProduct.showInCatalog !== false,
         mlCommissionPercentage: isMLMode ? newProduct.mlCommissionPercentage : undefined,
-        mlShippingCost: isMLMode ? newProduct.mlShippingCost : undefined
+        mlShippingCost: isMLMode ? newProduct.mlShippingCost : undefined,
+        stockQuantity: Number(newProduct.stockQuantity) || 0,
+        minStockAlert: Number(newProduct.minStockAlert) || 0,
+        trackStock: newProduct.trackStock !== false,
+        variations: newProduct.variations || []
       };
       setProducts(prev => [product, ...prev]);
     }
@@ -436,7 +514,8 @@ export const Products: React.FC<ProductsProps> = ({
     const duplicated: Product = {
       ...product,
       id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
-      name: `${product.name} (Cópia)`
+      name: `${product.name} (Cópia)`,
+      variations: product.variations ? JSON.parse(JSON.stringify(product.variations)) : []
     };
     setProducts(prev => {
       const idx = prev.findIndex(p => p.id === product.id);
@@ -456,8 +535,16 @@ export const Products: React.FC<ProductsProps> = ({
       profitMargin: companyData.defaultProfitMargin, marketPrice: 0, manualBaseCost: 0, image: '', images: [], packagingCost: 0, minOrderQuantity: 1,
       showInCatalog: true,
       mlCommissionPercentage: 0,
-      mlShippingCost: 0
+      mlShippingCost: 0,
+      stockQuantity: 0,
+      minStockAlert: 2,
+      trackStock: true,
+      variations: []
     });
+    setNewVariationName('');
+    setNewVariationPriceAdj(0);
+    setNewVariationStock(0);
+    setNewVariationImage('');
     setIsMLMode(false);
     setActiveTab('pecas');
     setKitPartsList([]);
@@ -544,18 +631,93 @@ export const Products: React.FC<ProductsProps> = ({
     }
   };
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleUpdateStockQuick = (productId: string, delta: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setProducts(prev => prev.map(p => {
+      if (p.id === productId) {
+        if (p.variations && p.variations.length > 0) {
+          const updatedVars = [...p.variations];
+          const first = updatedVars[0];
+          const curVar = Number(first.stockQuantity) || 0;
+          updatedVars[0] = { ...first, stockQuantity: Math.max(0, curVar + delta) };
+          return { ...p, variations: updatedVars };
+        }
+        const current = Number(p.stockQuantity) || 0;
+        const updated = Math.max(0, current + delta);
+        return { ...p, stockQuantity: updated };
+      }
+      return p;
+    }));
+  };
+
+  const stockStats = useMemo(() => {
+    let totalItems = products.length;
+    let totalUnitsInStock = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+
+    products.forEach(p => {
+      const stock = (p.variations && p.variations.length > 0)
+        ? p.variations.reduce((acc, v) => acc + (Number(v.stockQuantity) || 0), 0)
+        : (Number(p.stockQuantity) || 0);
+      const minAlert = Number(p.minStockAlert) || 2;
+      totalUnitsInStock += stock;
+      if (stock === 0) outOfStockCount++;
+      else if (stock <= minAlert) lowStockCount++;
+    });
+
+    return { totalItems, totalUnitsInStock, lowStockCount, outOfStockCount };
+  }, [products]);
+
+  const filteredProducts = products.filter(p => {
+    const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchSearch) return false;
+
+    const stock = (p.variations && p.variations.length > 0)
+      ? p.variations.reduce((acc, v) => acc + (Number(v.stockQuantity) || 0), 0)
+      : (Number(p.stockQuantity) || 0);
+    const minAlert = Number(p.minStockAlert) || 2;
+
+    if (stockFilter === 'in_stock') return stock > 0;
+    if (stockFilter === 'low_stock') return stock > 0 && stock <= minAlert;
+    if (stockFilter === 'out_of_stock') return stock <= 0;
+    return true;
+  });
 
   const suggestedPreview = useMemo(() => {
     if (!showForm) return null;
     
-    // Determine platform for preview
     let platformId = platforms[0]?.id || '';
     if (isMLMode) {
        const mlPlatform = platforms.find(p => p.name.toLowerCase().includes('mercado livre'));
        if (mlPlatform) platformId = mlPlatform.id;
+    }
+
+    if (activeTab === 'kits') {
+      if (kitPartsList.length === 0) return null;
+      const kitMockProject = {
+        items: kitPartsList.map(kp => {
+          const subP = products.find(prod => prod.id === kp.productId);
+          return {
+            productId: kp.productId,
+            name: subP?.name || 'Item do Kit',
+            quantity: kp.quantity,
+            hoursToMake: (subP?.minutesToMake || 0) / 60,
+            materials: subP?.materials || [],
+            profitMargin: Number(newProduct.profitMargin) || companyData.defaultProfitMargin || 30,
+            manualBaseCost: subP?.manualBaseCost,
+            packagingCost: subP?.packagingCost,
+            minOrderQuantity: subP?.minOrderQuantity,
+            unitPrice: 0
+          };
+        }),
+        packagingCost: kitPackagingCost,
+        platformId: platformId,
+        excedente: companyData.defaultExcedente,
+        mlCommissionPercentage: isMLMode ? newProduct.mlCommissionPercentage : undefined,
+        mlShippingCost: isMLMode ? newProduct.mlShippingCost : undefined
+      };
+      return calculateProjectBreakdown(kitMockProject as any, materials, platforms, companyData);
     }
 
     const mockProject = {
@@ -569,7 +731,7 @@ export const Products: React.FC<ProductsProps> = ({
         manualBaseCost: newProduct.manualBaseCost,
         packagingCost: newProduct.packagingCost,
         minOrderQuantity: newProduct.minOrderQuantity,
-        unitPrice: 0 // Forçado a 0 para calcular SEMPRE o preço sugerido fixo respeitando a margem
+        unitPrice: 0
       }],
       platformId: platformId,
       excedente: companyData.defaultExcedente,
@@ -577,16 +739,42 @@ export const Products: React.FC<ProductsProps> = ({
       mlShippingCost: isMLMode ? newProduct.mlShippingCost : undefined
     };
     return calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
-  }, [newProduct.name, newProduct.minutesToMake, newProduct.materials, newProduct.profitMargin, newProduct.manualBaseCost, newProduct.packagingCost, newProduct.minOrderQuantity, newProduct.mlCommissionPercentage, newProduct.mlShippingCost, materials, platforms, companyData, showForm, isMLMode]);
+  }, [activeTab, kitPartsList, kitPackagingCost, newProduct, products, materials, platforms, companyData, showForm, isMLMode]);
 
   const currentPreview = useMemo(() => {
     if (!showForm) return null;
     
-    // Determine platform for preview
     let platformId = platforms[0]?.id || '';
     if (isMLMode) {
        const mlPlatform = platforms.find(p => p.name.toLowerCase().includes('mercado livre'));
        if (mlPlatform) platformId = mlPlatform.id;
+    }
+
+    if (activeTab === 'kits') {
+      if (kitPartsList.length === 0) return null;
+      const kitMockProject = {
+        items: kitPartsList.map(kp => {
+          const subP = products.find(prod => prod.id === kp.productId);
+          return {
+            productId: kp.productId,
+            name: subP?.name || 'Item do Kit',
+            quantity: kp.quantity,
+            hoursToMake: (subP?.minutesToMake || 0) / 60,
+            materials: subP?.materials || [],
+            profitMargin: Number(newProduct.profitMargin) || companyData.defaultProfitMargin || 30,
+            manualBaseCost: subP?.manualBaseCost,
+            packagingCost: subP?.packagingCost,
+            minOrderQuantity: subP?.minOrderQuantity,
+            unitPrice: newProduct.marketPrice || 0
+          };
+        }),
+        packagingCost: kitPackagingCost,
+        platformId: platformId,
+        excedente: companyData.defaultExcedente,
+        mlCommissionPercentage: isMLMode ? newProduct.mlCommissionPercentage : undefined,
+        mlShippingCost: isMLMode ? newProduct.mlShippingCost : undefined
+      };
+      return calculateProjectBreakdown(kitMockProject as any, materials, platforms, companyData);
     }
 
     const mockProject = {
@@ -608,7 +796,7 @@ export const Products: React.FC<ProductsProps> = ({
       mlShippingCost: isMLMode ? newProduct.mlShippingCost : undefined
     };
     return calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
-  }, [newProduct, materials, platforms, companyData, showForm, isMLMode]);
+  }, [activeTab, kitPartsList, kitPackagingCost, newProduct, products, materials, platforms, companyData, showForm, isMLMode]);
 
   const isLengthMaterial = selectedMaterial?.unit === 'metro';
 
@@ -633,9 +821,74 @@ export const Products: React.FC<ProductsProps> = ({
         </div>
       </div>
 
-      <div className="relative group">
-        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-        <input type="text" placeholder="Buscar no catálogo..." className="w-full pl-14 pr-6 py-4 bg-white border border-gray-100 rounded-[2rem] shadow-sm outline-none focus:ring-2 focus:ring-pink-400 transition-all font-medium" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+      {/* Cards de Resumo de Estoque de Peças */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-3.5">
+          <div className="p-3 bg-pink-50 text-pink-500 rounded-2xl">
+            <Package size={22} />
+          </div>
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">Peças Precificadas</span>
+            <span className="text-xl font-black text-gray-800">{stockStats.totalItems}</span>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-3.5">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+            <PackageCheck size={22} />
+          </div>
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">Total em Estoque</span>
+            <span className="text-xl font-black text-emerald-600">{stockStats.totalUnitsInStock} un</span>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-3.5">
+          <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
+            <AlertTriangle size={22} />
+          </div>
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">Estoque Baixo</span>
+            <span className="text-xl font-black text-amber-600">{stockStats.lowStockCount} peças</span>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-3.5">
+          <div className="p-3 bg-red-50 text-red-500 rounded-2xl">
+            <AlertCircle size={22} />
+          </div>
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">Esgotadas (Zeradas)</span>
+            <span className="text-xl font-black text-red-500">{stockStats.outOfStockCount} peças</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Barra de Busca e Filtros de Estoque */}
+      <div className="flex flex-col sm:flex-row gap-3 items-center">
+        <div className="relative group flex-1 w-full">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+          <input type="text" placeholder="Buscar no catálogo..." className="w-full pl-14 pr-6 py-4 bg-white border border-gray-100 rounded-[2rem] shadow-sm outline-none focus:ring-2 focus:ring-pink-400 transition-all font-medium" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        </div>
+
+        <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-[2rem] border border-gray-100 shadow-sm shrink-0 overflow-x-auto w-full sm:w-auto">
+          {[
+            { id: 'all', label: `Todas (${products.length})` },
+            { id: 'in_stock', label: `Com Estoque (${products.filter(p => (p.stockQuantity || 0) > 0).length})` },
+            { id: 'low_stock', label: `Estoque Baixo (${stockStats.lowStockCount})` },
+            { id: 'out_of_stock', label: `Esgotadas (${stockStats.outOfStockCount})` }
+          ].map(f => (
+            <button
+              key={f.id}
+              onClick={() => setStockFilter(f.id as any)}
+              className={`px-3 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 ${
+                stockFilter === f.id ? 'bg-pink-500 text-white shadow-xs' : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
@@ -658,13 +911,14 @@ export const Products: React.FC<ProductsProps> = ({
                   quantity: kp.quantity,
                   hoursToMake: (subP?.minutesToMake || 0) / 60,
                   materials: subP?.materials || [],
-                  profitMargin: subP?.profitMargin || p.profitMargin || 30,
+                  profitMargin: p.profitMargin || subP?.profitMargin || 30,
                   manualBaseCost: subP?.manualBaseCost,
                   packagingCost: subP?.packagingCost,
                   minOrderQuantity: subP?.minOrderQuantity,
                   unitPrice: 0
                 };
               }),
+              packagingCost: p.packagingCost || 0,
               platformId: platformId,
               excedente: companyData.defaultExcedente,
               mlCommissionPercentage: p.mlCommissionPercentage,
@@ -692,10 +946,14 @@ export const Products: React.FC<ProductsProps> = ({
           }
 
           const breakdown = calculateProjectBreakdown(mockProject as any, materials, platforms, companyData);
-          const totalCost = breakdown.variableCosts + breakdown.laborCosts + breakdown.fixedCosts + breakdown.excedente;
-          const sellingPrice = (p.marketPrice && p.marketPrice > 0) ? p.marketPrice : breakdown.finalPrice;
-          const netProfit = breakdown.profit;
-          const profitMarginPct = totalCost > 0 ? ((netProfit / totalCost) * 100) : (p.profitMargin || 30);
+          const rawTotalCost = breakdown.variableCosts + breakdown.laborCosts + breakdown.fixedCosts + breakdown.excedente;
+          const totalCost = (isNaN(rawTotalCost) || !isFinite(rawTotalCost)) ? 0 : rawTotalCost;
+          const rawSellingPrice = (p.marketPrice && p.marketPrice > 0) ? p.marketPrice : breakdown.finalPrice;
+          const sellingPrice = (isNaN(rawSellingPrice) || !isFinite(rawSellingPrice)) ? 0 : rawSellingPrice;
+          const rawNetProfit = breakdown.profit;
+          const netProfit = (isNaN(rawNetProfit) || !isFinite(rawNetProfit)) ? 0 : rawNetProfit;
+          const rawMargin = totalCost > 0 ? ((netProfit / totalCost) * 100) : (p.profitMargin || 30);
+          const profitMarginPct = (isNaN(rawMargin) || !isFinite(rawMargin)) ? (p.profitMargin || 30) : rawMargin;
 
           return (
             <div key={p.id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-xl transition-all group flex flex-col overflow-hidden">
@@ -707,24 +965,53 @@ export const Products: React.FC<ProductsProps> = ({
                     <Package size={48} />
                   </div>
                 )}
-                <div className="absolute top-4 left-4 flex gap-2">
+                <div className="absolute top-4 left-4 flex flex-wrap gap-2 pr-4">
                   <span className="text-[10px] font-black text-pink-500 bg-white/90 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-pink-50">{p.category}</span>
                   {p.showInCatalog === false && (
                     <span className="text-[10px] font-black text-gray-400 bg-white/90 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-gray-100 flex items-center gap-1">
                       <EyeOff size={10} /> Oculto
                     </span>
                   )}
+                  {p.trackStock !== false && (() => {
+                    const varStockSum = (p.variations || []).reduce((acc, v) => acc + (v.stockQuantity || 0), 0);
+                    const totalStock = (p.stockQuantity || 0) + varStockSum;
+                    return (
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1 backdrop-blur-md ${
+                        totalStock <= 0 
+                          ? 'bg-red-500/90 text-white' 
+                          : totalStock <= (p.minStockAlert || 2)
+                            ? 'bg-amber-500/90 text-white'
+                            : 'bg-emerald-600/90 text-white'
+                      }`}>
+                        <Package size={11} />
+                        {totalStock <= 0 
+                          ? '0 em estoque' 
+                          : `${totalStock} un`}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="p-8 flex flex-col flex-1">
-                <div className="flex justify-between items-start mb-6">
+                <div className="flex justify-between items-start mb-4">
                    <div>
                       <h3 className="text-xl font-black text-gray-800">{p.name}</h3>
                    </div>
                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedBarcodeProduct(p)}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-all cursor-pointer"
+                        title="Código de Barras por Variação"
+                      >
+                        <QrCode size={20} />
+                      </button>
                       <button onClick={() => {
                         setEditingProductId(p.id);
-                        setNewProduct({...p});
+                        setNewProduct({
+                          ...p,
+                          variations: p.variations || []
+                        });
                         if (p.isKit) {
                           setActiveTab('kits');
                           setKitPartsList(p.kitProducts || []);
@@ -735,11 +1022,47 @@ export const Products: React.FC<ProductsProps> = ({
                           setKitPackagingCost(0);
                         }
                         setShowForm(true);
-                      }} className="p-2 text-pink-400 hover:bg-pink-50 rounded-xl transition-all" title="Editar Peça"><Edit3 size={20} /></button>
-                       <button type="button" onClick={() => handleDuplicateProduct(p)} className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all" title="Duplicar Peça"><Copy size={20} /></button>
-                      <button onClick={() => handleDeleteProduct(p.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
+                      }} className="p-2 text-pink-400 hover:bg-pink-50 rounded-xl transition-all cursor-pointer" title="Editar Peça"><Edit3 size={20} /></button>
+                       <button type="button" onClick={() => handleDuplicateProduct(p)} className="p-2 text-blue-400 hover:bg-blue-50 rounded-xl transition-all cursor-pointer" title="Duplicar Peça"><Copy size={20} /></button>
+                      <button onClick={() => handleDeleteProduct(p.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all cursor-pointer"><Trash2 size={20} /></button>
                    </div>
                 </div>
+
+                {/* Badges de Variações Cadastradas com Estoque */}
+                {p.variations && p.variations.length > 0 && (
+                  <div className="mb-4 bg-pink-50/70 p-3 rounded-2xl border border-pink-100 flex flex-col gap-1.5 animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-pink-700 flex items-center gap-1">
+                        <Tags size={12} className="text-pink-500" />
+                        Variações e Estoque ({p.variations.length}):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedBarcodeProduct(p)}
+                        className="text-[9px] font-black uppercase text-purple-700 hover:text-purple-900 bg-purple-100/80 hover:bg-purple-200 px-2 py-0.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                        title="Gerar / Imprimir Código de Barras"
+                      >
+                        <QrCode size={11} />
+                        <span>Código de Barras</span>
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {p.variations.map(v => (
+                        <span key={v.id} className="text-[10px] font-bold text-gray-700 bg-white border border-pink-200/70 px-2 py-1 rounded-xl shadow-2xs flex items-center gap-1.5">
+                          <span>{v.name}</span>
+                          <span className="bg-pink-100 text-pink-800 px-1.5 py-0.5 rounded-md font-black text-[9px]">
+                            {v.stockQuantity ?? 0} un
+                          </span>
+                          {v.priceAdjustment && v.priceAdjustment > 0 ? (
+                            <span className="text-[9px] text-gray-400 font-normal">(+R$ {v.priceAdjustment.toFixed(2)})</span>
+                          ) : null}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+
                 <div className="pt-6 border-t border-gray-50 grid grid-cols-3 gap-4 mt-auto">
                   <div>
                     <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest mb-1 truncate">
@@ -976,6 +1299,254 @@ export const Products: React.FC<ProductsProps> = ({
                          </div>
                        </div>
                      )}
+
+                     {/* CONTROLE DE ESTOQUE DE PEÇAS PRONTAS */}
+                     <div className="p-6 bg-emerald-50/50 rounded-3xl border border-emerald-100 space-y-4">
+                       <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-2.5">
+                           <div className="p-2 bg-emerald-500 text-white rounded-xl shadow-xs">
+                             <PackageCheck size={18} />
+                           </div>
+                           <div>
+                             <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider">
+                               Estoque de Peças Prontas (Pronta Entrega)
+                             </h4>
+                             <p className="text-[10px] text-gray-500 font-bold">
+                               Acompanhe quantas unidades você tem prontas no ateliê e gerencie variações (temas, personagens)
+                             </p>
+                           </div>
+                         </div>
+                         <label className="flex items-center gap-2 cursor-pointer text-xs font-black text-emerald-800 select-none">
+                           <input
+                             type="checkbox"
+                             checked={newProduct.trackStock !== false}
+                             onChange={(e) => setNewProduct({ ...newProduct, trackStock: e.target.checked })}
+                             className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-400 border-gray-300"
+                           />
+                           <span>Controlar Estoque</span>
+                         </label>
+                       </div>
+
+                       {newProduct.trackStock !== false && (
+                         <div className="space-y-4 pt-2 border-t border-emerald-100/80">
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div className="space-y-1.5">
+                               <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                                 Estoque Padrão Sem Variação (Unidades)
+                               </label>
+                               <input
+                                 type="number"
+                                 min="0"
+                                 className="w-full p-3.5 bg-white border border-emerald-200 rounded-2xl outline-none font-black text-gray-800 text-base focus:ring-2 focus:ring-emerald-400 transition-all"
+                                 placeholder="0"
+                                 value={newProduct.stockQuantity === 0 ? '0' : (newProduct.stockQuantity || '')}
+                                 onChange={(e) => setNewProduct({ ...newProduct, stockQuantity: parseInt(e.target.value, 10) || 0 })}
+                               />
+                               <p className="text-[9px] text-gray-400 font-medium">Unidades padrão sem tema/variação específico</p>
+                             </div>
+
+                             <div className="space-y-1.5">
+                               <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                                 Estoque Mínimo (Alerta)
+                               </label>
+                               <input
+                                 type="number"
+                                 min="0"
+                                 className="w-full p-3.5 bg-white border border-emerald-200 rounded-2xl outline-none font-black text-gray-800 text-base focus:ring-2 focus:ring-emerald-400 transition-all"
+                                 placeholder="2"
+                                 value={newProduct.minStockAlert === 0 ? '0' : (newProduct.minStockAlert || '')}
+                                 onChange={(e) => setNewProduct({ ...newProduct, minStockAlert: parseInt(e.target.value, 10) || 0 })}
+                               />
+                               <p className="text-[9px] text-gray-400 font-medium">Avisar se o estoque total for menor ou igual a esse valor</p>
+                             </div>
+                           </div>
+
+                           {/* SEÇÃO DE VARIAÇÕES DA PEÇA (TEMAS, PERSONAGENS, MODELOS) */}
+                           <div className="pt-3 border-t border-emerald-100/80 space-y-3">
+                             <div className="flex items-center justify-between">
+                               <label className="text-[10px] font-black text-emerald-900 uppercase tracking-wider flex items-center gap-2">
+                                 <Tags size={14} className="text-emerald-600" />
+                                 Variações da Peça (Temas, Personagens, Modelos)
+                                 {newProduct.variations && newProduct.variations.length > 0 && (
+                                   <span className="bg-emerald-200 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-black">
+                                     {newProduct.variations.length} {newProduct.variations.length === 1 ? 'variação' : 'variações'}
+                                   </span>
+                                 )}
+                               </label>
+                             </div>
+
+                             <p className="text-[10px] text-gray-500 font-bold">
+                               Adicione temas ou modelos (ex: <strong>Homem Aranha</strong>, <strong>Princesas</strong>, <strong>Safari</strong>) e coloque a quantidade no estoque para cada uma.
+                             </p>
+
+                             {/* Sugestões Rápidas de Temas / Variações */}
+                             <div className="space-y-1.5 pt-1">
+                               <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block">
+                                 Sugestões Rápidas:
+                               </label>
+                               <div className="flex flex-wrap gap-1.5">
+                                 {COMMON_VARIATION_SUGGESTIONS.map(sug => {
+                                   const alreadyAdded = (newProduct.variations || []).some(v => v.name.toLowerCase() === sug.toLowerCase());
+                                   return (
+                                     <button
+                                       key={sug}
+                                       type="button"
+                                       disabled={alreadyAdded}
+                                       onClick={() => handleAddVariation(sug)}
+                                       className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                         alreadyAdded 
+                                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                           : 'bg-white hover:bg-emerald-100 text-gray-700 hover:text-emerald-800 border border-emerald-200/80 shadow-2xs'
+                                       }`}
+                                     >
+                                       <span>{alreadyAdded ? '✓' : '+'}</span>
+                                       <span>{sug}</span>
+                                     </button>
+                                   );
+                                 })}
+                               </div>
+                             </div>
+
+                             {/* Input para adicionar nova variação personalizada com quantidade em estoque */}
+                             <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 shadow-xs space-y-3">
+                               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                                 <div className="sm:col-span-5 space-y-1">
+                                   <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">
+                                     Nome da Variação / Tema
+                                   </label>
+                                   <input
+                                     type="text"
+                                     placeholder="Ex: Homem Aranha, Princesas..."
+                                     value={newVariationName}
+                                     onChange={(e) => setNewVariationName(e.target.value)}
+                                     onKeyDown={(e) => {
+                                       if (e.key === 'Enter') {
+                                         e.preventDefault();
+                                         handleAddVariation();
+                                       }
+                                     }}
+                                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-xs text-gray-800 focus:ring-2 focus:ring-emerald-400"
+                                   />
+                                 </div>
+
+                                 <div className="sm:col-span-3 space-y-1">
+                                   <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">
+                                     Qtd em Estoque
+                                   </label>
+                                   <input
+                                     type="number"
+                                     min="0"
+                                     placeholder="Ex: 5"
+                                     value={newVariationStock === 0 ? '' : newVariationStock}
+                                     onChange={(e) => setNewVariationStock(parseInt(e.target.value, 10) || 0)}
+                                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-xs text-gray-800 focus:ring-2 focus:ring-emerald-400"
+                                   />
+                                 </div>
+
+                                 <div className="sm:col-span-2 space-y-1">
+                                   <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">
+                                     Acréscimo R$
+                                   </label>
+                                   <input
+                                     type="number"
+                                     step="0.01"
+                                     min="0"
+                                     placeholder="+0,00"
+                                     value={newVariationPriceAdj === 0 ? '' : newVariationPriceAdj}
+                                     onChange={(e) => setNewVariationPriceAdj(parseFloat(e.target.value) || 0)}
+                                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-xs text-gray-800 focus:ring-2 focus:ring-emerald-400"
+                                   />
+                                 </div>
+
+                                 <div className="sm:col-span-2">
+                                   <button
+                                     type="button"
+                                     onClick={() => handleAddVariation()}
+                                     className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-sm flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                                   >
+                                     <Plus size={15} />
+                                     <span>Add</span>
+                                   </button>
+                                 </div>
+                               </div>
+
+                               {/* Lista das variações adicionadas com edição de estoque */}
+                               {newProduct.variations && newProduct.variations.length > 0 ? (
+                                 <div className="space-y-2 pt-3 border-t border-gray-100">
+                                   <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block">
+                                     Variações Cadastradas ({newProduct.variations.length}):
+                                   </label>
+                                   <div className="flex flex-col gap-2">
+                                     {newProduct.variations.map((v) => (
+                                       <div
+                                         key={v.id}
+                                         className="bg-emerald-50/80 border border-emerald-200 text-emerald-900 px-3.5 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-between gap-3 shadow-2xs animate-fadeIn"
+                                       >
+                                         <div className="flex items-center gap-2">
+                                           <Tag size={14} className="text-emerald-600 shrink-0" />
+                                           <span className="font-black text-gray-800">{v.name}</span>
+                                           {v.priceAdjustment && v.priceAdjustment > 0 ? (
+                                             <span className="text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded-md font-black">
+                                               +R$ {v.priceAdjustment.toFixed(2)}
+                                             </span>
+                                           ) : null}
+                                         </div>
+                                         <div className="flex items-center gap-3">
+                                           <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-emerald-200 shadow-2xs">
+                                             <span className="text-[9px] text-gray-400 uppercase font-black">Estoque:</span>
+                                             <input
+                                               type="number"
+                                               min="0"
+                                               value={v.stockQuantity ?? 0}
+                                               onChange={(e) => {
+                                                 const val = parseInt(e.target.value, 10) || 0;
+                                                 setNewProduct(prev => ({
+                                                   ...prev,
+                                                   variations: (prev.variations || []).map(item => item.id === v.id ? { ...item, stockQuantity: val } : item)
+                                                 }));
+                                               }}
+                                               className="w-12 text-center text-xs font-black bg-transparent outline-none text-emerald-900"
+                                             />
+                                             <span className="text-[9px] text-gray-500 font-bold">un</span>
+                                           </div>
+                                           <button
+                                             type="button"
+                                             onClick={() => handleRemoveVariation(v.id)}
+                                             className="text-emerald-400 hover:text-red-600 p-1 rounded-lg transition-colors cursor-pointer"
+                                             title="Remover variação"
+                                           >
+                                             <X size={15} />
+                                           </button>
+                                         </div>
+                                       </div>
+                                     ))}
+                                   </div>
+                                 </div>
+                               ) : (
+                                 <div className="text-center py-2 text-gray-400 text-xs font-medium">
+                                   Nenhuma variação adicionada ainda. Adicione temas como Homem Aranha, Princesas, e defina a quantidade em estoque para cada uma.
+                                 </div>
+                               )}
+                             </div>
+                           </div>
+
+                           {/* Resumo Total de Estoque com Variações */}
+                           {(() => {
+                             const varStockSum = (newProduct.variations || []).reduce((acc, v) => acc + (v.stockQuantity || 0), 0);
+                             const baseStock = Number(newProduct.stockQuantity) || 0;
+                             const totalStock = baseStock + varStockSum;
+                             return (
+                               <div className="p-3.5 bg-emerald-100/70 rounded-2xl border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between">
+                                 <span>Estoque Total Calculado (Base + Variações):</span>
+                                 <span className="font-black text-emerald-950 text-sm">
+                                   {totalStock} un {varStockSum > 0 ? `(${baseStock} base + ${varStockSum} em variações)` : ''}
+                                 </span>
+                               </div>
+                             );
+                           })()}
+                         </div>
+                       )}
+                     </div>
 
                      <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -1565,154 +2136,346 @@ export const Products: React.FC<ProductsProps> = ({
                </div>
             </form>
             ) : (
-              <form onSubmit={handleSaveProduct} className="space-y-8 animate-fadeIn">
-                {/* Adicionar Kit Festa Card */}
-                <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-lg font-black text-gray-800">Adicionar Kit Festa</h4>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-500">Qual o nome do Kit Festa que irá precificar?</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="digite o nome da sua peça que irá adicionar..." 
-                        className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" 
-                        value={newProduct.name || ''} 
-                        onChange={e => setNewProduct({...newProduct, name: e.target.value})} 
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-500">Qual o Percentual de Lucro deste Kit?</label>
-                      <div className="flex rounded-2xl border border-gray-100 bg-white overflow-hidden">
-                        <div className="px-4 bg-gray-50 border-r border-gray-100 text-gray-400 font-bold flex items-center justify-center text-sm">
-                          %
-                        </div>
-                        <input 
-                          type="number" 
-                          required
-                          placeholder="digite o percentual de lucro..." 
-                          className="flex-1 p-4 bg-white outline-none font-black text-gray-700"
-                          value={newProduct.profitMargin || ''}
-                          onChange={e => setNewProduct({...newProduct, profitMargin: parseFloat(e.target.value) || 0})}
-                        />
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-500">Custo de Embalagem do Kit (R$)</label>
-                      <div className="flex rounded-2xl border border-gray-100 bg-white overflow-hidden">
-                        <div className="px-4 bg-gray-50 border-r border-gray-100 text-gray-400 font-bold flex items-center justify-center text-sm">
-                          R$
-                        </div>
-                        <input 
-                          type="number" 
-                          step="0.01"
-                          placeholder="digite o custo de embalagem..." 
-                          className="flex-1 p-4 bg-white outline-none font-black text-gray-700"
-                          value={kitPackagingCost || ''}
-                          onChange={e => setKitPackagingCost(parseFloat(e.target.value) || 0)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Adicionar Peças Card */}
+              <form onSubmit={handleSaveProduct} className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-fadeIn">
+                <div className="lg:col-span-7 space-y-8">
+                  {/* Informações Básicas do Kit Festa */}
                   <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 space-y-6">
-                    <h4 className="text-lg font-black text-gray-800">Adicionar Peças</h4>
+                    <h4 className="text-lg font-black text-gray-800">Informações do Kit Festa</h4>
                     
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Peça</label>
-                        <select 
-                          value={selectedKitPartId}
-                          onChange={e => setSelectedKitPartId(e.target.value)}
-                          className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 appearance-none"
-                        >
-                          <option value="">digite o nome da peça para pesquisar...</option>
-                          {products.filter(p => !p.isKit).map(p => (
-                            <option key={p.id} value={p.id}>{p.name} (R$ {(p.marketPrice || 0).toFixed(2)})</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Quantidade</label>
+                        <label className="text-xs font-bold text-gray-500">Nome do Kit Festa</label>
                         <input 
-                          type="number"
-                          min="1"
-                          placeholder="quantidade..."
-                          value={kitPartQty || ''}
-                          onChange={e => setKitPartQty(parseInt(e.target.value) || 0)}
-                          className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700"
+                          type="text" 
+                          required
+                          placeholder="Ex: Kit Festa Só um Bolinho Homem Aranha..." 
+                          className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700" 
+                          value={newProduct.name || ''} 
+                          onChange={e => setNewProduct({...newProduct, name: e.target.value})} 
                         />
                       </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-500">Percentual de Lucro do Kit (%)</label>
+                        <div className="flex rounded-2xl border border-gray-100 bg-white overflow-hidden">
+                          <div className="px-4 bg-gray-50 border-r border-gray-100 text-gray-400 font-bold flex items-center justify-center text-sm">
+                            %
+                          </div>
+                          <input 
+                            type="number" 
+                            required
+                            placeholder="Ex: 40" 
+                            className="flex-1 p-4 bg-white outline-none font-black text-gray-700"
+                            value={newProduct.profitMargin === 0 ? '0' : (newProduct.profitMargin || '')}
+                            onChange={e => setNewProduct({...newProduct, profitMargin: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+                      </div>
+                    </div>
 
-                      <div className="flex justify-end">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-500">Custo de Embalagem/Envio do Kit (R$)</label>
+                        <div className="flex rounded-2xl border border-gray-100 bg-white overflow-hidden">
+                          <div className="px-4 bg-gray-50 border-r border-gray-100 text-gray-400 font-bold flex items-center justify-center text-sm">
+                            R$
+                          </div>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            placeholder="Ex: 5,00" 
+                            className="flex-1 p-4 bg-white outline-none font-black text-gray-700"
+                            value={kitPackagingCost === 0 ? '0' : (kitPackagingCost || '')}
+                            onChange={e => setKitPackagingCost(parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold italic px-1">Caixa especial para transporte de todas as peças do kit</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Seleção de Peças do Kit */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Card Adicionar Peças */}
+                    <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 space-y-6">
+                      <h4 className="text-lg font-black text-gray-800">Adicionar Peças</h4>
+                      
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Peça do Catálogo</label>
+                          <select 
+                            value={selectedKitPartId}
+                            onChange={e => setSelectedKitPartId(e.target.value)}
+                            className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 appearance-none text-xs"
+                          >
+                            <option value="">Selecione uma peça do catálogo...</option>
+                            {products.filter(p => !p.isKit).map(p => (
+                              <option key={p.id} value={p.id}>{p.name} (P. Venda: R$ {(p.marketPrice || 0).toFixed(2)})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Quantidade no Kit</label>
+                          <input 
+                            type="number"
+                            min="1"
+                            placeholder="Qtd no kit..."
+                            value={kitPartQty || ''}
+                            onChange={e => setKitPartQty(parseInt(e.target.value, 10) || 1)}
+                            className="w-full p-4 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 text-sm"
+                          />
+                        </div>
+
                         <button 
                           type="button"
                           onClick={handleAddPartToKit}
-                          className="bg-gray-800 hover:bg-gray-900 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 text-xs uppercase tracking-wider transition-all"
+                          className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
                         >
-                          <Plus size={14} /> Adicionar Peça
+                          <Plus size={16} /> Adicionar ao Kit
                         </button>
                       </div>
                     </div>
+
+                    {/* Card Peças no Kit */}
+                    <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 space-y-6 flex flex-col">
+                      <h4 className="text-lg font-black text-gray-800 flex items-center justify-between">
+                        <span>Peças do Kit</span>
+                        {kitPartsList.length > 0 && (
+                          <span className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-black">
+                            {kitPartsList.reduce((sum, item) => sum + item.quantity, 0)} itens
+                          </span>
+                        )}
+                      </h4>
+                      
+                      {kitPartsList.length === 0 ? (
+                        <div className="p-6 bg-amber-50/80 border border-amber-200 text-amber-900 rounded-2xl flex flex-col items-center justify-center gap-2 font-bold text-xs text-center flex-1">
+                          <Package size={28} className="text-amber-500" />
+                          <span>Nenhuma peça adicionada ainda ao kit.</span>
+                          <span className="text-[10px] text-amber-700 font-medium">Selecione as peças no painel ao lado e defina a quantidade.</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 flex-1">
+                          {kitPartsList.map((item, idx) => {
+                            const p = products.find(prod => prod.id === item.productId);
+                            return (
+                              <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 shadow-2xs">
+                                <div>
+                                  <p className="font-black text-gray-800 text-xs">{p ? p.name : 'Produto Desconhecido'}</p>
+                                  <p className="text-[10px] font-bold text-gray-400 mt-0.5">
+                                    {item.quantity}x de cada • R$ {p ? (p.marketPrice || 0).toFixed(2) : '0.00'} un
+                                  </p>
+                                </div>
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    setKitPartsList(prev => prev.filter((_, i) => i !== idx));
+                                  }}
+                                  className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                  title="Remover peça do kit"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Peças Card */}
-                  <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 space-y-6">
-                    <h4 className="text-lg font-black text-gray-800">Peças</h4>
-                    
-                    {kitPartsList.length === 0 ? (
-                      <div className="p-4 bg-amber-50 border border-amber-100 text-amber-800 rounded-2xl flex items-center gap-2 font-bold text-sm">
-                        <span>⚠️ Nenhuma peça adicionada</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-3 max-h-[250px] overflow-y-auto">
-                        {kitPartsList.map((item, idx) => {
-                          const p = products.find(prod => prod.id === item.productId);
-                          return (
-                            <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
-                              <div>
-                                <p className="font-black text-gray-800 text-sm">{p ? p.name : 'Produto Desconhecido'}</p>
-                                <p className="text-xs font-bold text-gray-400">Quantidade: {item.quantity}x • R$ {p ? (p.marketPrice || 0).toFixed(2) : '0.00'} cada</p>
-                              </div>
-                              <button 
-                                type="button" 
-                                onClick={() => {
-                                  setKitPartsList(prev => prev.filter((_, i) => i !== idx));
-                                }}
-                                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                  {/* Preço de Venda Personalizado do Kit (Opcional) */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Preço de Venda do Kit (Opcional)</label>
+                      {suggestedPreview && (
+                        <span className="text-[10px] font-bold text-gray-500 bg-gray-50 px-2.5 py-0.5 rounded-full border border-gray-100">
+                          Sugerido: R$ {suggestedPreview.finalPrice.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        className="w-full p-4 pl-12 pr-36 bg-white border border-gray-100 rounded-2xl outline-none font-black text-gray-700 focus:ring-2 focus:ring-pink-400 transition-all" 
+                        placeholder={suggestedPreview ? `Sugerido: R$ ${suggestedPreview.finalPrice.toFixed(2)}` : 'Preço fixo do kit...'}
+                        value={newProduct.marketPrice === 0 ? '0' : (newProduct.marketPrice || '')} 
+                        onChange={e => setNewProduct({...newProduct, marketPrice: parseFloat(e.target.value) || 0})} 
+                      />
+                      {newProduct.marketPrice && newProduct.marketPrice > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setNewProduct({...newProduct, marketPrice: 0})}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] font-black px-3 py-1.5 rounded-xl transition-all active:scale-95"
+                        >
+                          Limpar
+                        </button>
+                      ) : (
+                        suggestedPreview && (
+                          <button
+                            type="button"
+                            onClick={() => setNewProduct({...newProduct, marketPrice: parseFloat(suggestedPreview.finalPrice.toFixed(2))})}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 bg-pink-100 hover:bg-pink-200 text-pink-600 text-[10px] font-black px-3 py-1.5 rounded-xl transition-all active:scale-95"
+                          >
+                            Usar Sugerido
+                          </button>
+                        )
+                      )}
+                    </div>
+                    <p className="text-[9px] text-gray-400 font-bold italic px-1">
+                      Deixe em branco para utilizar automaticamente o preço calculado de R$ {suggestedPreview?.finalPrice.toFixed(2) || '0.00'}.
+                    </p>
+
+                    {suggestedPreview && (() => {
+                      const totalCosts = (suggestedPreview.variableCosts || 0) + (suggestedPreview.laborCosts || 0) + (suggestedPreview.fixedCosts || 0) + (suggestedPreview.excedente || 0);
+                      const hasMarketPrice = Boolean(newProduct.marketPrice && newProduct.marketPrice > 0);
+                      const effectiveProfit = hasMarketPrice ? (currentPreview ? currentPreview.profit : ((newProduct.marketPrice || 0) - totalCosts)) : suggestedPreview.profit;
+                      const effectiveMargin = hasMarketPrice ? (totalCosts > 0 ? ((effectiveProfit / totalCosts) * 100) : 0) : (newProduct.profitMargin || 30);
+                      return (
+                        <div className="flex justify-between items-center bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mt-3 animate-fadeIn">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                            <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">
+                              {hasMarketPrice ? 'Lucro Líquido Real do Kit' : 'Lucro Líquido Estimado do Kit'}
+                            </span>
+                          </div>
+                          <span className="text-sm font-black text-emerald-600 font-mono">
+                            R$ {effectiveProfit.toFixed(2)} ({effectiveMargin.toFixed(0)}%)
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
+
+                  {/* Tabela de Composição Financeira Detalhada do Kit */}
+                  {suggestedPreview && (() => {
+                    const bd = suggestedPreview || currentPreview;
+                    const baseVal = bd ? (bd.basePieceValue > 0 ? bd.basePieceValue : (bd.finalPrice > 0 ? bd.finalPrice : 1)) : 1;
+                    const variableCosts = bd ? bd.variableCosts : 0;
+                    const laborCosts = bd ? bd.laborCosts : 0;
+                    const fixedCosts = bd ? bd.fixedCosts : 0;
+                    const excedente = bd ? bd.excedente : 0;
+                    const platformFees = bd ? bd.platformFees : 0;
+                    const profit = bd ? bd.profit : 0;
+
+                    return (
+                      <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6 animate-fadeIn">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <h3 className="text-xs font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                            <BarChart4 size={18} className="text-indigo-500" /> Composição Financeira do Kit Festa
+                          </h3>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-3xl border border-gray-100 shadow-sm bg-white">
+                          <table className="w-full text-left text-sm">
+                            <thead className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                              <tr>
+                                <th className="px-6 py-4">Categoria</th>
+                                <th className="px-6 py-4 text-right">Valor (R$)</th>
+                                <th className="px-6 py-4 text-right">Proporção (%)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50 font-bold text-gray-600">
+                              <tr className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4 flex items-center gap-3">
+                                  <div className="p-2 bg-yellow-50 text-yellow-500 rounded-xl"><Package size={14} /></div>
+                                  <span>Materiais das Peças + Embalagem Kit</span>
+                                </td>
+                                <td className="px-6 py-4 text-right font-mono">R$ {variableCosts.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                  {((variableCosts / baseVal) * 100).toFixed(1)}%
+                                </td>
+                              </tr>
+                              <tr className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4 flex items-center gap-3">
+                                  <div className="p-2 bg-pink-50 text-pink-500 rounded-xl"><Clock size={14} /></div>
+                                  <span>Mão de Obra Total do Kit</span>
+                                </td>
+                                <td className="px-6 py-4 text-right font-mono">R$ {laborCosts.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                  {((laborCosts / baseVal) * 100).toFixed(1)}%
+                                </td>
+                              </tr>
+                              <tr className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4 flex items-center gap-3">
+                                  <div className="p-2 bg-blue-50 text-blue-500 rounded-xl"><Receipt size={14} /></div>
+                                  <span>Custos Fixos do Ateliê</span>
+                                </td>
+                                <td className="px-6 py-4 text-right font-mono">R$ {fixedCosts.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                  {((fixedCosts / baseVal) * 100).toFixed(1)}%
+                                </td>
+                              </tr>
+                              <tr className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4 flex items-center gap-3">
+                                  <div className="p-2 bg-gray-50 text-gray-500 rounded-xl"><AlertCircle size={14} /></div>
+                                  <span>Margem de Segurança (Excedente)</span>
+                                </td>
+                                <td className="px-6 py-4 text-right font-mono">R$ {excedente.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-right text-[10px] opacity-60">
+                                  {((excedente / baseVal) * 100).toFixed(1)}%
+                                </td>
+                              </tr>
+                              <tr className="bg-emerald-50/60">
+                                <td className="px-6 py-4 flex items-center gap-3 font-black text-emerald-800">
+                                  <div className="p-2 bg-emerald-500 text-white rounded-xl"><Zap size={14} /></div>
+                                  <span>Lucro Líquido Real</span>
+                                </td>
+                                <td className="px-6 py-4 text-right font-black text-emerald-600 font-mono">R$ {profit.toFixed(2)}</td>
+                                <td className="px-6 py-4 text-right text-[10px] font-black text-emerald-600">
+                                  {((profit / baseVal) * 100).toFixed(1)}%
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                {/* Bottom row / footer */}
-                <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-50 p-6 rounded-2xl border border-gray-100">
-                  <div className="text-gray-500 font-bold text-sm">
-                    Custo da Embalagem: <span className="text-gray-800 font-black">R$ {kitPackagingCost.toFixed(2)}</span>
+                {/* Coluna Direita: Resumo Financeiro em Tempo Real */}
+                <div className="lg:col-span-5">
+                  <div className="bg-gray-900 rounded-[3rem] p-10 text-white shadow-2xl text-center space-y-6 sticky top-6">
+                    <div>
+                      <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] mb-4">Valor de Venda do Kit</p>
+                      <h2 className="text-6xl font-black mb-2">R$ {(newProduct.marketPrice || currentPreview?.finalPrice || suggestedPreview?.finalPrice || 0).toFixed(2)}</h2>
+                      {newProduct.marketPrice ? (
+                        <p className="text-[10px] font-black text-pink-400 uppercase tracking-widest">Preço Fixo Definido</p>
+                      ) : (
+                        <p className="text-[10px] font-black text-green-400 uppercase tracking-widest">Cálculo Sugerido</p>
+                      )}
+                    </div>
+                    
+                    <div className="bg-white/10 p-6 rounded-[2rem] border border-white/5 space-y-3">
+                      <div className="flex justify-between items-center text-[10px] font-black uppercase opacity-60">
+                        <span>Materiais + Embalagem</span>
+                        <span className="text-white">R$ {(currentPreview?.variableCosts || suggestedPreview?.variableCosts || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-black uppercase opacity-60">
+                        <span>Mão de Obra + Fixos</span>
+                        <span className="text-white">R$ {( ((currentPreview?.laborCosts || suggestedPreview?.laborCosts || 0)) + ((currentPreview?.fixedCosts || suggestedPreview?.fixedCosts || 0)) ).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-black uppercase text-blue-400">
+                        <span>Custo Total do Kit</span>
+                        <span>R$ {( ((currentPreview?.variableCosts || suggestedPreview?.variableCosts || 0)) + ((currentPreview?.laborCosts || suggestedPreview?.laborCosts || 0)) + ((currentPreview?.fixedCosts || suggestedPreview?.fixedCosts || 0)) + ((currentPreview?.excedente || suggestedPreview?.excedente || 0)) ).toFixed(2)}</span>
+                      </div>
+                      <div className="pt-3 border-t border-white/5 flex justify-between items-center text-xs font-black">
+                        <span className="text-green-400">Lucro Líquido</span>
+                        <span className="text-green-400">R$ {(currentPreview?.profit || suggestedPreview?.profit || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    <button 
+                      type="submit" 
+                      className="w-full py-6 mt-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[2rem] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 cursor-pointer"
+                    >
+                      Salvar Kit Festa no Catálogo
+                    </button>
                   </div>
-                  <button 
-                    type="submit"
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-8 py-4 rounded-2xl flex items-center gap-2 transition-all shadow-lg active:scale-95"
-                  >
-                    <PlusCircle size={18} /> Salvar Kit Festa
-                  </button>
                 </div>
               </form>
             )}
@@ -1938,6 +2701,40 @@ export const Products: React.FC<ProductsProps> = ({
                     </div>
 
                     <div className="flex-1 space-y-8">
+                      {/* Seleção de Variação / Tema */}
+                      {selectedProductPreview.variations && selectedProductPreview.variations.length > 0 && (
+                        <div className="space-y-3 bg-pink-50/60 p-4 rounded-2xl border border-pink-100">
+                          <label className="text-[10px] font-black text-pink-700 uppercase tracking-widest flex items-center gap-1.5">
+                            <Tags size={13} className="text-pink-500" />
+                            Escolha a Variação / Tema:
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedProductPreview.variations.map(v => {
+                              const isSelected = selectedPreviewVariationId === v.id;
+                              return (
+                                <button
+                                  key={v.id}
+                                  type="button"
+                                  onClick={() => setSelectedPreviewVariationId(v.id)}
+                                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    isSelected
+                                      ? 'bg-pink-600 text-white shadow-sm ring-2 ring-pink-300'
+                                      : 'bg-white text-gray-700 hover:bg-pink-100/70 border border-pink-200/60'
+                                  }`}
+                                >
+                                  <span>{v.name}</span>
+                                  {v.priceAdjustment && v.priceAdjustment > 0 ? (
+                                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${isSelected ? 'bg-pink-700 text-white' : 'bg-pink-100 text-pink-700'}`}>
+                                      +R$ {v.priceAdjustment.toFixed(2)}
+                                    </span>
+                                  ) : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       <div>
                         <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Descrição</h4>
                         <p className="text-gray-600 font-medium leading-relaxed whitespace-pre-wrap">
@@ -1958,11 +2755,16 @@ export const Products: React.FC<ProductsProps> = ({
                         <div>
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Valor Unitário</p>
                           <p className="text-4xl font-black text-gray-800">
-                            R$ {(selectedProductPreview.marketPrice > 0 ? selectedProductPreview.marketPrice : calculateProjectBreakdown({ 
-                              items: [{ productId: selectedProductPreview.id, name: selectedProductPreview.name, quantity: 1, hoursToMake: selectedProductPreview.minutesToMake / 60, materials: selectedProductPreview.materials, profitMargin: selectedProductPreview.profitMargin, packagingCost: selectedProductPreview.packagingCost, minOrderQuantity: selectedProductPreview.minOrderQuantity }], 
-                              platformId: platforms[0]?.id || '', 
-                              excedente: companyData.defaultExcedente 
-                            } as any, materials, platforms, companyData).finalPrice).toFixed(2)}
+                            R$ {(() => {
+                              const baseP = selectedProductPreview.marketPrice > 0 ? selectedProductPreview.marketPrice : calculateProjectBreakdown({ 
+                                items: [{ productId: selectedProductPreview.id, name: selectedProductPreview.name, quantity: 1, hoursToMake: selectedProductPreview.minutesToMake / 60, materials: selectedProductPreview.materials, profitMargin: selectedProductPreview.profitMargin, packagingCost: selectedProductPreview.packagingCost, minOrderQuantity: selectedProductPreview.minOrderQuantity }], 
+                                platformId: platforms[0]?.id || '', 
+                                excedente: companyData.defaultExcedente 
+                              } as any, materials, platforms, companyData).finalPrice;
+                              const selectedVar = selectedProductPreview.variations?.find(v => v.id === selectedPreviewVariationId);
+                              const totalP = baseP + (selectedVar?.priceAdjustment || 0);
+                              return totalP.toFixed(2);
+                            })()}
                           </p>
                         </div>
                       </div>
@@ -1970,26 +2772,35 @@ export const Products: React.FC<ProductsProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <button 
                           onClick={() => {
-                            const message = `Olá! Tenho interesse no produto: *${selectedProductPreview.name}* do seu catálogo.`;
+                            const selectedVar = selectedProductPreview.variations?.find(v => v.id === selectedPreviewVariationId);
+                            const varLabel = selectedVar ? ` (Variação: ${selectedVar.name})` : '';
+                            const message = `Olá! Tenho interesse no produto: *${selectedProductPreview.name}${varLabel}* do seu catálogo.`;
                             const url = buildWhatsAppLink(companyData.phone, message);
                             if (url) window.open(url, '_blank');
                           }}
-                          className="py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-green-100 hover:bg-green-600 transition-all active:scale-95"
+                          className="py-5 bg-green-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-green-100 hover:bg-green-600 transition-all active:scale-95 cursor-pointer"
                         >
                           <MessageCircle size={24} />
                           <span>Falar no WhatsApp</span>
                         </button>
                         <button 
                           onClick={() => {
-                            const price = selectedProductPreview.marketPrice > 0 ? selectedProductPreview.marketPrice : calculateProjectBreakdown({ 
+                            const basePrice = selectedProductPreview.marketPrice > 0 ? selectedProductPreview.marketPrice : calculateProjectBreakdown({ 
                               items: [{ productId: selectedProductPreview.id, name: selectedProductPreview.name, quantity: 1, hoursToMake: selectedProductPreview.minutesToMake / 60, materials: selectedProductPreview.materials, profitMargin: selectedProductPreview.profitMargin, packagingCost: selectedProductPreview.packagingCost, minOrderQuantity: selectedProductPreview.minOrderQuantity }], 
                               platformId: platforms[0]?.id || '', 
                               excedente: companyData.defaultExcedente 
                             } as any, materials, platforms, companyData).finalPrice;
-                            addToCart(selectedProductPreview, price);
+                            const selectedVar = selectedProductPreview.variations?.find(v => v.id === selectedPreviewVariationId);
+                            const finalPrice = basePrice + (selectedVar?.priceAdjustment || 0);
+                            const prodToAdd = selectedVar ? {
+                              ...selectedProductPreview,
+                              name: `${selectedProductPreview.name} (${selectedVar.name})`
+                            } : selectedProductPreview;
+                            addToCart(prodToAdd, finalPrice);
                             setSelectedProductPreview(null);
+                            setSelectedPreviewVariationId(null);
                           }}
-                          className="py-5 bg-pink-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-pink-100 hover:bg-pink-600 transition-all active:scale-95"
+                          className="py-5 bg-pink-500 text-white font-black rounded-[2rem] flex items-center justify-center gap-3 shadow-xl shadow-pink-100 hover:bg-pink-600 transition-all active:scale-95 cursor-pointer"
                         >
                           <ShoppingCart size={24} />
                           <span>Adicionar ao Carrinho</span>
@@ -2123,6 +2934,17 @@ export const Products: React.FC<ProductsProps> = ({
             </div>
           </div>
         </div>
+      )}
+      {/* MODAL CÓDIGO DE BARRAS POR VARIAÇÃO */}
+      {selectedBarcodeProduct && (
+        <BarcodeModal
+          product={selectedBarcodeProduct}
+          onClose={() => setSelectedBarcodeProduct(null)}
+          onUpdateProductVariations={(productId, updatedVariations) => {
+            setProducts(prev => prev.map(prod => prod.id === productId ? { ...prod, variations: updatedVariations } : prod));
+            setSelectedBarcodeProduct(prev => prev ? { ...prev, variations: updatedVariations } : null);
+          }}
+        />
       )}
     </div>
   );

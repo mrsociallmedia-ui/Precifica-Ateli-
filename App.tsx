@@ -23,7 +23,8 @@ import {
   Wand2,
   ExternalLink,
   Camera,
-  ShoppingBag
+  ShoppingBag,
+  Store
 } from 'lucide-react';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { Dashboard } from './views/Dashboard';
@@ -40,6 +41,7 @@ import { PublicCatalog } from './views/PublicCatalog';
 import { CatalogManager } from './views/CatalogManager';
 import { ProjectTracking } from './views/ProjectTracking';
 import { AICaptionGenerator } from './views/AICaptionGenerator';
+import { PDV } from './views/PDV';
 import { App as CapApp } from '@capacitor/app';
 import { CompanyData, Material, Customer, Platform, Project, Product, Transaction, CashClosure } from './types';
 import { INITIAL_COMPANY_DATA, PLATFORMS_DEFAULT } from './constants';
@@ -816,6 +818,7 @@ const App: React.FC = () => {
 
   const navItems = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard, color: 'text-pink-500' },
+    { id: 'pdv', label: 'PDV (Frente de Caixa)', icon: Store, color: 'text-emerald-500', badge: 'Rápido' },
     { id: 'pricing', label: 'Orçamentos', icon: Calculator, color: 'text-blue-500' },
     { id: 'schedule', label: 'Cronograma', icon: Calendar, color: 'text-blue-500' },
     { id: 'order_history', label: 'Histórico Pedidos', icon: History, color: 'text-pink-500' },
@@ -1115,7 +1118,8 @@ const App: React.FC = () => {
                 const props = { projects, customers, materials, companyData, platforms, transactions, products };
                 switch (activeTab) {
                   case 'dashboard': return <Dashboard {...props} setProjects={setProjects} setTransactions={setTransactions} setCompanyData={setCompanyData} onNavigate={(tab) => setActiveTab(tab)} />;
-                  case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} />;
+                  case 'pdv': return <PDV {...props} setProducts={setProducts} setMaterials={setMaterials} setProjects={setProjects} setTransactions={setTransactions} setCustomers={setCustomers} paymentMethods={paymentMethods} />;
+                  case 'inventory': return <Inventory materials={materials} setMaterials={setMaterials} products={products} setProducts={setProducts} />;
                   case 'products': return <Products products={products} setProducts={setProducts} materials={materials} companyData={companyData} platforms={platforms} productCategories={productCategories} setProductCategories={setProductCategories} currentUser={currentUser || ''} />;
                   case 'customers': return <Customers {...props} setCustomers={setCustomers} />;
                   case 'pricing': return <PricingCalculator {...props} setCustomers={setCustomers} products={products} setProjects={setProjects} setTransactions={setTransactions} paymentMethods={paymentMethods} projectToEdit={projectToEdit} onClearEditProject={() => setProjectToEdit(null)} />;

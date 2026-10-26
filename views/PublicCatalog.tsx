@@ -59,6 +59,7 @@ interface CartItem {
   product: Product;
   quantity: number;
   price: number;
+  variationId?: string;
 }
 
 export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrderCreated }) => {
@@ -71,6 +72,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedVariationId, setSelectedVariationId] = useState<string | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [modalQty, setModalQty] = useState(1);
   const [addedItemFeedback, setAddedItemFeedback] = useState<string | null>(null);
@@ -195,6 +197,7 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
   useEffect(() => {
     if (selectedProduct) {
       setModalQty(selectedProduct.minOrderQuantity || 1);
+      setSelectedVariationId(null);
     }
   }, [selectedProduct]);
 
@@ -485,20 +488,20 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
 
-  const addToCart = (product: Product, price: number, qtyToAdd?: number) => {
+  const addToCart = (product: Product, price: number, qtyToAdd?: number, variationId?: string) => {
     const min = product.minOrderQuantity || 1;
     const addAmount = qtyToAdd !== undefined ? qtyToAdd : min;
 
     setCart(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
+      const existing = prev.find(item => item.product.id === product.id && item.variationId === variationId);
       if (existing) {
         return prev.map(item => 
-          item.product.id === product.id 
+          (item.product.id === product.id && item.variationId === variationId)
             ? { ...item, quantity: item.quantity + addAmount } 
             : item
         );
       }
-      return [...prev, { product, quantity: addAmount, price }];
+      return [...prev, { product, quantity: addAmount, price, variationId }];
     });
 
     // Feedback visual
@@ -508,9 +511,9 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     }, 1500);
   };
 
-  const updateQuantity = (productId: string, delta: number) => {
+  const updateQuantity = (productId: string, delta: number, variationId?: string) => {
     setCart(prev => prev.map(item => {
-      if (item.product.id === productId) {
+      if (item.product.id === productId && item.variationId === variationId) {
         const min = item.product.minOrderQuantity || 1;
         const newQty = Math.max(min, item.quantity + delta);
         return { ...item, quantity: newQty };
@@ -519,8 +522,8 @@ export const PublicCatalog: React.FC<PublicCatalogProps> = ({ userEmail, onOrder
     }));
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart(prev => prev.filter(item => item.product.id !== productId));
+  const removeFromCart = (productId: string, variationId?: string) => {
+    setCart(prev => prev.filter(item => !(item.product.id === productId && item.variationId === variationId)));
   };
 
   const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -1399,7 +1402,9 @@ ${deliveryDetails}
             {/* Galeria de Fotos */}
             <div className="w-full md:w-1/2 bg-pink-50/30 flex flex-col justify-between p-6 border-b md:border-b-0 md:border-r border-pink-100/60">
               {(() => {
-                const allImages = [selectedProduct.image, ...(selectedProduct.images || [])].filter(Boolean) as string[];
+                const selectedVariation = selectedProduct.variations?.find(v => v.id === selectedVariationId);
+                const variationImage = selectedVariation?.image;
+                const allImages = [selectedProduct.image, ...(selectedProduct.images || []), ...(variationImage ? [variationImage] : [])].filter(Boolean) as string[];
                 return (
                   <>
                     <div className="w-full aspect-square bg-white rounded-3xl overflow-hidden shadow-sm flex items-center justify-center relative p-2">
@@ -1461,6 +1466,36 @@ ${deliveryDetails}
                   </div>
                 )}
 
+                {/* Seletor de Variações */}
+                 {selectedProduct.variations && selectedProduct.variations.length > 0 && (
+                  <div className="mb-6">
+                    <span className="text-xs font-bold text-gray-600 block mb-3">Variação:</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {selectedProduct.variations.map(v => (
+                        <button
+                          key={v.id}
+                          onClick={() => setSelectedVariationId(v.id)}
+                          className={`p-3 rounded-2xl text-xs font-bold border-2 transition-all flex items-center gap-3 ${
+                            selectedVariationId === v.id
+                              ? 'border-pink-500 bg-pink-50 text-pink-700'
+                              : 'border-gray-100 bg-gray-50 text-gray-600 hover:border-gray-200'
+                          }`}
+                        >
+                          {v.image && <img src={v.image} alt={v.name} className="w-10 h-10 rounded-lg object-cover" />}
+                          <div className="flex-1 text-left">
+                            <span className="block">{v.name}</span>
+                            {selectedProduct.trackStock !== false && v.stockQuantity !== undefined && (
+                              <span className={`text-[10px] ${v.stockQuantity > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {v.stockQuantity > 0 ? `${v.stockQuantity} em estoque` : 'Esgotado'}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Seletor de Quantidade */}
                 <div className="mb-6 p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
                   <span className="text-xs font-bold text-gray-600">Quantidade:</span>
@@ -1488,7 +1523,8 @@ ${deliveryDetails}
               {/* Preço e Ações */}
               <div className="pt-4 border-t border-gray-100">
                 {(() => {
-                  const unitPrice = getProductPrice(selectedProduct);
+                  const basePrice = getProductPrice(selectedProduct);
+                  const unitPrice = basePrice;
                   const totalPrice = unitPrice * modalQty;
                   return (
                     <>
@@ -1515,7 +1551,7 @@ ${deliveryDetails}
                         {/* BOTÃO ADICIONAR AO CARRINHO (ROSA) */}
                         <button 
                           onClick={() => {
-                            addToCart(selectedProduct, unitPrice, modalQty);
+                            addToCart(selectedProduct, unitPrice, modalQty, selectedVariationId || undefined);
                             setSelectedProduct(null);
                           }}
                           className="py-3.5 px-4 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-pink-200/80 transition-all"
@@ -1600,7 +1636,14 @@ ${deliveryDetails}
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-black text-gray-800 truncate text-xs sm:text-sm">{item.product.name}</h4>
+                          <h4 className="font-black text-gray-800 truncate text-xs sm:text-sm">
+                            {item.product.name}
+                            {item.variationId && item.product.variations?.find(v => v.id === item.variationId)?.name && (
+                              <span className="text-[10px] text-gray-500 font-medium block">
+                                Variação: {item.product.variations.find(v => v.id === item.variationId)?.name}
+                              </span>
+                            )}
+                          </h4>
                           <p className="text-[10px] font-bold text-pink-500 uppercase tracking-wider mt-0.5">
                             R$ {item.price.toFixed(2)} / un
                           </p>
@@ -1608,7 +1651,7 @@ ${deliveryDetails}
                           <div className="flex items-center gap-3 mt-2">
                             <div className="flex items-center bg-white rounded-xl border border-gray-200 p-0.5">
                               <button 
-                                onClick={() => updateQuantity(item.product.id, -1)} 
+                                onClick={() => updateQuantity(item.product.id, -1, item.variationId)} 
                                 className="p-1 text-gray-400 hover:text-pink-600 transition-colors"
                                 title="Diminuir quantidade"
                               >
@@ -1616,7 +1659,7 @@ ${deliveryDetails}
                               </button>
                               <span className="w-7 text-center text-xs font-black text-gray-700">{item.quantity}</span>
                               <button 
-                                onClick={() => updateQuantity(item.product.id, 1)} 
+                                onClick={() => updateQuantity(item.product.id, 1, item.variationId)} 
                                 className="p-1 text-gray-400 hover:text-pink-600 transition-colors"
                                 title="Aumentar quantidade"
                               >

@@ -33,7 +33,14 @@ import {
   Scale,
   Users,
   FileText,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Store,
+  Banknote,
+  Receipt,
+  ShieldCheck,
+  AlertTriangle,
+  Calculator,
+  QrCode
 } from 'lucide-react';
 import { Transaction, Project, Material, Platform, CompanyData, CashClosure, Customer } from '../types';
 import { calculateProjectBreakdown } from '../utils';
@@ -77,6 +84,14 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
   const [closureEndDate, setClosureEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [closureNotes, setClosureNotes] = useState('');
   const [realBalance, setRealBalance] = useState<number | ''>('');
+
+  // Estados do Fechamento de Caixa do PDV
+  const [showPDVClosure, setShowPDVClosure] = useState(false);
+  const [pdvClosureDate, setPdvClosureDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [pdvInitialDrawer, setPdvInitialDrawer] = useState<number | ''>(0);
+  const [pdvCountedCash, setPdvCountedCash] = useState<number | ''>('');
+  const [pdvOperatorName, setPdvOperatorName] = useState('');
+  const [pdvNotes, setPdvNotes] = useState('');
   
   const [showPartialModal, setShowPartialModal] = useState(false);
   const [partialAmount, setPartialAmount] = useState<number | ''>('');
@@ -371,6 +386,246 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
       salesBreakdownList
     };
   }, [transactions, closureType, closureDate, closureStartDate, closureEndDate, projects, materials, platforms, companyData]);
+
+  // Cálculos dinâmicos para o Fechamento de Caixa do PDV
+  const pdvClosureStats = useMemo(() => {
+    const pdvTransactions = transactions.filter(t => {
+      if (t.closed) return false;
+      if (t.status === 'pending') return false;
+      if (t.type !== 'income') return false;
+      if (t.date !== pdvClosureDate) return false;
+      
+      const isPDV = 
+        t.category === 'Venda' || 
+        t.description.toLowerCase().includes('pdv') || 
+        t.id.toLowerCase().includes('pdv');
+      return isPDV;
+    });
+
+    let cashSalesTotal = 0;
+    let pixSalesTotal = 0;
+    let cardSalesTotal = 0;
+    let otherSalesTotal = 0;
+
+    pdvTransactions.forEach(t => {
+      const pm = (t.paymentMethod || '').toLowerCase();
+      if (pm.includes('dinheiro') || pm.includes('espécie') || pm.includes('especie')) {
+        cashSalesTotal += t.amount;
+      } else if (pm.includes('pix')) {
+        pixSalesTotal += t.amount;
+      } else if (pm.includes('cartão') || pm.includes('cartao') || pm.includes('débito') || pm.includes('debito') || pm.includes('crédito') || pm.includes('credito')) {
+        cardSalesTotal += t.amount;
+      } else {
+        otherSalesTotal += t.amount;
+      }
+    });
+
+    const totalSales = cashSalesTotal + pixSalesTotal + cardSalesTotal + otherSalesTotal;
+    const initialDrawer = Number(pdvInitialDrawer) || 0;
+    const expectedCashInDrawer = initialDrawer + cashSalesTotal;
+    const countedCash = pdvCountedCash === '' ? 0 : Number(pdvCountedCash);
+    const cashDifference = countedCash - expectedCashInDrawer;
+
+    return {
+      pdvTransactions,
+      count: pdvTransactions.length,
+      cashSalesTotal,
+      pixSalesTotal,
+      cardSalesTotal,
+      otherSalesTotal,
+      totalSales,
+      initialDrawer,
+      expectedCashInDrawer,
+      countedCash,
+      cashDifference
+    };
+  }, [transactions, pdvClosureDate, pdvInitialDrawer, pdvCountedCash]);
+
+  const handlePrintPDVClosure = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const formattedDate = new Date(pdvClosureDate + 'T00:00:00').toLocaleDateString('pt-BR');
+    const nowTime = new Date().toLocaleTimeString('pt-BR');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Fechamento de Caixa PDV - ${companyData.name}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inconsolata:wght@400;700;900&display=swap');
+            body { 
+              font-family: 'Inconsolata', monospace; 
+              width: 300px; 
+              margin: 0 auto; 
+              padding: 15px; 
+              color: #000;
+              font-size: 13px;
+              line-height: 1.3;
+            }
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .font-bold { font-weight: 700; }
+            .font-black { font-weight: 900; }
+            .divider { border-top: 1px dashed #000; margin: 10px 0; }
+            .double-divider { border-top: 2px solid #000; margin: 10px 0; }
+            .flex-between { display: flex; justify-content: space-between; margin-bottom: 4px; }
+            .title { font-size: 16px; font-weight: 900; margin: 0; text-transform: uppercase; }
+            @media print {
+              body { width: 100%; padding: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="text-center">
+            <h1 class="title">${companyData.name}</h1>
+            <div class="font-bold">FECHAMENTO DE CAIXA DO PDV</div>
+            <div style="font-size: 11px; margin-top: 4px;">Data Ref: ${formattedDate} | Hora: ${nowTime}</div>
+            ${pdvOperatorName ? `<div style="font-size: 11px;">Operador: ${pdvOperatorName}</div>` : ''}
+          </div>
+
+          <div class="double-divider"></div>
+
+          <div class="font-black text-center" style="letter-spacing: 1px; margin-bottom: 8px;">RESUMO DE VENDAS DO DIA</div>
+          
+          <div class="flex-between">
+            <span>Vendas em Dinheiro:</span>
+            <span class="font-bold">R$ ${pdvClosureStats.cashSalesTotal.toFixed(2)}</span>
+          </div>
+          <div class="flex-between">
+            <span>Vendas em PIX:</span>
+            <span class="font-bold">R$ ${pdvClosureStats.pixSalesTotal.toFixed(2)}</span>
+          </div>
+          <div class="flex-between">
+            <span>Vendas em Cartão:</span>
+            <span class="font-bold">R$ ${pdvClosureStats.cardSalesTotal.toFixed(2)}</span>
+          </div>
+          ${pdvClosureStats.otherSalesTotal > 0 ? `
+            <div class="flex-between">
+              <span>Outras Formas:</span>
+              <span class="font-bold">R$ ${pdvClosureStats.otherSalesTotal.toFixed(2)}</span>
+            </div>
+          ` : ''}
+
+          <div class="divider"></div>
+
+          <div class="flex-between font-black" style="font-size: 14px;">
+            <span>TOTAL VENDAS PDV:</span>
+            <span>R$ ${pdvClosureStats.totalSales.toFixed(2)}</span>
+          </div>
+          <div class="flex-between text-right" style="font-size: 10px; color: #555;">
+            <span>(${pdvClosureStats.count} atendimento(s) faturados)</span>
+          </div>
+
+          <div class="double-divider"></div>
+
+          <div class="font-black text-center" style="letter-spacing: 1px; margin-bottom: 8px;">CONFERÊNCIA DE GAVETA (DINHEIRO)</div>
+
+          <div class="flex-between">
+            <span>Troco Inicial (Fundo):</span>
+            <span>R$ ${pdvClosureStats.initialDrawer.toFixed(2)}</span>
+          </div>
+          <div class="flex-between">
+            <span>(+) Vendas em Dinheiro:</span>
+            <span>R$ ${pdvClosureStats.cashSalesTotal.toFixed(2)}</span>
+          </div>
+          <div class="divider"></div>
+          <div class="flex-between font-bold">
+            <span>Esperado na Gaveta:</span>
+            <span>R$ ${pdvClosureStats.expectedCashInDrawer.toFixed(2)}</span>
+          </div>
+          <div class="flex-between font-bold" style="margin-top: 4px;">
+            <span>Dinheiro Contado:</span>
+            <span>R$ ${pdvClosureStats.countedCash.toFixed(2)}</span>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="flex-between font-black" style="font-size: 13px;">
+            <span>DIFERENÇA:</span>
+            <span>
+              ${pdvClosureStats.cashDifference === 0 
+                ? 'R$ 0,00 (CORRETO)' 
+                : pdvClosureStats.cashDifference > 0 
+                  ? `+R$ ${pdvClosureStats.cashDifference.toFixed(2)} (SOBRA)` 
+                  : `-R$ ${Math.abs(pdvClosureStats.cashDifference).toFixed(2)} (FALTA)`}
+            </span>
+          </div>
+
+          ${pdvNotes ? `
+            <div class="divider"></div>
+            <div style="font-size: 11px;">
+              <strong>Observações:</strong><br>
+              ${pdvNotes}
+            </div>
+          ` : ''}
+
+          <div class="divider" style="margin-top: 30px;"></div>
+          <div class="text-center" style="margin-top: 25px;">
+            ____________________________________<br>
+            <span style="font-size: 10px;">Assinatura do Operador / Responsável</span>
+          </div>
+
+          <script>
+            window.onload = () => { setTimeout(() => { window.print(); }, 500); };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handleClosePDVCash = () => {
+    if (pdvCountedCash === '') {
+      alert('Por favor, informe o valor em dinheiro contado na gaveta!');
+      return;
+    }
+
+    if (!confirm(`Confirmar fechamento do Caixa do PDV para ${new Date(pdvClosureDate + 'T00:00:00').toLocaleDateString('pt-BR')}?\n\nTotal Vendas PDV: R$ ${pdvClosureStats.totalSales.toFixed(2)}\nDiferença em Gaveta: R$ ${pdvClosureStats.cashDifference.toFixed(2)}`)) return;
+
+    const newClosure: CashClosure = {
+      id: `pdv_closure_${Date.now()}`,
+      date: pdvClosureDate,
+      type: 'pdv',
+      startDate: pdvClosureDate,
+      endDate: pdvClosureDate,
+      systemBalance: pdvClosureStats.expectedCashInDrawer,
+      realBalance: pdvClosureStats.countedCash,
+      difference: pdvClosureStats.cashDifference,
+      laborAccumulated: 0,
+      profitAccumulated: 0,
+      totalSales: pdvClosureStats.totalSales,
+      initialDrawerBalance: pdvClosureStats.initialDrawer,
+      cashSalesTotal: pdvClosureStats.cashSalesTotal,
+      cardSalesTotal: pdvClosureStats.cardSalesTotal,
+      pixSalesTotal: pdvClosureStats.pixSalesTotal,
+      otherSalesTotal: pdvClosureStats.otherSalesTotal,
+      countedCashInDrawer: pdvClosureStats.countedCash,
+      cashDifference: pdvClosureStats.cashDifference,
+      operatorName: pdvOperatorName,
+      notes: pdvNotes,
+      closedAt: new Date().toISOString()
+    };
+
+    // Mark PDV sales as closed
+    const updatedTransactions = transactions.map(t => {
+      if (
+        t.date === pdvClosureDate &&
+        (t.category === 'Venda' || t.description.toLowerCase().includes('pdv') || t.id.toLowerCase().includes('pdv'))
+      ) {
+        return { ...t, closed: true };
+      }
+      return t;
+    });
+
+    setTransactions(updatedTransactions);
+    setClosures([newClosure, ...closures]);
+    setShowPDVClosure(false);
+    setPdvCountedCash('');
+    setPdvNotes('');
+    setPdvOperatorName('');
+    alert('Fechamento de Caixa do PDV concluído e registrado no histórico com sucesso!');
+  };
 
   const handleAddTransaction = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1111,6 +1366,13 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
         </div>
         <div className="flex flex-wrap gap-3">
           <button 
+            onClick={() => setShowPDVClosure(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg active:scale-95"
+          >
+            <Store size={20} />
+            Fechamento do PDV
+          </button>
+          <button 
             onClick={() => setShowClosure(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white font-black px-6 py-4 rounded-[2rem] flex items-center gap-2 transition-all shadow-lg active:scale-95"
           >
@@ -1727,6 +1989,211 @@ export const FinancialControl: React.FC<FinancialControlProps> = ({
                <button onClick={() => { setShowClosure(false); setClosureNotes(''); setRealBalance(''); }} className="flex-1 min-w-[180px] py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-gray-100 transition-all">
                  Fechar Relatório
                </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL FECHAMENTO DE CAIXA DO PDV */}
+      {showPDVClosure && (
+        <div className="fixed inset-0 bg-transparent z-50 animate-fadeIn flex items-start justify-center p-4 overflow-y-auto pt-10 md:pt-16">
+          <div 
+            className="absolute inset-0 bg-transparent" 
+            onClick={() => { setShowPDVClosure(false); setPdvNotes(''); }}
+          ></div>
+          <div className="bg-white w-full max-w-3xl rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] z-10 animate-scaleIn my-4">
+            {/* Header */}
+            <div className="bg-emerald-600 p-8 text-white flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white/20 rounded-2xl shadow-inner">
+                  <Store size={32} />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black">Fechamento de Caixa do PDV</h3>
+                  <p className="text-emerald-100 font-bold text-xs uppercase tracking-widest">
+                    Conferência de Gaveta, Troco e Formas de Pagamento do Ponto de Venda
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setShowPDVClosure(false); setPdvNotes(''); }} 
+                className="p-2 bg-white/20 hover:bg-white/40 rounded-full transition-all"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
+              {/* Filtros e Dados Iniciais */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-emerald-50/60 p-6 rounded-[2rem] border border-emerald-100">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Data do Turno PDV</label>
+                  <input 
+                    type="date" 
+                    className="w-full p-4 bg-white border border-emerald-200 rounded-2xl outline-none font-black text-gray-800 focus:ring-2 focus:ring-emerald-400"
+                    value={pdvClosureDate}
+                    onChange={e => setPdvClosureDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Fundo de Troco Inicial (R$)</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    placeholder="0.00"
+                    className="w-full p-4 bg-white border border-emerald-200 rounded-2xl outline-none font-black text-emerald-600 focus:ring-2 focus:ring-emerald-400"
+                    value={pdvInitialDrawer}
+                    onChange={e => setPdvInitialDrawer(e.target.value === '' ? '' : Number(e.target.value))}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Operador / Responsável</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Maria Ateliê"
+                    className="w-full p-4 bg-white border border-emerald-200 rounded-2xl outline-none font-bold text-gray-800 focus:ring-2 focus:ring-emerald-400 text-sm"
+                    value={pdvOperatorName}
+                    onChange={e => setPdvOperatorName(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Resumo de Vendas por Forma de Pagamento */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                  <Receipt size={18} className="text-emerald-600" />
+                  Vendas do PDV no Dia ({pdvClosureStats.count} atendimento{pdvClosureStats.count !== 1 ? 's' : ''})
+                </h4>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                      <Banknote size={14} className="text-green-500" /> Dinheiro
+                    </span>
+                    <p className="text-xl font-black text-gray-800 mt-2">R$ {pdvClosureStats.cashSalesTotal.toFixed(2)}</p>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                      <QrCode size={14} className="text-teal-500" /> Pix
+                    </span>
+                    <p className="text-xl font-black text-teal-600 mt-2">R$ {pdvClosureStats.pixSalesTotal.toFixed(2)}</p>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                      <CreditCard size={14} className="text-blue-500" /> Cartão
+                    </span>
+                    <p className="text-xl font-black text-blue-600 mt-2">R$ {pdvClosureStats.cardSalesTotal.toFixed(2)}</p>
+                  </div>
+
+                  <div className="bg-emerald-500 text-white p-5 rounded-2xl shadow-lg shadow-emerald-100 flex flex-col justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider opacity-80">
+                      Total Faturado PDV
+                    </span>
+                    <p className="text-2xl font-black mt-2">R$ {pdvClosureStats.totalSales.toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Conferência da Gaveta de Dinheiro */}
+              <div className="bg-gray-900 text-white p-8 rounded-[2.5rem] shadow-xl space-y-6">
+                <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-2xl">
+                      <Calculator size={24} />
+                    </div>
+                    <div>
+                      <h4 className="text-base font-black text-white">Conferência Física de Dinheiro (Gaveta)</h4>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Compare o valor esperado com a contagem real</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                  <div className="bg-white/5 p-5 rounded-2xl border border-white/10">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Esperado na Gaveta</p>
+                    <p className="text-2xl font-black text-white mt-1">R$ {pdvClosureStats.expectedCashInDrawer.toFixed(2)}</p>
+                    <p className="text-[9px] text-gray-400 mt-1">Troco Inicial (R$ {pdvClosureStats.initialDrawer.toFixed(2)}) + Dinheiro (R$ {pdvClosureStats.cashSalesTotal.toFixed(2)})</p>
+                  </div>
+
+                  <div className="bg-white/10 p-5 rounded-2xl border-2 border-emerald-400/50">
+                    <label className="text-[10px] font-black text-emerald-300 uppercase tracking-widest block mb-1">
+                      Dinheiro Contado na Gaveta (R$)
+                    </label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      placeholder="0.00"
+                      autoFocus
+                      className="w-full text-2xl font-black text-emerald-300 bg-transparent outline-none border-b border-emerald-400/30 pb-1 focus:border-emerald-400 transition-colors"
+                      value={pdvCountedCash}
+                      onChange={e => setPdvCountedCash(e.target.value === '' ? '' : Number(e.target.value))}
+                    />
+                    <p className="text-[9px] text-gray-400 mt-1">Digite o valor físico apurado</p>
+                  </div>
+
+                  <div className={`p-5 rounded-2xl border ${
+                    pdvClosureStats.cashDifference === 0 
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' 
+                      : pdvClosureStats.cashDifference > 0 
+                        ? 'bg-blue-500/20 border-blue-500/40 text-blue-300' 
+                        : 'bg-red-500/20 border-red-500/40 text-red-300'
+                  }`}>
+                    <p className="text-[10px] font-black uppercase tracking-wider opacity-80">Balanço / Diferença</p>
+                    <p className="text-2xl font-black mt-1">
+                      {pdvClosureStats.cashDifference === 0 
+                        ? 'R$ 0,00' 
+                        : pdvClosureStats.cashDifference > 0 
+                          ? `+R$ ${pdvClosureStats.cashDifference.toFixed(2)}` 
+                          : `-R$ ${Math.abs(pdvClosureStats.cashDifference).toFixed(2)}`}
+                    </p>
+                    <p className="text-[10px] font-bold mt-1 uppercase tracking-widest">
+                      {pdvClosureStats.cashDifference === 0 
+                        ? '✅ CAIXA 100% EXATO' 
+                        : pdvClosureStats.cashDifference > 0 
+                          ? '🔷 SOBRA NO CAIXA' 
+                          : '⚠️ FALTA NO CAIXA'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Observações */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Observações do Turno</label>
+                <textarea 
+                  className="w-full p-5 bg-gray-50 border border-gray-100 rounded-[2rem] outline-none font-medium text-gray-700 text-sm min-h-[90px] resize-none focus:bg-white focus:border-emerald-200 transition-all"
+                  placeholder="Anotações sobre desvio de troco, sangrias ou ocorrências no PDV..."
+                  value={pdvNotes}
+                  onChange={e => setPdvNotes(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Footer buttons */}
+            <div className="p-8 bg-gray-50 border-t border-gray-100 flex flex-wrap gap-4 shrink-0">
+              <button 
+                onClick={handlePrintPDVClosure} 
+                className="flex-1 min-w-[160px] py-4 bg-gray-800 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition-all flex items-center justify-center gap-2"
+              >
+                <Printer size={16} /> Imprimir Comprovante
+              </button>
+              <button 
+                onClick={handleClosePDVCash} 
+                className="flex-1 min-w-[160px] py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+              >
+                <CheckCircle2 size={16} /> Finalizar Fechamento PDV
+              </button>
+              <button 
+                onClick={() => { setShowPDVClosure(false); setPdvNotes(''); setPdvCountedCash(''); }} 
+                className="py-4 px-6 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-gray-100 transition-all"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
