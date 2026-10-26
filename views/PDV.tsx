@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { Product, Customer, Material, CompanyData, Project, Transaction, Platform, ProductVariation } from '../types';
 import { generatePixCopiaECola, buildWhatsAppLink } from '../utils';
+import { BarcodeScanner } from '../components/BarcodeScanner';
 
 export interface CartItem {
   id: string;
@@ -96,6 +97,7 @@ export const PDV: React.FC<PDVProps> = ({
 
   // Leitor de Código de Barras
   const [barcodeInput, setBarcodeInput] = useState('');
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [barcodeScanFeedback, setBarcodeScanFeedback] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -197,6 +199,7 @@ export const PDV: React.FC<PDVProps> = ({
 
   // Atalhos de Teclado (F2 para finalizar, Esc para fechar modal)
   useEffect(() => {
+    if (barcodeInputRef.current) barcodeInputRef.current.focus();
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
         e.preventDefault();
@@ -207,6 +210,11 @@ export const PDV: React.FC<PDVProps> = ({
         if (showPaymentModal) setShowPaymentModal(false);
         if (showCustomItemModal) setShowCustomItemModal(false);
         if (showNewCustomerModal) setShowNewCustomerModal(false);
+      } else {
+        // Se qualquer outra tecla for pressionada e não estivermos num input, foca o leitor
+        if (barcodeInputRef.current && document.activeElement?.tagName !== 'INPUT') {
+            barcodeInputRef.current.focus();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -326,12 +334,15 @@ export const PDV: React.FC<PDVProps> = ({
         setTimeout(() => setBarcodeScanFeedback(null), 3000);
       }
       setBarcodeInput('');
+      barcodeInputRef.current?.focus();
     } else {
       setBarcodeScanFeedback({
         type: 'error',
         message: `⚠️ Código de barras "${cleanCode}" não foi encontrado!`
       });
       setTimeout(() => setBarcodeScanFeedback(null), 4000);
+      setBarcodeInput('');
+      barcodeInputRef.current?.focus();
     }
   };
 
@@ -777,30 +788,40 @@ export const PDV: React.FC<PDVProps> = ({
                 <input
                   ref={barcodeInputRef}
                   type="text"
-                  placeholder="Leitor de Código de Barras / Bipar SKU (Aperte Enter)..."
+                  placeholder="Bipar SKU..."
                   value={barcodeInput}
                   onChange={(e) => setBarcodeInput(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-purple-50/50 border border-purple-200 rounded-xl text-xs font-bold text-purple-950 placeholder-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:bg-white transition-all font-mono"
                 />
-                {barcodeInput && (
-                  <button
-                    type="button"
-                    onClick={() => setBarcodeInput('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 hover:text-purple-600 p-1"
-                  >
-                    <X size={15} />
-                  </button>
-                )}
               </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCameraOpen(!isCameraOpen)}
+                className={`p-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-sm transition-all shrink-0 cursor-pointer ${isCameraOpen ? 'bg-red-100 text-red-600' : 'bg-purple-100 text-purple-600'}`}
+                title={isCameraOpen ? "Fechar Câmera" : "Escanear via Câmera"}
+              >
+                <QrCode size={16} />
+              </button>
 
               <button
                 type="submit"
                 className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all shrink-0 cursor-pointer"
               >
-                <QrCode size={16} />
                 <span>Bipar</span>
               </button>
             </form>
+
+            {isCameraOpen && (
+              <BarcodeScanner
+                onResult={(result) => {
+                  setBarcodeInput(result);
+                  setIsCameraOpen(false);
+                  // Trigger scan immediately with new input
+                  setTimeout(() => handleBarcodeScan(), 100);
+                }}
+              />
+            )}
 
             {barcodeScanFeedback && (
               <div className={`p-2.5 rounded-xl text-xs font-black flex items-center gap-2 animate-fadeIn ${
