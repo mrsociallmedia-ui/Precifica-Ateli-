@@ -97,7 +97,10 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
   };
 
   const handlePrint = () => {
-    window.print();
+    // Pequeno delay para garantir que todos os códigos de barras foram renderizados na área de impressão
+    setTimeout(() => {
+      window.print();
+    }, 300);
   };
 
   return (
@@ -278,20 +281,43 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
 
       {/* ÁREA EXCLUSIVA DE IMPRESSÃO (CSS PRINT LAYOUT) */}
       <style>{`
+        @media screen {
+          #barcode-print-area {
+            display: none;
+          }
+        }
         @media print {
           body * {
             visibility: hidden;
+            display: none !important;
           }
           #barcode-print-area, #barcode-print-area * {
-            visibility: visible;
+            visibility: visible !important;
+            display: block !important;
           }
           #barcode-print-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            padding: 10px;
-            background: white;
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 12px !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            padding: 10px !important;
+            background: white !important;
+          }
+          .barcode-label-card {
+            border: 1px solid #ddd !important;
+            padding: 8px !important;
+            text-align: center !important;
+            border-radius: 8px !important;
+            background: white !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            height: 120px !important;
+            page-break-inside: avoid !important;
           }
           .no-print {
             display: none !important;
@@ -299,35 +325,33 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
         }
       `}</style>
 
-      <div id="barcode-print-area" className="hidden print:block font-sans">
-        <div className="grid grid-cols-3 gap-3 p-4">
-          {variations.flatMap((v, idx) => {
-            const count = printQuantities[v.id] || 1;
-            const code = v.sku || generateDefaultCode(product.id, v.id, idx);
-            const basePrice = product.marketPrice || 0;
-            const finalPrice = basePrice + (v.priceAdjustment || 0);
+      <div id="barcode-print-area" className="font-sans">
+        {variations.flatMap((v, idx) => {
+          const count = printQuantities[v.id] || 1;
+          const code = v.sku || generateDefaultCode(product.id, v.id, idx);
+          const basePrice = product.marketPrice || 0;
+          const finalPrice = basePrice + (v.priceAdjustment || 0);
 
-            return Array.from({ length: count }).map((_, i) => (
-              <div
-                key={`${v.id}-${i}`}
-                className="border border-gray-300 p-2 text-center rounded-lg bg-white flex flex-col justify-between items-center h-[120px] page-break-inside-avoid"
-              >
-                <p className="text-[9px] font-black uppercase text-gray-800 truncate w-full">
-                  {product.name}
-                </p>
-                <p className="text-[9px] font-bold text-pink-600 uppercase truncate w-full">
-                  {v.name}
-                </p>
-                <div className="my-1 scale-90">
-                  <BarcodeSvg value={code} height={35} fontSize={9} />
-                </div>
-                <p className="text-[10px] font-black text-gray-900 font-mono">
-                  R$ {finalPrice.toFixed(2)}
-                </p>
+          return Array.from({ length: count }).map((_, i) => (
+            <div
+              key={`${v.id}-${i}`}
+              className="barcode-label-card"
+            >
+              <p className="text-[9px] font-black uppercase text-gray-800 truncate w-full">
+                {product.name}
+              </p>
+              <p className="text-[9px] font-bold text-pink-600 uppercase truncate w-full">
+                {v.name}
+              </p>
+              <div className="my-1 scale-90">
+                <BarcodeSvg value={code} height={35} fontSize={9} />
               </div>
-            ));
-          })}
-        </div>
+              <p className="text-[10px] font-black text-gray-900 font-mono">
+                R$ {finalPrice.toFixed(2)}
+              </p>
+            </div>
+          ));
+        })}
       </div>
     </div>
   );

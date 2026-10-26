@@ -8,11 +8,11 @@ interface BarcodeScannerProps {
 
 export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onError }) => {
   const { ref } = useZxing({
-    onResult(result) {
+    onDecodeResult(result) {
       onResult(result.getText());
     },
-    onError(error) {
-      if (onError) onError(error);
+    onError(error: any) {
+      if (onError) onError(error instanceof Error ? error : new Error(String(error)));
     },
   });
 
