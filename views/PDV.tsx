@@ -130,6 +130,9 @@ export const PDV: React.FC<PDVProps> = ({
   const [recordFinance, setRecordFinance] = useState(true);
   const [copiedPix, setCopiedPix] = useState(false);
 
+  // Modal de Ajuda do Leitor de Código de Barras
+  const [showHelpModal, setShowHelpModal] = useState(false);
+
   // Modal de Venda Concluída com Recibo
   const [completedSale, setCompletedSale] = useState<{
     saleId: string;
@@ -752,6 +755,13 @@ export const PDV: React.FC<PDVProps> = ({
               <h1 className="text-xl md:text-2xl font-black text-gray-800 tracking-tight">
                 PDV — Frente de Caixa
               </h1>
+              <button
+                onClick={() => setShowHelpModal(true)}
+                className="p-1.5 rounded-lg text-pink-400 hover:text-pink-600 hover:bg-pink-50 transition-colors"
+                title="Ajuda / Como habilitar o leitor"
+              >
+                <HelpCircle size={20} />
+              </button>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-200">
                 Balcão & Vendas Rápidas
               </span>
@@ -1902,6 +1912,81 @@ export const PDV: React.FC<PDVProps> = ({
             >
               <RotateCcw size={16} />
               Iniciar Nova Venda
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Ajuda / Instruções de Câmera */}
+      {showHelpModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full border border-pink-100 shadow-2xl space-y-6 animate-scaleIn relative">
+            <button
+              onClick={() => setShowHelpModal(false)}
+              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex items-center gap-4 border-b border-pink-50 pb-4">
+              <div className="w-12 h-12 rounded-2xl bg-pink-50 text-pink-500 flex items-center justify-center shrink-0">
+                <HelpCircle size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-gray-800 tracking-tight">Ajuda: Leitor de Código de Barras</h3>
+                <p className="text-xs text-gray-500 font-medium">Como habilitar permissões de câmera</p>
+              </div>
+            </div>
+
+            <div className="space-y-6 py-2 overflow-y-auto max-h-[60vh] custom-scrollbar">
+              {/* Navegador */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-pink-600">
+                  <Store size={18} />
+                  <h4 className="font-bold text-sm">No Navegador (Chrome, Safari, Edge)</h4>
+                </div>
+                <ul className="text-xs text-gray-600 space-y-2 ml-6 list-disc font-medium">
+                  <li>Clique no <strong>ícone de câmera ou cadeado</strong> na barra de endereço (onde fica o site).</li>
+                  <li>Selecione a opção <strong>&quot;Permitir&quot;</strong> para o uso da Câmera.</li>
+                  <li>Caso não apareça, vá em <strong>Configurações do Site</strong> &rarr; <strong>Câmera</strong> &rarr; e mude para <strong>Permitir</strong>.</li>
+                  <li>Recarregue a página após alterar a permissão.</li>
+                </ul>
+              </div>
+
+              {/* Android */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-emerald-600">
+                  <Zap size={18} />
+                  <h4 className="font-bold text-sm">No Android (Celular)</h4>
+                </div>
+                <ul className="text-xs text-gray-600 space-y-2 ml-6 list-disc font-medium">
+                  <li>Abra as <strong>Configurações</strong> do seu celular.</li>
+                  <li>Vá em <strong>Aplicativos</strong> &rarr; procure pelo seu <strong>Navegador</strong> (ex: Chrome).</li>
+                  <li>Toque em <strong>Permissões</strong> &rarr; <strong>Câmera</strong>.</li>
+                  <li>Selecione <strong>&quot;Permitir durante o uso do app&quot;</strong>.</li>
+                  <li><em>Dica:</em> Se estiver usando como PWA (app instalado), procure o ícone do app nas configurações de aplicativos.</li>
+                </ul>
+              </div>
+
+              {/* iOS */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-blue-600">
+                  <FileText size={18} />
+                  <h4 className="font-bold text-sm">No iPhone/iOS (Safari)</h4>
+                </div>
+                <ul className="text-xs text-gray-600 space-y-2 ml-6 list-disc font-medium">
+                  <li>Vá em <strong>Ajustes</strong> &rarr; <strong>Safari</strong>.</li>
+                  <li>Role até o final e toque em <strong>Câmera</strong>.</li>
+                  <li>Selecione a opção <strong>Permitir</strong> ou <strong>Perguntar</strong>.</li>
+                </ul>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowHelpModal(false)}
+              className="w-full py-3.5 bg-gray-900 hover:bg-black text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2"
+            >
+              Entendi, fechar ajuda
             </button>
           </div>
         </div>
