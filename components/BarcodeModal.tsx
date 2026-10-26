@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Printer, Download, RefreshCw, Copy, Check, Tag, Package, Sparkles, QrCode } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
 import { Product, ProductVariation } from '../types';
@@ -283,37 +284,36 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
       <style>{`
         @media screen {
           #barcode-print-area {
-            position: absolute;
-            left: -9999px;
-            top: -9999px;
-            opacity: 0;
-            pointer-events: none;
+            display: none !important;
           }
         }
         @media print {
+          /* Esconde o app principal para que apenas o print-area apareça */
+          #root {
+            display: none !important;
+          }
+          
           @page {
-            margin: 10mm;
+            margin: 8mm;
             size: portrait;
           }
-          body * {
-            visibility: hidden;
+
+          body {
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
-          #barcode-print-area, #barcode-print-area * {
-            visibility: visible !important;
-          }
+
           #barcode-print-area {
             display: grid !important;
             grid-template-columns: repeat(3, 1fr) !important;
-            gap: 15px !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            gap: 10px !important;
             width: 100% !important;
-            padding: 0 !important;
-            background: white !important;
+            visibility: visible !important;
           }
+
           .barcode-label-card {
-            border: 1px solid #eee !important;
+            border: 1px solid #ddd !important;
             padding: 10px !important;
             text-align: center !important;
             border-radius: 8px !important;
@@ -322,40 +322,50 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
             flex-direction: column !important;
             justify-content: space-between !important;
             align-items: center !important;
-            height: 130px !important;
+            height: 120px !important;
             page-break-inside: avoid !important;
+            margin-bottom: 5px !important;
+          }
+
+          /* Força as cores na impressão */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
       `}</style>
 
-      <div id="barcode-print-area" className="font-sans">
-        {variations.flatMap((v, idx) => {
-          const count = printQuantities[v.id] || 1;
-          const code = v.sku || generateDefaultCode(product.id, v.id, idx);
-          const basePrice = product.marketPrice || 0;
-          const finalPrice = basePrice + (v.priceAdjustment || 0);
+      {createPortal(
+        <div id="barcode-print-area" className="font-sans">
+          {variations.flatMap((v, idx) => {
+            const count = printQuantities[v.id] || 1;
+            const code = v.sku || generateDefaultCode(product.id, v.id, idx);
+            const basePrice = product.marketPrice || 0;
+            const finalPrice = basePrice + (v.priceAdjustment || 0);
 
-          return Array.from({ length: count }).map((_, i) => (
-            <div
-              key={`${v.id}-${i}`}
-              className="barcode-label-card"
-            >
-              <p className="text-[10px] font-black uppercase text-gray-800 truncate w-full mb-1">
-                {product.name}
-              </p>
-              <p className="text-[9px] font-bold text-pink-600 uppercase truncate w-full mb-1">
-                {v.name}
-              </p>
-              <div className="flex-1 flex items-center justify-center w-full py-1">
-                <BarcodeSvg value={code} height={40} fontSize={10} />
+            return Array.from({ length: count }).map((_, i) => (
+              <div
+                key={`${v.id}-${i}`}
+                className="barcode-label-card"
+              >
+                <p className="text-[10px] font-black uppercase text-gray-800 truncate w-full mb-1">
+                  {product.name}
+                </p>
+                <p className="text-[9px] font-bold text-pink-600 uppercase truncate w-full mb-1">
+                  {v.name}
+                </p>
+                <div className="flex-1 flex items-center justify-center w-full py-1">
+                  <BarcodeSvg value={code} height={40} fontSize={10} />
+                </div>
+                <p className="text-[11px] font-black text-gray-900 font-mono mt-1">
+                  R$ {finalPrice.toFixed(2)}
+                </p>
               </div>
-              <p className="text-[11px] font-black text-gray-900 font-mono mt-1">
-                R$ {finalPrice.toFixed(2)}
-              </p>
-            </div>
-          ));
-        })}
-      </div>
+            ));
+          })}
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
