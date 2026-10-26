@@ -283,32 +283,38 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
       <style>{`
         @media screen {
           #barcode-print-area {
-            display: none;
+            position: absolute;
+            left: -9999px;
+            top: -9999px;
+            opacity: 0;
+            pointer-events: none;
           }
         }
         @media print {
+          @page {
+            margin: 10mm;
+            size: portrait;
+          }
           body * {
             visibility: hidden;
-            display: none !important;
           }
           #barcode-print-area, #barcode-print-area * {
             visibility: visible !important;
-            display: block !important;
           }
           #barcode-print-area {
             display: grid !important;
             grid-template-columns: repeat(3, 1fr) !important;
-            gap: 12px !important;
+            gap: 15px !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
-            padding: 10px !important;
+            padding: 0 !important;
             background: white !important;
           }
           .barcode-label-card {
-            border: 1px solid #ddd !important;
-            padding: 8px !important;
+            border: 1px solid #eee !important;
+            padding: 10px !important;
             text-align: center !important;
             border-radius: 8px !important;
             background: white !important;
@@ -316,11 +322,8 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
             flex-direction: column !important;
             justify-content: space-between !important;
             align-items: center !important;
-            height: 120px !important;
+            height: 130px !important;
             page-break-inside: avoid !important;
-          }
-          .no-print {
-            display: none !important;
           }
         }
       `}</style>
@@ -337,16 +340,16 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
               key={`${v.id}-${i}`}
               className="barcode-label-card"
             >
-              <p className="text-[9px] font-black uppercase text-gray-800 truncate w-full">
+              <p className="text-[10px] font-black uppercase text-gray-800 truncate w-full mb-1">
                 {product.name}
               </p>
-              <p className="text-[9px] font-bold text-pink-600 uppercase truncate w-full">
+              <p className="text-[9px] font-bold text-pink-600 uppercase truncate w-full mb-1">
                 {v.name}
               </p>
-              <div className="my-1 scale-90">
-                <BarcodeSvg value={code} height={35} fontSize={9} />
+              <div className="flex-1 flex items-center justify-center w-full py-1">
+                <BarcodeSvg value={code} height={40} fontSize={10} />
               </div>
-              <p className="text-[10px] font-black text-gray-900 font-mono">
+              <p className="text-[11px] font-black text-gray-900 font-mono mt-1">
                 R$ {finalPrice.toFixed(2)}
               </p>
             </div>
